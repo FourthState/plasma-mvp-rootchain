@@ -1,8 +1,10 @@
-pragma solidity 0.4.18;
-import 'SafeMath.sol';
+pragma solidity ^0.4.18;
+import 'zeppelin-solidity/contracts/math/SafeMath.sol';
 
 contract PriorityQueue {
     using SafeMath for uint256;
+
+    //TODO: refactor and allow for contract to traverse through PQ and delete a node given its priority and exit ID.
 
     /*
      *  Modifiers

@@ -1,6 +1,6 @@
-pragma solidity 0.4.18;
+pragma solidity ^0.4.18;
 import './ByteUtils.sol';
-import './ECRecovery.sol';
+import 'zeppelin-solidity/contracts/ECRecovery.sol';
 
 
 library Validate {

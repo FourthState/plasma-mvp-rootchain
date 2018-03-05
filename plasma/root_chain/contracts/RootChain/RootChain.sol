@@ -1,10 +1,11 @@
-pragma solidity 0.4.18;
-import 'SafeMath.sol';
-import 'Math.sol';
-import 'RLP.sol';
-import 'Merkle.sol';
-import 'Validate.sol';
-import 'PriorityQueue.sol';
+pragma solidity ^0.4.18;
+import 'zeppelin-solidity/contracts/math/SafeMath.sol';
+import 'zeppelin-solidity/contracts/math/Math.sol';
+import '../Libraries/RLP.sol';
+import '../Libraries/Merkle.sol';
+import 'zeppelin-solidity/contracts/MerkleProof.sol';
+import '../Libraries/Validate.sol';
+import '../DataStructures/PriorityQueue.sol';
 
 
 contract RootChain {
@@ -13,6 +14,10 @@ contract RootChain {
     using RLP for RLP.RLPItem;
     using RLP for RLP.Iterator;
     using Merkle for bytes32;
+
+    //TODO: Refactor submit block to have block number included. Aggregate signatures for start exit. Create Withdraw method.
+    //TODO: Create reward system to incentivize fraud proofs
+    //TODO: Create efficient fraud proofs for invalid blocks and slash block proposer
 
     /*
      * Events
@@ -138,7 +143,7 @@ contract RootChain {
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
         uint256 priority = 1000000000 + txPos[1] * 10000 + txPos[2];
         uint256 exitId = txPos[0].mul(priority);
-        priority = priority.mul(Math.max(txPos[0], weekOldBlock));
+        priority = priority.mul(Math.max256(txPos[0], weekOldBlock));
         require(exitIds[exitId] == 0);
         require(exits[priority].amount == 0);
         exitIds[exitId] = priority;
