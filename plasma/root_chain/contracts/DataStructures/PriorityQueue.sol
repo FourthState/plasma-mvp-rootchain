@@ -1,5 +1,5 @@
 pragma solidity ^0.4.18;
-import 'zeppelin-solidity/contracts/math/SafeMath.sol';
+import '../Libraries/SafeMath.sol';
 
 contract PriorityQueue {
     using SafeMath for uint256;
