@@ -37,10 +37,14 @@ contract RootChain {
     uint256 public lastParentBlock;
     uint256 public recentBlock;
     uint256 public weekOldBlock;
+    uint256 minExitBond; //this is a percentage out of 100 that user must stake to exit. Currently not implemented.
+    // Challenge Bond may be removed since gas cost may provide enough disincentive
+    uint256 minChallengeBond; //this is fixed bond to challenge. Used to discourage spamming.
 
     struct exit {
         address owner;
         uint256 amount;
+        uint256 bond;
         uint256[3] utxoPos;
     }
 
@@ -73,6 +77,8 @@ contract RootChain {
         currentChildBlock = 1;
         lastParentBlock = block.number;
         exitsQueue = new PriorityQueue();
+        minExitBond = 5; // 5% of UTXO
+        minChallengBond = 2000; //2000 Wei to challenge. Needs tuning
     }
 
     function submitBlock(bytes32 root)
@@ -132,6 +138,7 @@ contract RootChain {
 
     function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
         public
+        payable
         incrementOldBlocks
     {
         var txList = txBytes.toRLPItem().toList();
@@ -152,13 +159,16 @@ contract RootChain {
         exits[priority] = exit({
             owner: txList[6 + 2 * txPos[2]].toAddress(),
             amount: txList[7 + 2 * txPos[2]].toUint(),
+            bond: msg.value,
             utxoPos: txPos
         });
     }
 
     function challengeExit(uint256 exitId, uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
         public
+        payable
     {
+        require(msg.value > minChallengeBond);
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
         uint256 priority = exitIds[exitId];
@@ -172,6 +182,7 @@ contract RootChain {
         address owner = exits[priority].owner;
         require(owner == ECRecovery.recover(confirmationHash, confirmationSig));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
+        msg.sender.transfer(exits[priority].bond);
         delete exits[priority];
         delete exitIds[exitId];
     }
@@ -186,11 +197,15 @@ contract RootChain {
         while (childChain[currentExit.utxoPos[0]].created_at < twoWeekOldTimestamp && exitsQueue.currentSize() > 0) {
             // return childChain[currentExit.utxoPos[0]].created_at;
             uint256 exitId = currentExit.utxoPos[0] * 1000000000 + currentExit.utxoPos[1] * 10000 + currentExit.utxoPos[2];
-            currentExit.owner.transfer(currentExit.amount);
+            currentExit.owner.transfer(currentExit.amount + currentExit.bond);
             uint256 priority = exitsQueue.delMin();
             delete exits[priority];
             delete exitIds[exitId];
             currentExit = exits[exitsQueue.getMin()];
         }
+    }
+
+    function donate() public payable { //Used for testing purposes. Will remove in production
+        return;
     }
 }
