@@ -37,9 +37,11 @@ contract RootChain {
     uint256 public lastParentBlock;
     uint256 public recentBlock;
     uint256 public weekOldBlock;
-    uint256 minExitBond; //this is a percentage out of 100 that user must stake to exit. Currently not implemented.
+    uint256 minExitBond; //this is a percentage out of 100 that user must stake to exit.
     // Challenge Bond may be removed since gas cost may provide enough disincentive
     uint256 minChallengeBond; //this is fixed bond to challenge. Used to discourage spamming.
+
+    bytes32[16] zeroHashes;
 
     struct exit {
         address owner;
@@ -78,7 +80,12 @@ contract RootChain {
         lastParentBlock = block.number;
         exitsQueue = new PriorityQueue();
         minExitBond = 5; // 5% of UTXO
-        minChallengBond = 2000; //2000 Wei to challenge. Needs tuning
+        minChallengeBond = 2000; //2000 Wei to challenge. Needs tuning
+        bytes32 intermediate;
+        for (uint256 i = 0; i < 16; i += 1) {
+            zeroHashes[i] = intermediate;
+            intermediate = keccak256(intermediate, intermediate);
+        }
     }
 
     function submitBlock(bytes32 root)
@@ -96,6 +103,29 @@ contract RootChain {
     }
 
     function deposit(bytes txBytes)
+        public
+        payable
+    {
+        var txList = txBytes.toRLPItem().toList();
+        require(txList.length == 11);
+        for (uint256 i; i < 6; i++) {
+            require(txList[i].toUint() == 0);
+        }
+        require(txList[7].toUint() == msg.value);
+        require(txList[9].toUint() == 0);
+        bytes32 root = keccak256(keccak256(txBytes), new bytes(130));
+        for (i = 0; i < 16; i++) {
+            root = keccak256(root, zeroHashes[i]);
+        }
+        childChain[currentChildBlock] = childBlock({
+            root: root,
+            created_at: block.timestamp
+        });
+        currentChildBlock = currentChildBlock.add(1);
+        Deposit(txList[6].toAddress(), txList[7].toUint());
+    }
+
+    function slowDeposit(bytes txBytes)
         public
         payable
     {
@@ -144,6 +174,7 @@ contract RootChain {
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
         require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());
+        require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * minExitBond / 100);
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
         uint256 inputCount = txList[3].toUint() * 1000000 + txList[0].toUint();
