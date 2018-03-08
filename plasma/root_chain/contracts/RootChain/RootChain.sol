@@ -74,7 +74,8 @@ contract RootChain {
         lastParentBlock = block.number;
         exitsQueue = new PriorityQueue();
     }
-
+    /// @param root 32 byte merkleRoot of ChildChain block 
+    /// @notice childChain blocks can only be submitted at most every 6 root chain blocks
     function submitBlock(bytes32 root)
         public
         isAuthority
@@ -89,6 +90,9 @@ contract RootChain {
         lastParentBlock = block.number;
     }
 
+    /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
+    /// @notice owner and value should be encoded in Output 1 
+    /// @notice hash of txBytes is hashed with a empty signature 
     function deposit(bytes txBytes)
         public
         payable
@@ -130,6 +134,11 @@ contract RootChain {
         return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos);
     }
 
+    /// @param txPos[0] Plasma block number in which the transaction occured
+    /// @param txPos[1] Transaction Index within the block
+    /// @param txPos[2] Output Index within the transaction (either 0 or 1)
+    /// @param sigs First 130 bytes are signature of transaction and the rest is confirm signature
+    /// @notice Each signature is 65 bytes
     function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
         public
         incrementOldBlocks
@@ -156,6 +165,9 @@ contract RootChain {
         });
     }
 
+    /// @param txPos[0] Plasma block number in which the challenger's transaction occured
+    /// @param txPos[1] Transaction Index within the block
+    /// @param txPos[2] Output Index within the transaction (either 0 or 1)
     function challengeExit(uint256 exitId, uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
         public
     {
