@@ -207,7 +207,4 @@ contract RootChain {
         }
     }
 
-    function donate() public payable { //Used for testing purposes. Will remove in production
-        return;
-    }
 }
