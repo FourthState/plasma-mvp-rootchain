@@ -273,7 +273,7 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 2538,
+                      "referencedDeclaration": 2556,
                       "src": "255:7:7",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$returns$__$",
@@ -845,7 +845,7 @@
                       "name": "keccak256",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 2529,
+                      "referencedDeclaration": 2547,
                       "src": "525:9:7",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_sha3_pure$__$returns$_t_bytes32_$",
@@ -949,7 +949,7 @@
                               "name": "msg",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 2535,
+                              "referencedDeclaration": 2553,
                               "src": "616:3:7",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_magic_message",
@@ -2393,7 +2393,7 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 2538,
+                      "referencedDeclaration": 2556,
                       "src": "255:7:7",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$returns$__$",
@@ -2965,7 +2965,7 @@
                       "name": "keccak256",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 2529,
+                      "referencedDeclaration": 2547,
                       "src": "525:9:7",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_sha3_pure$__$returns$_t_bytes32_$",
@@ -3069,7 +3069,7 @@
                               "name": "msg",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 2535,
+                              "referencedDeclaration": 2553,
                               "src": "616:3:7",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_magic_message",
@@ -4253,5 +4253,5 @@
   },
   "networks": {},
   "schemaVersion": "2.0.0",
-  "updatedAt": "2018-03-07T00:42:16.039Z"
+  "updatedAt": "2018-03-09T02:00:21.230Z"
 }
