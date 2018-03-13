@@ -30,7 +30,7 @@ contract('RootChain', accounts => {
         })
     })
     it("Submit block from someone other than authority fails", () => {
-        RootChain.deployed().then(async (instance) => {
+        return RootChain.deployed().then(async (instance) => {
             for (i = 0; i < 5; i++) {
                 await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
             }
@@ -39,7 +39,6 @@ contract('RootChain', accounts => {
             var curr = await instance.currentChildBlock.call().then(x => {return parseInt(x)})
             assert.equal(prev, curr, "Allowed submit block from someone other than authority!");
         });
-        return false;
     });
 });
 
