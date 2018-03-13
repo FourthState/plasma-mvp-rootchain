@@ -142,9 +142,9 @@ contract RootChain {
         return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos);
     }
 
-    /// @param txPos[0] Plasma block number in which the transaction occured
-    /// @param txPos[1] Transaction Index within the block
-    /// @param txPos[2] Output Index within the transaction (either 0 or 1)
+    /// @param txPos [0] Plasma block number in which the transaction occured
+    /// @param txPos [1] Transaction Index within the block
+    /// @param txPos [2] Output Index within the transaction (either 0 or 1)
     /// @param sigs First 130 bytes are signature of transaction and the rest is confirm signature
     /// @notice Each signature is 65 bytes
     function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
@@ -176,9 +176,9 @@ contract RootChain {
         });
     }
 
-    /// @param txPos[0] Plasma block number in which the challenger's transaction occured
-    /// @param txPos[1] Transaction Index within the block
-    /// @param txPos[2] Output Index within the transaction (either 0 or 1)
+    /// @param txPos [0] Plasma block number in which the challenger's transaction occured
+    /// @param txPos [1] Transaction Index within the block
+    /// @param txPos [2] Output Index within the transaction (either 0 or 1)
     function challengeExit(uint256 exitId, uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
         public
         payable
