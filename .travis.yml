@@ -3,6 +3,7 @@ node_js:
   "node"
 before_script:
   - npm install -g truffle
+  - npm install -g rlp
   - cd plasma/root_chain
 script: truffle test
 
