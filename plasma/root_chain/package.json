@@ -1,0 +1,14 @@
+{
+  "name": "plasma-mvp-rootchain",
+  "version": "1.0.0",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "truffle test"
+  },
+  "dependencies": {
+    "chai": "^4.1.2",
+    "rlp": "^2.0.0"
+  }
+}
