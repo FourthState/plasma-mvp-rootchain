@@ -7,5 +7,7 @@ before_script:
   - npm install
 
 script: 
-  - ganache-clie -m=plasma_mvp 
+  - ganache-cli -m=plasma_mvp > /dev/null &
+  - sleep 5
+  - truffle migrate
   - truffle test
