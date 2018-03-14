@@ -1,14 +1,8 @@
-language: python
+language: node_js
+node_js:
+  "node"
+before_script:
+  - npm install -g truffle
+  - npm install
 
-python:
-  - "3.6"
-
-cache: pip
-
-install:
-  - pip install --upgrade pip setuptools
-  - make
-
-script:
-  - make test
-  - make lint
+script: truffle test
