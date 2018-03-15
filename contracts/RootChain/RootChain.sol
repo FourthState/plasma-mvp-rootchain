@@ -29,9 +29,13 @@ contract RootChain {
      *  Storage
      */
     mapping(uint256 => childBlock) public childChain;
-    mapping(uint256 => exit) public exits;
-    mapping(uint256 => uint256) public exitIds;
+
+    mapping(address => uint256) public failedWithdrawals;
+
+    // exit structs uniquely determined by the priority
     PriorityQueue exitsQueue;
+    mapping(uint256 => exit) public exits;
+
     address public authority;
     uint256 public currentChildBlock;
     uint256 public lastParentBlock;
@@ -45,6 +49,7 @@ contract RootChain {
         address owner;
         uint256 amount;
         uint256 bond;
+        uint256 created_at;
         uint256[3] utxoPos;
     }
 
@@ -58,15 +63,6 @@ contract RootChain {
      */
     modifier isAuthority() {
         require(msg.sender == authority);
-        _;
-    }
-
-    modifier incrementOldBlocks() {
-        while (childChain[weekOldBlock].created_at < block.timestamp.sub(1 weeks)) {
-            if (childChain[weekOldBlock].created_at == 0) 
-                break;
-            weekOldBlock = weekOldBlock.add(1);
-        }
         _;
     }
 
@@ -89,7 +85,6 @@ contract RootChain {
     function submitBlock(bytes32 root)
         public
         isAuthority
-        incrementOldBlocks
     {
         require(block.number >= lastParentBlock.add(6));
         childChain[currentChildBlock] = childBlock({
@@ -150,7 +145,6 @@ contract RootChain {
     function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
         public
         payable
-        incrementOldBlocks
     {
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
@@ -203,19 +197,36 @@ contract RootChain {
 
     function finalizeExits()
         public
-        incrementOldBlocks
-        returns (uint256)
     {
-        uint256 twoWeekOldTimestamp = block.timestamp.sub(2 weeks);
-        exit memory currentExit = exits[exitsQueue.getMin()];
-        while (childChain[currentExit.utxoPos[0]].created_at < twoWeekOldTimestamp && exitsQueue.currentSize() > 0) {
-            // return childChain[currentExit.utxoPos[0]].created_at;
-            uint256 exitId = currentExit.utxoPos[0] * 1000000000 + currentExit.utxoPos[1] * 10000 + currentExit.utxoPos[2];
-            currentExit.owner.transfer(currentExit.amount + currentExit.bond);
-            uint256 priority = exitsQueue.delMin();
+        // retrieve the lowest priority and the appropriate exit struct
+        uint256 priority = exitsQueue.getMin();
+        exit memory currentExit = exits[priority];
+
+        while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
+
+            // prevent a potential DoS attack if from someone purposely reverting a payment
+            if(!currentExit.owner.send(currentExit.amount + currentExit.bond)) {
+                failedWithdrawals[currentExit.owner] = currentExit.amount + currentExit.bond;
+            }
+
+            // delete the finalized exit
+            priority = exitsQueue.delMin();
             delete exits[priority];
-            delete exitIds[exitId];
-            currentExit = exits[exitsQueue.getMin()];
+
+            // move onto the next oldest exit
+            priority = exitsQueue.getMin();
+            currentExit = exits[priority];
+        }
+    }
+
+    function withdraw() 
+        public
+    {
+        uint256 amt = failedWithdrawals[msg.sender];
+        require(amt > 0, "No Funds to Withdraw");
+
+        if(msg.sender.send(amt)) {
+            delete failedWithdrawals[msg.sender];
         }
     }
 
