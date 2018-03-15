@@ -7,7 +7,7 @@ let RootChain = artifacts.require("RootChain");
 let RLP = require('rlp');
 
 contract('RootChain', async (accounts) => {
-    it("Submit block from authority passes", async () => {
+    it("Submitting block as authority", async () => {
         let instance = await RootChain.deployed();
         let curr = parseInt(await instance.currentChildBlock.call());
 
@@ -32,7 +32,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(prev + 1, curr, "Child block did not increment")
     });
 
-    it("Invalid deposits fail", async () => {
+    it("Invalid deposits fails", async () => {
         let instance = await RootChain.deployed();
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
 
@@ -42,7 +42,7 @@ contract('RootChain', async (accounts) => {
             assert(false, "Invalid deposit, did not revert");
     });
 
-    it("Submit block from someone other than authority fails", async () => {
+    it("Submitting a block not as authority should fail", async () => {
         let instance = await RootChain.deployed();
         for (i = 0; i < 5; i++) {
             await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
@@ -58,5 +58,10 @@ contract('RootChain', async (accounts) => {
         let curr = parseInt(await instance.currentChildBlock.call());
         assert.equal(prev, curr, "Allowed submit block from someone other than authority!");
     });
+
+    it("Starting valid exit", async () => {
+        let instance = await RootChain.deployed();
+    })
+    
 });
 
