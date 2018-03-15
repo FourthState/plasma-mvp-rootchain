@@ -1,14 +1,1 @@
-# Bytecode
-**/__pycache__/
-
-# Development
-env/
-
-# Distibution
-dist/
-*.egg-info/
-
-# Testing
-.cache/
-.pytest_cache/
-contract_data/
+node_modules/
