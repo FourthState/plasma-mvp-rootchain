@@ -31,6 +31,7 @@ contract RootChain {
     mapping(uint256 => childBlock) public childChain;
     mapping(uint256 => exit) public exits;
     mapping(uint256 => uint256) public exitIds;
+    mapping(address => uint256) public balances;
     PriorityQueue exitsQueue;
     address public authority;
     uint256 public currentChildBlock;
@@ -63,7 +64,7 @@ contract RootChain {
 
     modifier incrementOldBlocks() {
         while (childChain[weekOldBlock].created_at < block.timestamp.sub(1 weeks)) {
-            if (childChain[weekOldBlock].created_at == 0) 
+            if (childChain[weekOldBlock].created_at == 0)
                 break;
             weekOldBlock = weekOldBlock.add(1);
         }
@@ -84,7 +85,7 @@ contract RootChain {
             intermediate = keccak256(intermediate, intermediate);
         }
     }
-    /// @param root 32 byte merkleRoot of ChildChain block 
+    /// @param root 32 byte merkleRoot of ChildChain block
     /// @notice childChain blocks can only be submitted at most every 6 root chain blocks
     function submitBlock(bytes32 root)
         public
@@ -101,8 +102,8 @@ contract RootChain {
     }
 
     /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
-    /// @notice owner and value should be encoded in Output 1 
-    /// @notice hash of txBytes is hashed with a empty signature 
+    /// @notice owner and value should be encoded in Output 1
+    /// @notice hash of txBytes is hashed with a empty signature
     function deposit(bytes txBytes)
         public
         payable
@@ -196,7 +197,8 @@ contract RootChain {
         address owner = exits[priority].owner;
         require(owner == ECRecovery.recover(confirmationHash, confirmationSig));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
-        msg.sender.transfer(exits[priority].bond);
+        // msg.sender.transfer(exits[priority].bond);
+        balances[msg.sender] = balances[msg.sender].add(exits[priority].bond);
         delete exits[priority];
         delete exitIds[exitId];
     }
@@ -211,12 +213,27 @@ contract RootChain {
         while (childChain[currentExit.utxoPos[0]].created_at < twoWeekOldTimestamp && exitsQueue.currentSize() > 0) {
             // return childChain[currentExit.utxoPos[0]].created_at;
             uint256 exitId = currentExit.utxoPos[0] * 1000000000 + currentExit.utxoPos[1] * 10000 + currentExit.utxoPos[2];
-            currentExit.owner.transfer(currentExit.amount + currentExit.bond);
+            //currentExit.owner.transfer(currentExit.amount + currentExit.bond);
+            uint256 amountToAdd = currentExit.amount.add(currentExit.bond);
+            balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
             uint256 priority = exitsQueue.delMin();
             delete exits[priority];
             delete exitIds[exitId];
             currentExit = exits[exitsQueue.getMin()];
         }
+    }
+
+    function withdraw()
+        public
+        returns (uint256)
+    {
+        if (balances[msg.sender] == 0) {
+            return 0;
+        }
+        uint256 transferAmount = balances[msg.sender];
+        delete balances[msg.sender];
+        msg.sender.transfer(transferAmount);
+        return transferAmount;
     }
 
 }
