@@ -159,8 +159,7 @@ contract RootChain {
         require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * minExitBond / 100);
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
-        uint256 inputCount = txList[3].toUint() * 1000000 + txList[0].toUint();
-        require(Validate.checkSigs(txHash, childChain[txPos[0]].root, inputCount, sigs));
+        require(Validate.checkSigs(txHash, childChain[txPos[0]].root, txList[0].toUint(), txList[3].toUint(), sigs));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
         uint256 priority = 1000000000 + txPos[1] * 10000 + txPos[2];
         uint256 exitId = txPos[0].mul(priority);
