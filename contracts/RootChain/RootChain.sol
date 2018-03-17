@@ -52,7 +52,6 @@ contract RootChain {
     // child chain
     uint256 public currentChildBlock;
     uint256 public lastParentBlock;
-    uint256 public recentBlock;
     struct childBlock {
         bytes32 root;
         uint256 created_at;
@@ -86,7 +85,7 @@ contract RootChain {
         public
         isAuthority
     {
-        require(block.number >= lastParentBlock.add(6));
+        require(block.number >= lastParentBlock.add(6)); // TODO: WHY?
         childChain[currentChildBlock] = childBlock({
             root: root,
             created_at: block.timestamp
@@ -102,6 +101,7 @@ contract RootChain {
         payable
     {
         // TODO: maybe enforce the minimum deposit into the plasma chain?
+        //       - do we not want to include the signatures in this tx?
         
         // construction of the tx.
         bytes32[11] txList;
@@ -109,8 +109,7 @@ contract RootChain {
         txList[7] = msg.value;
         bytes txBytes = RLP.encode(txList);
 
-        // EXPLAIN: why are we hashing the txBytes with 130 bytes?
-        // construct the merkle root
+        // construct the merkle root. new bytes(130) represents the empty signature
         bytes32 root = keccak256(keccak256(txBytes), new bytes(130));
         for (i = 0; i < 16; i++) {
             root = keccak256(root, zeroHashes[i]);
@@ -150,27 +149,34 @@ contract RootChain {
         public
         payable
     {
+        // txBytes verification
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
         require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());
-        require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * minExitBond / 100);
+        require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * minExitBond); // satisfy the bond requirement
+
+
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
+
+        // will be fixed by collin's pr issue
         uint256 inputCount = txList[3].toUint() * 1000000 + txList[0].toUint();
         require(Validate.checkSigs(txHash, childChain[txPos[0]].root, inputCount, sigs));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
-        uint256 priority = 1000000000 + txPos[1] * 10000 + txPos[2];
-        uint256 exitId = txPos[0].mul(priority);
-        priority = priority.mul(Math.max(txPos[0], weekOldBlock));
-        require(exitIds[exitId] == 0);
+
+
+        // priority should be unique
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
         require(exits[priority].amount == 0);
-        exitIds[exitId] = priority;
         exitsQueue.insert(priority);
+
+        // create the exit
         exits[priority] = exit({
             owner: txList[6 + 2 * txPos[2]].toAddress(),
             amount: txList[7 + 2 * txPos[2]].toUint(),
             bond: msg.value,
-            utxoPos: txPos
+            utxoPos: txPos,
+            created_at: block.timestamp
         });
     }
 
