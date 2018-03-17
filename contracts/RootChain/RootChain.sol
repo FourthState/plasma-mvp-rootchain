@@ -15,10 +15,16 @@ contract RootChain {
     using RLP for RLP.Iterator;
     using Merkle for bytes32;
 
-    //TODO: Refactor submit block to have block number included. Aggregate signatures for start exit. Create Withdraw method.
-    //TODO: Create reward system to incentivize fraud proofs
-    //TODO: Possibly useful to rely on OpenZeppelin instead of current Library contracts.
-    //TODO: Slash malicious block proposer. Not useful in PoA.
+
+    address public authority;
+
+    /*
+     *  Modifiers
+     */
+    modifier isAuthority() {
+        require(msg.sender == authority);
+        _;
+    }
 
     /*
      * Events
@@ -29,22 +35,12 @@ contract RootChain {
      *  Storage
      */
     mapping(uint256 => childBlock) public childChain;
-
     mapping(address => uint256) public failedWithdrawals;
 
-    // exit structs uniquely determined by the priority
+    // startExit mechanism
     PriorityQueue exitsQueue;
+    uint256 minExitBond;
     mapping(uint256 => exit) public exits;
-
-    address public authority;
-    uint256 public currentChildBlock;
-    uint256 public lastParentBlock;
-    uint256 public recentBlock;
-    uint256 public weekOldBlock;
-    uint256 minExitBond; //this is a percentage out of 100 that user must stake to exit.
-
-    bytes32[16] zeroHashes;
-
     struct exit {
         address owner;
         uint256 amount;
@@ -53,18 +49,18 @@ contract RootChain {
         uint256[3] utxoPos;
     }
 
+    // child chain
+    uint256 public currentChildBlock;
+    uint256 public lastParentBlock;
+    uint256 public recentBlock;
     struct childBlock {
         bytes32 root;
         uint256 created_at;
     }
 
-    /*
-     *  Modifiers
-     */
-    modifier isAuthority() {
-        require(msg.sender == authority);
-        _;
-    }
+    // avoid recomputations
+    bytes32[16] zeroHashes;
+
 
     function RootChain()
         public
@@ -72,12 +68,16 @@ contract RootChain {
         authority = msg.sender;
         currentChildBlock = 1;
         lastParentBlock = block.number;
+
         exitsQueue = new PriorityQueue();
-        minExitBond = 5; // 5% of UTXO
-        bytes32 intermediate;
-        for (uint256 i = 0; i < 16; i += 1) {
-            zeroHashes[i] = intermediate;
-            intermediate = keccak256(intermediate, intermediate);
+
+        // currently 5% of the the UTXO
+        minExitBond = .05;
+
+        bytes32 zeroBytes;
+        for (uint256 i = 0; i < 16; i += 1) { // depth-16 merkle tree
+            zeroHashes[i] = zeroBytes;
+            zeroBytes = keccak256(zeroBytes, zeroBytes);
         }
     }
     /// @param root 32 byte merkleRoot of ChildChain block 
@@ -95,30 +95,34 @@ contract RootChain {
         lastParentBlock = block.number;
     }
 
-    /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
     /// @notice owner and value should be encoded in Output 1 
     /// @notice hash of txBytes is hashed with a empty signature 
-    function deposit(bytes txBytes)
+    function deposit()
         public
         payable
     {
-        var txList = txBytes.toRLPItem().toList();
-        require(txList.length == 11);
-        for (uint256 i; i < 6; i++) {
-            require(txList[i].toUint() == 0);
-        }
-        require(txList[7].toUint() == msg.value);
-        require(txList[9].toUint() == 0);
+        // TODO: maybe enforce the minimum deposit into the plasma chain?
+        
+        // construction of the tx.
+        bytes32[11] txList;
+        txList[6] = msg.sender;
+        txList[7] = msg.value;
+        bytes txBytes = RLP.encode(txList);
+
+        // EXPLAIN: why are we hashing the txBytes with 130 bytes?
+        // construct the merkle root
         bytes32 root = keccak256(keccak256(txBytes), new bytes(130));
         for (i = 0; i < 16; i++) {
             root = keccak256(root, zeroHashes[i]);
         }
+
         childChain[currentChildBlock] = childBlock({
             root: root,
             created_at: block.timestamp
         });
+
         currentChildBlock = currentChildBlock.add(1);
-        Deposit(txList[6].toAddress(), txList[7].toUint());
+        Deposit(msg.sender, msg.value);
     }
 
     function getChildChain(uint256 blockNumber)
