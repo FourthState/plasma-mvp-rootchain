@@ -104,6 +104,9 @@ contract RootChain {
         payable
     {
         var txList = txBytes.toRLPItem().toList();
+        for(uint256 i = 0; i < 6; i++) {
+            require(txList[i].toUint() == 0);
+        }
         require(txList[6].toAddress() == msg.sender);
         require(txList[7].toUint() == msg.value);
 
@@ -114,7 +117,7 @@ contract RootChain {
 
         // construct the merkle root
         bytes32 root = keccak256(keccak256(txBytes), new bytes(130));
-        for (uint256 i = 0; i < 16; i++) {
+        for (i = 0; i < 16; i++) {
             root = keccak256(root, zeroHashes[i]);
         }
 
