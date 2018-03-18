@@ -79,6 +79,7 @@ contract RootChain {
             zeroBytes = keccak256(zeroBytes, zeroBytes);
         }
     }
+
     /// @param root 32 byte merkleRoot of ChildChain block 
     /// @notice childChain blocks can only be submitted at most every 6 root chain blocks
     function submitBlock(bytes32 root)
@@ -102,10 +103,6 @@ contract RootChain {
         public
         payable
     {
-        // construction of the tx.
-        // bytes32[11] txList;
-        //txList[6] = msg.sender; txList[7] = msg.value;
-        // bytes txBytes = RLP.encode(txList);
         var txList = txBytes.toRLPItem().toList();
         require(txList[6].toAddress() == msg.sender);
         require(txList[7].toUint() == msg.value);
