@@ -71,7 +71,7 @@ contract RootChain {
         exitsQueue = new PriorityQueue();
 
         // currently 5% of the the UTXO
-        minExitBond = .05;
+        minExitBond = 5;
 
         bytes32 zeroBytes;
         for (uint256 i = 0; i < 16; i += 1) { // depth-16 merkle tree
@@ -85,33 +85,39 @@ contract RootChain {
         public
         isAuthority
     {
-        require(block.number >= lastParentBlock.add(6)); // TODO: WHY?
+        // ensure finality on previous blocks before submitting another
+        require(block.number >= lastParentBlock.add(6));
         childChain[currentChildBlock] = childBlock({
             root: root,
             created_at: block.timestamp
         });
+
         currentChildBlock = currentChildBlock.add(1);
         lastParentBlock = block.number;
     }
 
     /// @notice owner and value should be encoded in Output 1 
     /// @notice hash of txBytes is hashed with a empty signature 
-    function deposit()
+    function deposit(bytes txBytes)
         public
         payable
     {
-        // TODO: maybe enforce the minimum deposit into the plasma chain?
-        //       - do we not want to include the signatures in this tx?
-        
         // construction of the tx.
-        bytes32[11] txList;
-        txList[6] = msg.sender;
-        txList[7] = msg.value;
-        bytes txBytes = RLP.encode(txList);
+        // bytes32[11] txList;
+        //txList[6] = msg.sender; txList[7] = msg.value;
+        // bytes txBytes = RLP.encode(txList);
+        var txList = txBytes.toRLPItem().toList();
+        require(txList[6].toAddress() == msg.sender);
+        require(txList[7].toUint() == msg.value);
 
-        // construct the merkle root. new bytes(130) represents the empty signature
+        /*
+            The signatures is kept seperate from the txBytes so that the signatures and
+            confirm sign over the same hash
+        */
+
+        // construct the merkle root
         bytes32 root = keccak256(keccak256(txBytes), new bytes(130));
-        for (i = 0; i < 16; i++) {
+        for (uint256 i = 0; i < 16; i++) {
             root = keccak256(root, zeroHashes[i]);
         }
 
@@ -135,9 +141,9 @@ contract RootChain {
     function getExit(uint256 priority)
         public
         view
-        returns (address, uint256, uint256[3])
+        returns (address, uint256, uint256[3], uint256)
     {
-        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos);
+        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at);
     }
 
     /// @param txPos [0] Plasma block number in which the transaction occured
@@ -153,9 +159,10 @@ contract RootChain {
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
         require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());
-        require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * minExitBond); // satisfy the bond requirement
+        require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * (minExitBond/100));
 
 
+        // creating the correct merkle leaf
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
 
@@ -164,13 +171,11 @@ contract RootChain {
         require(Validate.checkSigs(txHash, childChain[txPos[0]].root, inputCount, sigs));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
 
-
-        // priority should be unique
+        // one-to-one mapping between priority and exit
         uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
         require(exits[priority].amount == 0);
         exitsQueue.insert(priority);
 
-        // create the exit
         exits[priority] = exit({
             owner: txList[6 + 2 * txPos[2]].toAddress(),
             amount: txList[7 + 2 * txPos[2]].toUint(),
@@ -183,26 +188,35 @@ contract RootChain {
     /// @param txPos [0] Plasma block number in which the challenger's transaction occured
     /// @param txPos [1] Transaction Index within the block
     /// @param txPos [2] Output Index within the transaction (either 0 or 1)
-    function challengeExit(uint256 exitId, uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
+    function challengeExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
         public
         payable
     {
+        // txBytes verification
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
-        uint256 priority = exitIds[exitId];
-        uint256[3] memory exitsUtxoPos = exits[priority].utxoPos;
-        require(exitsUtxoPos[0] == txList[0 + 2 * exitsUtxoPos[2]].toUint());
-        require(exitsUtxoPos[1] == txList[1 + 2 * exitsUtxoPos[2]].toUint());
-        require(exitsUtxoPos[2] == txList[2 + 2 * exitsUtxoPos[2]].toUint());
+
+        // start-exit verification
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
+        uint256[3] memory utxoPos = exits[priority].utxoPos;
+        require(utxoPos[0] == txList[0 + 2 * utxoPos[2]].toUint());
+        require(utxoPos[1] == txList[1 + 2 * utxoPos[2]].toUint());
+        require(utxoPos[2] == txList[2 + 2 * utxoPos[2]].toUint());
+
+        /*
+           Confirmation sig includes:
+              txHash, sigs, block header
+          */
+        
         var txHash = keccak256(txBytes);
-        var confirmationHash = keccak256(txHash, sigs, childChain[txPos[0]].root);
         var merkleHash = keccak256(txHash, sigs);
-        address owner = exits[priority].owner;
-        require(owner == ECRecovery.recover(confirmationHash, confirmationSig));
+        var confirmationHash = keccak256(txHash, sigs, childChain[txPos[0]].root);
+
+        require(exits[priority].owner == ECRecovery.recover(confirmationHash, confirmationSig));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
+
         msg.sender.transfer(exits[priority].bond);
         delete exits[priority];
-        delete exitIds[exitId];
     }
 
     function finalizeExits()
@@ -233,7 +247,7 @@ contract RootChain {
         public
     {
         uint256 amt = failedWithdrawals[msg.sender];
-        require(amt > 0, "No Funds to Withdraw");
+        require(amt > 0);
 
         if(msg.sender.send(amt)) {
             delete failedWithdrawals[msg.sender];
