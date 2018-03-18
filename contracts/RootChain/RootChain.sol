@@ -35,7 +35,7 @@ contract RootChain {
      *  Storage
      */
     mapping(uint256 => childBlock) public childChain;
-    mapping(address => uint256) public failedWithdrawals;
+    mapping(address => uint256) public balances;
 
     // startExit mechanism
     PriorityQueue exitsQueue;
@@ -59,7 +59,6 @@ contract RootChain {
 
     // avoid recomputations
     bytes32[16] zeroHashes;
-
 
     function RootChain()
         public
@@ -97,8 +96,9 @@ contract RootChain {
         lastParentBlock = block.number;
     }
 
-    /// @notice owner and value should be encoded in Output 1 
-    /// @notice hash of txBytes is hashed with a empty signature 
+    /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
+    /// @notice owner and value should be encoded in Output 1
+    /// @notice hash of txBytes is hashed with a empty signature
     function deposit(bytes txBytes)
         public
         payable
@@ -108,8 +108,8 @@ contract RootChain {
         require(txList[7].toUint() == msg.value);
 
         /*
-            The signatures is kept seperate from the txBytes so that the signatures and
-            confirm sign over the same hash
+            The signatures are kept seperate from the txBytes to avoid having to
+            recreate the txBytes after both signatures are created. 
         */
 
         // construct the merkle root
@@ -162,10 +162,7 @@ contract RootChain {
         // creating the correct merkle leaf
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
-
-        // will be fixed by collin's pr issue
-        uint256 inputCount = txList[3].toUint() * 1000000 + txList[0].toUint();
-        require(Validate.checkSigs(txHash, childChain[txPos[0]].root, inputCount, sigs));
+        require(Validate.checkSigs(txHash, childChain[txPos[0]].root, txList[0].toUint(), txList[3].toUint(), sigs));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
 
         // one-to-one mapping between priority and exit
@@ -201,7 +198,7 @@ contract RootChain {
         require(utxoPos[2] == txList[2 + 2 * utxoPos[2]].toUint());
 
         /*
-           Confirmation sig includes:
+           Confirmation sig:
               txHash, sigs, block header
           */
         
@@ -212,7 +209,8 @@ contract RootChain {
         require(exits[priority].owner == ECRecovery.recover(confirmationHash, confirmationSig));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
 
-        msg.sender.transfer(exits[priority].bond);
+        // exit successfully challenged. Award the sender with the bond
+        balances[msg.sender] = balances[msg.sender].add(exits[priority].bond);
         delete exits[priority];
     }
 
@@ -226,9 +224,8 @@ contract RootChain {
         while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
 
             // prevent a potential DoS attack if from someone purposely reverting a payment
-            if(!currentExit.owner.send(currentExit.amount + currentExit.bond)) {
-                failedWithdrawals[currentExit.owner] = currentExit.amount + currentExit.bond;
-            }
+            uint256 amountToAdd = currentExit.amount.add(currentExit.bond);
+            balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
 
             // delete the finalized exit
             priority = exitsQueue.delMin();
@@ -240,15 +237,19 @@ contract RootChain {
         }
     }
 
-    function withdraw() 
+    function withdraw()
         public
+        returns (uint256)
     {
-        uint256 amt = failedWithdrawals[msg.sender];
-        require(amt > 0);
-
-        if(msg.sender.send(amt)) {
-            delete failedWithdrawals[msg.sender];
+        if (balances[msg.sender] == 0) {
+            return 0;
         }
-    }
 
+        uint256 transferAmount = balances[msg.sender];
+        delete balances[msg.sender];
+        
+        // will revert the above deletions if fails
+        msg.sender.transfer(transferAmount);
+        return transferAmount;
+    }
 }
