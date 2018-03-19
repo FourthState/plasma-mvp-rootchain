@@ -188,7 +188,6 @@ contract RootChain {
     /// @param txPos [2] Output Index within the transaction (either 0 or 1)
     function challengeExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
         public
-        payable
     {
         // txBytes verification
         var txList = txBytes.toRLPItem().toList();
@@ -210,6 +209,7 @@ contract RootChain {
         var merkleHash = keccak256(txHash, sigs);
         var confirmationHash = keccak256(txHash, sigs, childChain[txPos[0]].root);
 
+        // challenge
         require(exits[priority].owner == ECRecovery.recover(confirmationHash, confirmationSig));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
 
