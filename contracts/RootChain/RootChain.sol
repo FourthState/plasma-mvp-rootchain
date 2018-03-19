@@ -104,15 +104,16 @@ contract RootChain {
         payable
     {
         var txList = txBytes.toRLPItem().toList();
+        require(txList.length == 11);
         for(uint256 i = 0; i < 6; i++) {
             require(txList[i].toUint() == 0);
         }
-        require(txList[6].toAddress() == msg.sender);
         require(txList[7].toUint() == msg.value);
+        require(txList[9].toUint() == 0); // second output value must be zero
 
         /*
             The signatures are kept seperate from the txBytes to avoid having to
-            recreate the txBytes after both signatures are created. 
+            recreate the txBytes for the confirmsig after both signatures are created. 
         */
 
         // construct the merkle root
@@ -127,7 +128,7 @@ contract RootChain {
         });
 
         currentChildBlock = currentChildBlock.add(1);
-        Deposit(msg.sender, msg.value);
+        Deposit(txList[6].toAddress(), msg.value);
     }
 
     function getChildChain(uint256 blockNumber)
