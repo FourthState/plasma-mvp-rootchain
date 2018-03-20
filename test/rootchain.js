@@ -1,5 +1,7 @@
 let RootChain = artifacts.require("RootChain");
 let RLP = require('rlp');
+let assert = require('chai').assert;
+let to = require('./utilities.js').to;
 
 contract('RootChain', async (accounts) => {
 
@@ -23,7 +25,7 @@ contract('RootChain', async (accounts) => {
 
     it("Depositing a block passes", async () => {
         let instance = await RootChain.deployed();
-        //Why does this work? David's implementation requires txBytes to have length 11
+
         let depositAmount = 50000;
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
         let prev =  parseInt(await instance.currentChildBlock.call());
@@ -34,7 +36,6 @@ contract('RootChain', async (accounts) => {
 
         let curr = parseInt(await instance.currentChildBlock.call());
         assert.equal(prev + 1, curr, "Child block did not increment");
-        // TODO: check correctness of newly created merkle root
     });
 
     it("Deposit then submit block passes", async () => {
@@ -59,14 +60,25 @@ contract('RootChain', async (accounts) => {
 
     it("Invalid deposits fail", async () => {
         let instance = await RootChain.deployed();
+        let err;
+
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
-        promiseToThrow(instance.deposit(txBytes.toString('binary'), {'from': accounts[2], 'value': 50}), "Invalid deposit did not revert");
+        [err] = await to(instance.deposit(txBytes.toString('binary'), {'from': accounts[2], 'value': 50}));
+        if (!err) {
+            assert(false, "Invalid deposit, did not revert");
+        }
 
         let txBytes2 = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, accounts[3], 10000, 0]);
-        promiseToThrow(instance.deposit(txBytes2.toString('binary'), {'from': accounts[2], 'value': 50000}), "Invalid deposit did not revert");
+        [err] = await to(instance.deposit(txBytes2.toString('binary'), {'from': accounts[2], 'value': 50000}));
+        if (!err) {
+            assert(false, "Invalid deposit, did not revert");
+        }
 
         let txBytes3 = RLP.encode([3, 5, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
-        promiseToThrow(instance.deposit(txBytes3.toString('binary'), {'from': accounts[2], 'value': 50000}), "Invalid deposit did not revert");
+        [err] = await to(instance.deposit(txBytes3.toString('binary'), {'from': accounts[2], 'value': 50000}));
+        if (!err) {
+            assert(false, "Invalid deposit, did not revert");
+        }
     });
 
     it("Submit block from someone other than authority fails", async () => {
@@ -76,7 +88,12 @@ contract('RootChain', async (accounts) => {
         }
 
         let prev = parseInt(await instance.currentChildBlock.call());
-        promiseToThrow(instance.submitBlock('496934090963', {'from': accounts[1]}), "Submit allowed from wrong person");
+
+        let err;
+        [err] = await to(instance.submitBlock('496934090963', {'from': accounts[1]}));
+        if (!err) {
+            assert(false, "Submit allowed from wrong person!"); // this line should never be reached
+        }
 
         let curr = parseInt(await instance.currentChildBlock.call());
         assert.equal(prev, curr, "Allowed submit block from someone other than authority!");
@@ -96,11 +113,10 @@ contract('RootChain', async (accounts) => {
             await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
         }
         let blockRoot2 = '8473748479872';
-        promiseToThrow(instance.submitBlock(web3.fromAscii(blockRoot2)), "Submit does not wait 6 rootchain blocks.");
+        let err;
+        [err] = await to(instance.submitBlock(web3.fromAscii(blockRoot2)));
+        if (!err) {
+            assert(false, "Submit does not wait 6 rootchain blocks.");
+        }
     });
 });
-
-// Function from Jeremiah Andrews
-function promiseToThrow(p, msg) {
-    return p.then(_ => false).catch(_ => true).then(res => assert(res, msg));
-}
