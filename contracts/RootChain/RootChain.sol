@@ -15,10 +15,16 @@ contract RootChain {
     using RLP for RLP.Iterator;
     using Merkle for bytes32;
 
-    //TODO: Refactor submit block to have block number included. Aggregate signatures for start exit. Create Withdraw method.
-    //TODO: Create reward system to incentivize fraud proofs
-    //TODO: Possibly useful to rely on OpenZeppelin instead of current Library contracts.
-    //TODO: Slash malicious block proposer. Not useful in PoA.
+
+    address public authority;
+
+    /*
+     *  Modifiers
+     */
+    modifier isAuthority() {
+        require(msg.sender == authority);
+        _;
+    }
 
     /*
      * Events
@@ -29,46 +35,30 @@ contract RootChain {
      *  Storage
      */
     mapping(uint256 => childBlock) public childChain;
-    mapping(uint256 => exit) public exits;
-    mapping(uint256 => uint256) public exitIds;
+    mapping(address => uint256) public balances;
+
+    // startExit mechanism
     PriorityQueue exitsQueue;
-    address public authority;
-    uint256 public currentChildBlock;
-    uint256 public lastParentBlock;
-    uint256 public recentBlock;
-    uint256 public weekOldBlock;
-    uint256 minExitBond; //this is a percentage out of 100 that user must stake to exit.
-
-    bytes32[16] zeroHashes;
-
+    uint256 minExitBond;
+    mapping(uint256 => exit) public exits;
     struct exit {
         address owner;
         uint256 amount;
         uint256 bond;
+        uint256 created_at;
         uint256[3] utxoPos;
     }
 
+    // child chain
+    uint256 public currentChildBlock;
+    uint256 public lastParentBlock;
     struct childBlock {
         bytes32 root;
         uint256 created_at;
     }
 
-    /*
-     *  Modifiers
-     */
-    modifier isAuthority() {
-        require(msg.sender == authority);
-        _;
-    }
-
-    modifier incrementOldBlocks() {
-        while (childChain[weekOldBlock].created_at < block.timestamp.sub(1 weeks)) {
-            if (childChain[weekOldBlock].created_at == 0) 
-                break;
-            weekOldBlock = weekOldBlock.add(1);
-        }
-        _;
-    }
+    // avoid recomputations
+    bytes32[16] zeroHashes;
 
     function RootChain()
         public
@@ -76,54 +66,69 @@ contract RootChain {
         authority = msg.sender;
         currentChildBlock = 1;
         lastParentBlock = block.number;
+
         exitsQueue = new PriorityQueue();
-        minExitBond = 5; // 5% of UTXO
-        bytes32 intermediate;
-        for (uint256 i = 0; i < 16; i += 1) {
-            zeroHashes[i] = intermediate;
-            intermediate = keccak256(intermediate, intermediate);
+
+        // currently 5% of the the UTXO
+        minExitBond = 5;
+
+        bytes32 zeroBytes;
+        for (uint256 i = 0; i < 16; i += 1) { // depth-16 merkle tree
+            zeroHashes[i] = zeroBytes;
+            zeroBytes = keccak256(zeroBytes, zeroBytes);
         }
     }
+
     /// @param root 32 byte merkleRoot of ChildChain block 
     /// @notice childChain blocks can only be submitted at most every 6 root chain blocks
     function submitBlock(bytes32 root)
         public
         isAuthority
-        incrementOldBlocks
     {
+        // ensure finality on previous blocks before submitting another
         require(block.number >= lastParentBlock.add(6));
         childChain[currentChildBlock] = childBlock({
             root: root,
             created_at: block.timestamp
         });
+
         currentChildBlock = currentChildBlock.add(1);
         lastParentBlock = block.number;
     }
 
     /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
-    /// @notice owner and value should be encoded in Output 1 
-    /// @notice hash of txBytes is hashed with a empty signature 
+    /// @notice owner and value should be encoded in Output 1
+    /// @notice hash of txBytes is hashed with a empty signature
     function deposit(bytes txBytes)
         public
         payable
     {
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
-        for (uint256 i; i < 6; i++) {
+        for(uint256 i = 0; i < 6; i++) {
             require(txList[i].toUint() == 0);
         }
         require(txList[7].toUint() == msg.value);
-        require(txList[9].toUint() == 0);
+        require(txList[9].toUint() == 0); // second output value must be zero
+
+        /*
+            The signatures are kept seperate from the txBytes to avoid having to
+            recreate the txBytes for the confirmsig after both signatures are created. 
+        */
+
+        // construct the merkle root
         bytes32 root = keccak256(keccak256(txBytes), new bytes(130));
         for (i = 0; i < 16; i++) {
             root = keccak256(root, zeroHashes[i]);
         }
+
         childChain[currentChildBlock] = childBlock({
             root: root,
             created_at: block.timestamp
         });
+
         currentChildBlock = currentChildBlock.add(1);
-        Deposit(txList[6].toAddress(), txList[7].toUint());
+        Deposit(txList[6].toAddress(), msg.value);
     }
 
     function getChildChain(uint256 blockNumber)
@@ -137,9 +142,9 @@ contract RootChain {
     function getExit(uint256 priority)
         public
         view
-        returns (address, uint256, uint256[3])
+        returns (address, uint256, uint256[3], uint256)
     {
-        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos);
+        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at);
     }
 
     /// @param txPos [0] Plasma block number in which the transaction occured
@@ -150,73 +155,105 @@ contract RootChain {
     function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
         public
         payable
-        incrementOldBlocks
     {
+        // txBytes verification
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
         require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());
-        require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * minExitBond / 100);
+        require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * (minExitBond/100));
+
+
+        // creating the correct merkle leaf
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
-        uint256 inputCount = txList[3].toUint() * 1000000 + txList[0].toUint();
-        require(Validate.checkSigs(txHash, childChain[txPos[0]].root, inputCount, sigs));
+        require(Validate.checkSigs(txHash, childChain[txPos[0]].root, txList[0].toUint(), txList[3].toUint(), sigs));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
-        uint256 priority = 1000000000 + txPos[1] * 10000 + txPos[2];
-        uint256 exitId = txPos[0].mul(priority);
-        priority = priority.mul(Math.max(txPos[0], weekOldBlock));
-        require(exitIds[exitId] == 0);
+
+        // one-to-one mapping between priority and exit
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
         require(exits[priority].amount == 0);
-        exitIds[exitId] = priority;
         exitsQueue.insert(priority);
+
         exits[priority] = exit({
             owner: txList[6 + 2 * txPos[2]].toAddress(),
             amount: txList[7 + 2 * txPos[2]].toUint(),
             bond: msg.value,
-            utxoPos: txPos
+            utxoPos: txPos,
+            created_at: block.timestamp
         });
     }
 
     /// @param txPos [0] Plasma block number in which the challenger's transaction occured
     /// @param txPos [1] Transaction Index within the block
     /// @param txPos [2] Output Index within the transaction (either 0 or 1)
-    function challengeExit(uint256 exitId, uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
+    function challengeExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
         public
-        payable
     {
+        // txBytes verification
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
-        uint256 priority = exitIds[exitId];
-        uint256[3] memory exitsUtxoPos = exits[priority].utxoPos;
-        require(exitsUtxoPos[0] == txList[0 + 2 * exitsUtxoPos[2]].toUint());
-        require(exitsUtxoPos[1] == txList[1 + 2 * exitsUtxoPos[2]].toUint());
-        require(exitsUtxoPos[2] == txList[2 + 2 * exitsUtxoPos[2]].toUint());
+
+        // start-exit verification
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
+        uint256[3] memory utxoPos = exits[priority].utxoPos;
+        require(utxoPos[0] == txList[0 + 2 * utxoPos[2]].toUint());
+        require(utxoPos[1] == txList[1 + 2 * utxoPos[2]].toUint());
+        require(utxoPos[2] == txList[2 + 2 * utxoPos[2]].toUint());
+
+        /*
+           Confirmation sig:
+              txHash, sigs, block header
+          */
+        
         var txHash = keccak256(txBytes);
-        var confirmationHash = keccak256(txHash, sigs, childChain[txPos[0]].root);
         var merkleHash = keccak256(txHash, sigs);
-        address owner = exits[priority].owner;
-        require(owner == ECRecovery.recover(confirmationHash, confirmationSig));
+        var confirmationHash = keccak256(txHash, sigs, childChain[txPos[0]].root);
+
+        // challenge
+        require(exits[priority].owner == ECRecovery.recover(confirmationHash, confirmationSig));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
-        msg.sender.transfer(exits[priority].bond);
+
+        // exit successfully challenged. Award the sender with the bond
+        balances[msg.sender] = balances[msg.sender].add(exits[priority].bond);
         delete exits[priority];
-        delete exitIds[exitId];
     }
 
     function finalizeExits()
         public
-        incrementOldBlocks
-        returns (uint256)
     {
-        uint256 twoWeekOldTimestamp = block.timestamp.sub(2 weeks);
-        exit memory currentExit = exits[exitsQueue.getMin()];
-        while (childChain[currentExit.utxoPos[0]].created_at < twoWeekOldTimestamp && exitsQueue.currentSize() > 0) {
-            // return childChain[currentExit.utxoPos[0]].created_at;
-            uint256 exitId = currentExit.utxoPos[0] * 1000000000 + currentExit.utxoPos[1] * 10000 + currentExit.utxoPos[2];
-            currentExit.owner.transfer(currentExit.amount + currentExit.bond);
-            uint256 priority = exitsQueue.delMin();
+        // retrieve the lowest priority and the appropriate exit struct
+        uint256 priority = exitsQueue.getMin();
+        exit memory currentExit = exits[priority];
+
+        while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
+
+            // prevent a potential DoS attack if from someone purposely reverting a payment
+            uint256 amountToAdd = currentExit.amount.add(currentExit.bond);
+            balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
+
+            // delete the finalized exit
+            priority = exitsQueue.delMin();
             delete exits[priority];
-            delete exitIds[exitId];
-            currentExit = exits[exitsQueue.getMin()];
+
+            // move onto the next oldest exit
+            priority = exitsQueue.getMin();
+            currentExit = exits[priority];
         }
     }
 
+    function withdraw()
+        public
+        returns (uint256)
+    {
+        if (balances[msg.sender] == 0) {
+            return 0;
+        }
+
+        uint256 transferAmount = balances[msg.sender];
+        delete balances[msg.sender];
+        
+        // will revert the above deletions if fails
+        msg.sender.transfer(transferAmount);
+        return transferAmount;
+    }
 }
