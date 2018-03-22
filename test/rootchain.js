@@ -58,10 +58,6 @@ contract('RootChain', async (accounts) => {
         let curr = parseInt(await instance.currentChildBlock.call());
         assert.equal(prev, curr, "Allowed submit block from someone other than authority!");
     });
-
-    it("Starting valid exit", async () => {
-        let instance = await RootChain.deployed();
-    })
     
 });
 
