@@ -1,14 +1,14 @@
 {
   "contractName": "Merkle",
   "abi": [],
-  "bytecode": "0x60606040523415600e57600080fd5b603580601b6000396000f3006060604052600080fd00a165627a7a7230582017b7a627bbcf8a77b506ed7b8954614309cac523f05cf685c5369d0d9902ba4e0029",
-  "deployedBytecode": "0x6060604052600080fd00a165627a7a7230582017b7a627bbcf8a77b506ed7b8954614309cac523f05cf685c5369d0d9902ba4e0029",
+  "bytecode": "0x60606040523415600e57600080fd5b603580601b6000396000f3006060604052600080fd00a165627a7a723058207df570158c38a3ff4fab7aa32d2cd6bb79f6ce0e3daa12f4abe24f53c7c1ab090029",
+  "deployedBytecode": "0x6060604052600080fd00a165627a7a723058207df570158c38a3ff4fab7aa32d2cd6bb79f6ce0e3daa12f4abe24f53c7c1ab090029",
   "sourceMap": "27:709:4:-;;;;;;;;;;;;;;;;;",
   "deployedSourceMap": "27:709:4:-;;;;;",
   "source": "pragma solidity ^0.4.18;\n\n\nlibrary Merkle {\n    function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)\n        internal\n        pure\n        returns (bool)\n    {\n        require(proof.length == 512);\n        bytes32 proofElement;\n        bytes32 computedHash = leaf;\n\n        for (uint256 i = 32; i <= 512; i += 32) {\n            assembly {\n                proofElement := mload(add(proof, i))\n            }\n            if (index % 2 == 0) {\n                computedHash = keccak256(computedHash, proofElement);\n            } else {\n                computedHash = keccak256(proofElement, computedHash);\n            }\n            index = index / 2;\n        }\n        return computedHash == rootHash;\n    }\n}",
-  "sourcePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/Merkle.sol",
+  "sourcePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/Merkle.sol",
   "ast": {
-    "absolutePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/Merkle.sol",
+    "absolutePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/Merkle.sol",
     "exportedSymbols": {
       "Merkle": [
         470
@@ -129,7 +129,7 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 2556,
+                      "referencedDeclaration": 2572,
                       "src": "200:7:4",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$returns$__$",
@@ -440,7 +440,7 @@
                                     "name": "keccak256",
                                     "nodeType": "Identifier",
                                     "overloadedDeclarations": [],
-                                    "referencedDeclaration": 2547,
+                                    "referencedDeclaration": 2563,
                                     "src": "594:9:4",
                                     "typeDescriptions": {
                                       "typeIdentifier": "t_function_sha3_pure$__$returns$_t_bytes32_$",
@@ -549,7 +549,7 @@
                                     "name": "keccak256",
                                     "nodeType": "Identifier",
                                     "overloadedDeclarations": [],
-                                    "referencedDeclaration": 2547,
+                                    "referencedDeclaration": 2563,
                                     "src": "503:9:4",
                                     "typeDescriptions": {
                                       "typeIdentifier": "t_function_sha3_pure$__$returns$_t_bytes32_$",
@@ -1046,7 +1046,7 @@
     "src": "0:736:4"
   },
   "legacyAST": {
-    "absolutePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/Merkle.sol",
+    "absolutePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/Merkle.sol",
     "exportedSymbols": {
       "Merkle": [
         470
@@ -1167,7 +1167,7 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 2556,
+                      "referencedDeclaration": 2572,
                       "src": "200:7:4",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$returns$__$",
@@ -1478,7 +1478,7 @@
                                     "name": "keccak256",
                                     "nodeType": "Identifier",
                                     "overloadedDeclarations": [],
-                                    "referencedDeclaration": 2547,
+                                    "referencedDeclaration": 2563,
                                     "src": "594:9:4",
                                     "typeDescriptions": {
                                       "typeIdentifier": "t_function_sha3_pure$__$returns$_t_bytes32_$",
@@ -1587,7 +1587,7 @@
                                     "name": "keccak256",
                                     "nodeType": "Identifier",
                                     "overloadedDeclarations": [],
-                                    "referencedDeclaration": 2547,
+                                    "referencedDeclaration": 2563,
                                     "src": "503:9:4",
                                     "typeDescriptions": {
                                       "typeIdentifier": "t_function_sha3_pure$__$returns$_t_bytes32_$",
@@ -2089,5 +2089,5 @@
   },
   "networks": {},
   "schemaVersion": "2.0.0",
-  "updatedAt": "2018-03-09T02:00:21.227Z"
+  "updatedAt": "2018-03-22T00:39:51.623Z"
 }
