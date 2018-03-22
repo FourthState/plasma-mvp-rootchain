@@ -25,8 +25,9 @@ contract('RootChain', async (accounts) => {
         //Why does this work? David's implementation requires txBytes to have length 11
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         let prev =  parseInt(await instance.currentChildBlock.call());
+        let validatorBlock = parseInt(await instance.validatorBlocks.call())
 
-        await instance.deposit(txBytes.toString('binary'), {'from': accounts[2], 'value': 50000});
+        await instance.deposit(validatorBlock, txBytes.toString('binary'), {'from': accounts[2], 'value': 50000});
         let curr = parseInt(await instance.currentChildBlock.call());
 
         assert.equal(prev + 1, curr, "Child block did not increment")
@@ -35,12 +36,33 @@ contract('RootChain', async (accounts) => {
     it("Invalid deposits fails", async () => {
         let instance = await RootChain.deployed();
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
+        let validatorBlock = parseInt(await instance.validatorBlocks.call())
 
         let err;
-        [err] = await to(instance.deposit(txBytes.toString('binary'), {'from': accounts[2], 'value': 50}));
+        [err] = await to(instance.deposit(validatorBlock, txBytes.toString('binary'), {'from': accounts[2], 'value': 50}));
         if(!err)
             assert(false, "Invalid deposit, did not revert");
     });
+
+    it("Deposit after unseen Submitted Block fails", async () => {
+        let instance = await RootChain.deployed();
+        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
+        let validatorBlock = parseInt(await instance.validatorBlocks.call())
+
+        for (i = 0; i < 5; i++) {
+            await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
+        }
+        await instance.submitBlock('578484785954');
+        let newValidatorBlock = parseInt(await instance.validatorBlocks.call())
+        assert.equal(validatorBlock + 1, newValidatorBlock, "Validator Block doesn't increment")
+
+        let err;
+        [err] = await to(instance.deposit(validatorBlock, txBytes.toString('binary'), {'from': accounts[2], 'value': 50000}))
+
+        if(!err)
+            assert(false, "Allowed deposit to be added after unseen block")
+
+    })
 
     it("Submitting a block not as authority should fail", async () => {
         let instance = await RootChain.deployed();

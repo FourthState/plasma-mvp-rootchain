@@ -50,6 +50,7 @@ contract RootChain {
 
     // child chain
     uint256 public currentChildBlock;
+    uint256 public validatorBlocks;
     uint256 public lastParentBlock;
     struct childBlock {
         bytes32 root;
@@ -64,6 +65,7 @@ contract RootChain {
     {
         authority = msg.sender;
         currentChildBlock = 1;
+        validatorBlocks = 1;
         lastParentBlock = block.number;
 
         exitsQueue = new PriorityQueue();
@@ -90,6 +92,7 @@ contract RootChain {
             created_at: block.timestamp
         });
 
+        validatorBlocks = validatorBlocks.add(1);
         currentChildBlock = currentChildBlock.add(1);
         lastParentBlock = block.number;
     }
@@ -97,10 +100,11 @@ contract RootChain {
     /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
     /// @notice owner and value should be encoded in Output 1
     /// @notice hash of txBytes is hashed with a empty signature
-    function deposit(bytes txBytes)
+    function deposit(uint blocknum, bytes txBytes)
         public
         payable
     {
+        require(blocknum == validatorBlocks);
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
         for(uint256 i = 0; i < 6; i++) {
