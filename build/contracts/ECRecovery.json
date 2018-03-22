@@ -1,14 +1,14 @@
 {
   "contractName": "ECRecovery",
   "abi": [],
-  "bytecode": "0x60606040523415600e57600080fd5b603580601b6000396000f3006060604052600080fd00a165627a7a723058209c82f072e3035529a6081293571e08b14b777dd8d376eccd417f2b2df77fe9b90029",
-  "deployedBytecode": "0x6060604052600080fd00a165627a7a723058209c82f072e3035529a6081293571e08b14b777dd8d376eccd417f2b2df77fe9b90029",
+  "bytecode": "0x60606040523415600e57600080fd5b603580601b6000396000f3006060604052600080fd00a165627a7a7230582009cffd7a6c8782815e2c7bf6a7c3707c6222251b934fdd42b0354534b60173c00029",
+  "deployedBytecode": "0x6060604052600080fd00a165627a7a7230582009cffd7a6c8782815e2c7bf6a7c3707c6222251b934fdd42b0354534b60173c00029",
   "sourceMap": "163:1104:2:-;;;;;;;;;;;;;;;;;",
   "deployedSourceMap": "163:1104:2:-;;;;;",
   "source": "pragma solidity ^0.4.18;\n\n\n/**\n * @title Eliptic curve signature operations\n *\n * @dev Based on https://gist.github.com/axic/5b33912c6f61ae6fd96d6c4a47afde6d\n */\n\nlibrary ECRecovery {\n\n  /**\n   * @dev Recover signer address from a message by using his signature\n   * @param hash bytes32 message, the hash is the signed message. What is recovered is the signer address.\n   * @param sig bytes signature, the signature is generated using web3.eth.sign()\n   */\n    function recover(bytes32 hash, bytes sig)\n        internal\n        pure\n        returns (address)\n    {\n        bytes32 r;\n        bytes32 s;\n        uint8 v;\n\n        //Check the signature length\n        if (sig.length != 65) {\n        return (address(0));\n        }\n\n        // Divide the signature in v, r, and s variables\n        assembly {\n        r := mload(add(sig, 32))\n        s := mload(add(sig, 64))\n        v := byte(0, mload(add(sig, 96)))\n        }\n\n        // Version of signature should be 27 or 28, but 0 and 1 are also possible versions\n        if (v < 27) {\n        v += 27;\n        }\n\n        // If the version is correct return the signer address\n        if (v != 27 && v != 28) {\n        return (address(0));\n        } else {\n        return ecrecover(hash, v, r, s);\n        }\n    }\n}\n",
-  "sourcePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/ECRecovery.sol",
+  "sourcePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/ECRecovery.sol",
   "ast": {
-    "absolutePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/ECRecovery.sol",
+    "absolutePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/ECRecovery.sol",
     "exportedSymbols": {
       "ECRecovery": [
         372
@@ -691,7 +691,7 @@
                             "name": "ecrecover",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 2546,
+                            "referencedDeclaration": 2562,
                             "src": "1224:9:2",
                             "typeDescriptions": {
                               "typeIdentifier": "t_function_ecrecover_pure$_t_bytes32_$_t_uint8_$_t_bytes32_$_t_bytes32_$returns$_t_address_$",
@@ -925,7 +925,7 @@
     "src": "0:1268:2"
   },
   "legacyAST": {
-    "absolutePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/ECRecovery.sol",
+    "absolutePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/ECRecovery.sol",
     "exportedSymbols": {
       "ECRecovery": [
         372
@@ -1608,7 +1608,7 @@
                             "name": "ecrecover",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 2546,
+                            "referencedDeclaration": 2562,
                             "src": "1224:9:2",
                             "typeDescriptions": {
                               "typeIdentifier": "t_function_ecrecover_pure$_t_bytes32_$_t_uint8_$_t_bytes32_$_t_bytes32_$returns$_t_address_$",
@@ -1847,5 +1847,5 @@
   },
   "networks": {},
   "schemaVersion": "2.0.0",
-  "updatedAt": "2018-03-09T02:00:21.222Z"
+  "updatedAt": "2018-03-22T00:39:51.622Z"
 }

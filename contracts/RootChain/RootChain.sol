@@ -44,13 +44,13 @@ contract RootChain {
     struct exit {
         address owner;
         uint256 amount;
-        uint256 bond;
         uint256 created_at;
         uint256[3] utxoPos;
     }
 
     // child chain
     uint256 public currentChildBlock;
+    uint256 public validatorBlocks;
     uint256 public lastParentBlock;
     struct childBlock {
         bytes32 root;
@@ -65,12 +65,12 @@ contract RootChain {
     {
         authority = msg.sender;
         currentChildBlock = 1;
+        validatorBlocks = 1;
         lastParentBlock = block.number;
 
         exitsQueue = new PriorityQueue();
 
-        // currently 5% of the the UTXO
-        minExitBond = 5;
+        minExitBond = 10000; // minimum bond needed to exit.
 
         bytes32 zeroBytes;
         for (uint256 i = 0; i < 16; i += 1) { // depth-16 merkle tree
@@ -92,6 +92,7 @@ contract RootChain {
             created_at: block.timestamp
         });
 
+        validatorBlocks = validatorBlocks.add(1);
         currentChildBlock = currentChildBlock.add(1);
         lastParentBlock = block.number;
     }
@@ -99,10 +100,11 @@ contract RootChain {
     /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
     /// @notice owner and value should be encoded in Output 1
     /// @notice hash of txBytes is hashed with a empty signature
-    function deposit(bytes txBytes)
+    function deposit(uint blocknum, bytes txBytes)
         public
         payable
     {
+        require(blocknum == validatorBlocks);
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
         for(uint256 i = 0; i < 6; i++) {
@@ -160,7 +162,7 @@ contract RootChain {
         var txList = txBytes.toRLPItem().toList();
         require(txList.length == 11);
         require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());
-        require(msg.value >= txList[7 + 2 * txPos[2]].toUint() * (minExitBond/100));
+        require(msg.value == minExitBond);
 
 
         // creating the correct merkle leaf
@@ -177,7 +179,6 @@ contract RootChain {
         exits[priority] = exit({
             owner: txList[6 + 2 * txPos[2]].toAddress(),
             amount: txList[7 + 2 * txPos[2]].toUint(),
-            bond: msg.value,
             utxoPos: txPos,
             created_at: block.timestamp
         });
@@ -214,7 +215,7 @@ contract RootChain {
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
 
         // exit successfully challenged. Award the sender with the bond
-        balances[msg.sender] = balances[msg.sender].add(exits[priority].bond);
+        balances[msg.sender] = balances[msg.sender].add(minExitBond);
         delete exits[priority];
     }
 
@@ -226,9 +227,16 @@ contract RootChain {
         exit memory currentExit = exits[priority];
 
         while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
+            if (currentExit.owner == address(0)) {
+                exitsQueue.delMin(); // delete priority of already deleted exit.
+                // move onto the next oldest exit
+                priority = exitsQueue.getMin();
+                currentExit = exits[priority];
+                continue; // Prevent incorrect processing of deleted exits.
+            }
 
             // prevent a potential DoS attack if from someone purposely reverting a payment
-            uint256 amountToAdd = currentExit.amount.add(currentExit.bond);
+            uint256 amountToAdd = currentExit.amount.add(minExitBond);
             balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
 
             // delete the finalized exit
