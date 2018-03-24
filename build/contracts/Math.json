@@ -1,14 +1,14 @@
 {
   "contractName": "Math",
   "abi": [],
-  "bytecode": "0x60606040523415600e57600080fd5b603580601b6000396000f3006060604052600080fd00a165627a7a7230582086fcb7606596cc72cfcb44167c62678e94a2b0d8060c620996c522cfe384299c0029",
-  "deployedBytecode": "0x6060604052600080fd00a165627a7a7230582086fcb7606596cc72cfcb44167c62678e94a2b0d8060c620996c522cfe384299c0029",
+  "bytecode": "0x60606040523415600e57600080fd5b603580601b6000396000f3006060604052600080fd00a165627a7a72305820aea467da2d5896d5fbeb2f18ee20e674507338066e258df88ce43bd7d6b31dd50029",
+  "deployedBytecode": "0x6060604052600080fd00a165627a7a72305820aea467da2d5896d5fbeb2f18ee20e674507338066e258df88ce43bd7d6b31dd50029",
   "sourceMap": "27:183:3:-;;;;;;;;;;;;;;;;;",
   "deployedSourceMap": "27:183:3:-;;;;;",
   "source": "pragma solidity ^0.4.18;\n\n\nlibrary Math {\n    function max(uint256 a, uint256 b)\n        internal\n        pure\n        returns (uint256)\n    {\n        if (a > b) \n            return a;\n        return b;\n    }\n}",
-  "sourcePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/Math.sol",
+  "sourcePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/Math.sol",
   "ast": {
-    "absolutePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/Math.sol",
+    "absolutePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/Math.sol",
     "exportedSymbols": {
       "Math": [
         393
@@ -252,7 +252,7 @@
     "src": "0:210:3"
   },
   "legacyAST": {
-    "absolutePath": "/Users/adityasripal/plasma/plasma/root_chain/contracts/Libraries/Math.sol",
+    "absolutePath": "/Users/adityasripal/plasma/plasma-mvp-rootchain/contracts/Libraries/Math.sol",
     "exportedSymbols": {
       "Math": [
         393
@@ -501,5 +501,5 @@
   },
   "networks": {},
   "schemaVersion": "2.0.0",
-  "updatedAt": "2018-03-09T02:00:21.221Z"
+  "updatedAt": "2018-03-22T00:39:51.621Z"
 }

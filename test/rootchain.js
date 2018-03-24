@@ -9,7 +9,7 @@ contract('RootChain', async (accounts) => {
         let instance = await RootChain.deployed();
         let curr = parseInt(await instance.currentChildBlock.call());
 
-        // waiting at least 6 root chain blocks before submitting a block
+        // waiting at least 5 root chain blocks before submitting a block
         for (i = 0; i < 5; i++) {
             await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
         }
@@ -25,16 +25,17 @@ contract('RootChain', async (accounts) => {
 
     it("Depositing a block passes", async () => {
         let instance = await RootChain.deployed();
-
         let depositAmount = 50000;
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
+        let validatorBlock = parseInt(await instance.validatorBlocks.call())
         let prev =  parseInt(await instance.currentChildBlock.call());
 
-        let result = await instance.deposit(txBytes.toString('binary'), {'from': accounts[2], 'value': depositAmount});
+        let result = await instance.deposit(validatorBlock, txBytes.toString('binary'), {'from': accounts[2], 'value': depositAmount});
         assert.equal(result.logs[0].args.depositor, accounts[2], 'Deposit event does not match depositor address.');
         assert.equal(parseInt(result.logs[0].args.amount), depositAmount, 'Deposit event does not match deposit amount.');
 
         let curr = parseInt(await instance.currentChildBlock.call());
+
         assert.equal(prev + 1, curr, "Child block did not increment");
     });
 
@@ -43,8 +44,9 @@ contract('RootChain', async (accounts) => {
         let depositAmount = 50000;
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
         let prevBlockNum = parseInt(await instance.currentChildBlock.call());
+        let validatorBlock = parseInt(await instance.validatorBlocks.call())
 
-        await instance.deposit(txBytes.toString('binary'), {'from': accounts[2], 'value': depositAmount});
+        await instance.deposit(validatorBlock, txBytes.toString('binary'), {'from': accounts[2], 'value': depositAmount});
         let currBlockNum = parseInt(await instance.currentChildBlock.call());
         assert.equal(prevBlockNum + 1, currBlockNum, "Child block did not increment after Deposit.");
 
@@ -60,26 +62,49 @@ contract('RootChain', async (accounts) => {
 
     it("Invalid deposits fail", async () => {
         let instance = await RootChain.deployed();
+        let validatorBlock = parseInt(await instance.validatorBlocks.call())
         let err;
 
-        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
-        [err] = await to(instance.deposit(txBytes.toString('binary'), {'from': accounts[2], 'value': 50}));
+        let txBytes1 = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
+        [err] = await to(instance.deposit(validatorBlock, txBytes1.toString('binary'), {'from': accounts[2], 'value': 50}));
         if (!err) {
             assert(false, "Invalid deposit, did not revert");
         }
 
         let txBytes2 = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, accounts[3], 10000, 0]);
-        [err] = await to(instance.deposit(txBytes2.toString('binary'), {'from': accounts[2], 'value': 50000}));
+        [err] = await to(instance.deposit(validatorBlock, txBytes2.toString('binary'), {'from': accounts[2], 'value': 50000}));
         if (!err) {
             assert(false, "Invalid deposit, did not revert");
         }
 
         let txBytes3 = RLP.encode([3, 5, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
-        [err] = await to(instance.deposit(txBytes3.toString('binary'), {'from': accounts[2], 'value': 50000}));
+        [err] = await to(instance.deposit(validatorBlock, txBytes3.toString('binary'), {'from': accounts[2], 'value': 50000}));
         if (!err) {
             assert(false, "Invalid deposit, did not revert");
         }
+
     });
+
+
+    it("Deposit after unseen Submitted Block fails", async () => {
+        let instance = await RootChain.deployed();
+        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
+        let validatorBlock = parseInt(await instance.validatorBlocks.call())
+
+        for (i = 0; i < 5; i++) {
+            await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
+        }
+        await instance.submitBlock('578484785954');
+        let newValidatorBlock = parseInt(await instance.validatorBlocks.call())
+        assert.equal(validatorBlock + 1, newValidatorBlock, "Validator Block doesn't increment")
+
+        let err;
+        [err] = await to(instance.deposit(validatorBlock, txBytes.toString('binary'), {'from': accounts[2], 'value': 50000}))
+
+        if(!err)
+            assert(false, "Allowed deposit to be added after unseen block")
+
+    })
 
     it("Submit block from someone other than authority fails", async () => {
         let instance = await RootChain.deployed();
