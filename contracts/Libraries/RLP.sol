@@ -6,6 +6,7 @@ pragma solidity ^0.4.18;
  *
  * @author Andreas Olofsson (androlo1980@gmail.com)
  */
+
 library RLP {
     uint constant DATA_SHORT_START = 0x80;
     uint constant DATA_LONG_START = 0xB8;
@@ -76,6 +77,8 @@ library RLP {
             return RLPItem(0, 0);
         }
         uint memPtr;
+
+        // first byte holds the length of the array
         assembly {
             memPtr := add(self, 0x20)
         }
@@ -88,7 +91,7 @@ library RLP {
     /// @return An RLPItem
     function toRLPItem(bytes memory self, bool strict)
         internal
-        constant
+        pure
         returns (RLPItem memory)
     {
         var item = toRLPItem(self);
@@ -124,7 +127,7 @@ library RLP {
             return false;
         uint memPtr = self._unsafe_memPtr;
         assembly {
-            ret := iszero(lt(byte(0, mload(memPtr)), 0xC0))
+            ret := iszero(lt(byte(0, mload(memPtr)), 0xC0)) // gte
         }
     }
 
@@ -157,9 +160,9 @@ library RLP {
         uint b0;
         uint memPtr = self._unsafe_memPtr;
         assembly {
-            b0 := byte(0, mload(memPtr))
+            b0 := byte(0, mload(memPtr)) // first byte encodes the length of the structure
         }
-        return (b0 == DATA_SHORT_START || b0 == LIST_SHORT_START);
+        return (b0 == DATA_SHORT_START || b0 == LIST_SHORT_START); // length of zero
     }
 
     /// @dev Get the number of items in an RLP encoded list.
@@ -206,7 +209,7 @@ library RLP {
     /// @return The bytes.
     function toBytes(RLPItem memory self)
         internal
-        view
+        pure
         returns (bytes memory bts)
     {
         var len = self._unsafe_length;
@@ -222,7 +225,7 @@ library RLP {
     /// @return The decoded string.
     function toData(RLPItem memory self)
         internal
-        view
+        pure
         returns (bytes memory bts)
     {
         require(isData(self));
@@ -257,7 +260,7 @@ library RLP {
     /// @return The decoded string.
     function toAscii(RLPItem memory self)
         internal
-        view
+        pure
         returns (string memory str)
     {
         require(isData(self));
@@ -452,26 +455,25 @@ library RLP {
     // Assumes that enough memory has been allocated to store in target.
     function _copyToBytes(uint btsPtr, bytes memory tgt, uint btsLen)
         private
-        view
+        pure
     {
         // Exploiting the fact that 'tgt' was the last thing to be allocated,
         // we can write entire words, and just overwrite any excess.
         assembly {
             {
-                let i := 0 // Start at arr + 0x20
+                // evm operations on words
                 let words := div(add(btsLen, 31), 32)
                 let rOffset := btsPtr
                 let wOffset := add(tgt, 0x20)
-                tag_loop:
-                    jumpi(end, eq(i, words))
+                for 
+                    { let i := 0 } // start at arr + 0x20 -> first byte corresponds to length
+                    lt(i, words)
+                    { i := add(i, 1) }
                 {
                     let offset := mul(i, 0x20)
                     mstore(add(wOffset, offset), mload(add(rOffset, offset)))
-                    i := add(i, 1)
                 }
-                jump(tag_loop)
-                end:
-                    mstore(add(tgt, add(0x20, mload(tgt))), 0)
+                mstore(add(tgt, add(0x20, mload(tgt))), 0)
             }
         }
     }
