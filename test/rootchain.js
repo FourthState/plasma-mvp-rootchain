@@ -6,9 +6,13 @@ let to = require('./utilities.js').to;
 let RootChain = artifacts.require("RootChain");
 
 contract('RootChain', async (accounts) => {
+    // deploy one rootchain contract for all tests
+    let instance;
+    before(async () => {
+        instance = await RootChain.deployed();
+    });
 
     it("Submit block from authority", async () => {
-        let instance = await RootChain.deployed();
         let curr = parseInt(await instance.currentChildBlock.call());
 
         // waiting at least 5 root chain blocks before submitting a block
@@ -26,7 +30,6 @@ contract('RootChain', async (accounts) => {
     });
 
     it("Depositing a block", async () => {
-        let instance = await RootChain.deployed();
         let depositAmount = 50000;
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
         let validatorBlock = parseInt(await instance.validatorBlocks.call())
@@ -42,7 +45,6 @@ contract('RootChain', async (accounts) => {
     });
 
     it("Deposit then submit block", async () => {
-        let instance = await RootChain.deployed();
         let depositAmount = 50000;
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
         let prevBlockNum = parseInt(await instance.currentChildBlock.call());
@@ -63,7 +65,6 @@ contract('RootChain', async (accounts) => {
     });
 
     it("Invalid deposits", async () => {
-        let instance = await RootChain.deployed();
         let validatorBlock = parseInt(await instance.validatorBlocks.call())
         let err;
 
@@ -89,7 +90,6 @@ contract('RootChain', async (accounts) => {
 
 
     it("Deposit after unseen submitted block", async () => {
-        let instance = await RootChain.deployed();
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         let validatorBlock = parseInt(await instance.validatorBlocks.call())
 
@@ -106,10 +106,9 @@ contract('RootChain', async (accounts) => {
         if(!err)
             assert.fail("Allowed deposit to be added after unseen block")
 
-    })
+    });
 
     it("Submit block from someone other than authority", async () => {
-        let instance = await RootChain.deployed();
         for (i = 0; i < 5; i++) {
             await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
         }
@@ -127,7 +126,6 @@ contract('RootChain', async (accounts) => {
     });
 
     it("Submit block within 6 rootchain blocks", async () => {
-        let instance = await RootChain.deployed();
         // First submission waits and passes
         for (i = 0; i < 5; i++) {
             await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
