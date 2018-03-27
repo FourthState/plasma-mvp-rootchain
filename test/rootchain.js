@@ -1,11 +1,13 @@
-let RootChain = artifacts.require("RootChain");
+// external libraries
 let RLP = require('rlp');
 let assert = require('chai').assert;
 let to = require('./utilities.js').to;
 
+let RootChain = artifacts.require("RootChain");
+
 contract('RootChain', async (accounts) => {
 
-    it("Submit block from authority passes", async () => {
+    it("Submit block from authority", async () => {
         let instance = await RootChain.deployed();
         let curr = parseInt(await instance.currentChildBlock.call());
 
@@ -23,7 +25,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(web3.toUtf8(childBlock[0]), blockRoot, 'Child block merkle root does not match submitted merkle root.');
     });
 
-    it("Depositing a block passes", async () => {
+    it("Depositing a block", async () => {
         let instance = await RootChain.deployed();
         let depositAmount = 50000;
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
@@ -39,7 +41,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(prev + 1, curr, "Child block did not increment");
     });
 
-    it("Deposit then submit block passes", async () => {
+    it("Deposit then submit block", async () => {
         let instance = await RootChain.deployed();
         let depositAmount = 50000;
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
@@ -60,7 +62,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(currBlockNum + 1, nextBlockNum, "Child block did not increment after submitting a block.")
     });
 
-    it("Invalid deposits fail", async () => {
+    it("Invalid deposits", async () => {
         let instance = await RootChain.deployed();
         let validatorBlock = parseInt(await instance.validatorBlocks.call())
         let err;
@@ -68,25 +70,25 @@ contract('RootChain', async (accounts) => {
         let txBytes1 = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         [err] = await to(instance.deposit(validatorBlock, txBytes1.toString('binary'), {'from': accounts[2], 'value': 50}));
         if (!err) {
-            assert(false, "Invalid deposit, did not revert");
+            assert.fail("Invalid deposit, did not revert");
         }
 
         let txBytes2 = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, accounts[3], 10000, 0]);
         [err] = await to(instance.deposit(validatorBlock, txBytes2.toString('binary'), {'from': accounts[2], 'value': 50000}));
         if (!err) {
-            assert(false, "Invalid deposit, did not revert");
+            assert.fail("Invalid deposit, did not revert");
         }
 
         let txBytes3 = RLP.encode([3, 5, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         [err] = await to(instance.deposit(validatorBlock, txBytes3.toString('binary'), {'from': accounts[2], 'value': 50000}));
         if (!err) {
-            assert(false, "Invalid deposit, did not revert");
+            assert.fail( "Invalid deposit, did not revert");
         }
 
     });
 
 
-    it("Deposit after unseen Submitted Block fails", async () => {
+    it("Deposit after unseen submitted block", async () => {
         let instance = await RootChain.deployed();
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         let validatorBlock = parseInt(await instance.validatorBlocks.call())
@@ -102,11 +104,11 @@ contract('RootChain', async (accounts) => {
         [err] = await to(instance.deposit(validatorBlock, txBytes.toString('binary'), {'from': accounts[2], 'value': 50000}))
 
         if(!err)
-            assert(false, "Allowed deposit to be added after unseen block")
+            assert.fail("Allowed deposit to be added after unseen block")
 
     })
 
-    it("Submit block from someone other than authority fails", async () => {
+    it("Submit block from someone other than authority", async () => {
         let instance = await RootChain.deployed();
         for (i = 0; i < 5; i++) {
             await web3.eth.sendTransaction({'from': accounts[0], 'to': accounts[1], 'value': 100});
@@ -117,14 +119,14 @@ contract('RootChain', async (accounts) => {
         let err;
         [err] = await to(instance.submitBlock('496934090963', {'from': accounts[1]}));
         if (!err) {
-            assert(false, "Submit allowed from wrong person!"); // this line should never be reached
+            assert.fail("Submit allowed from wrong person!"); // this line should never be reached
         }
 
         let curr = parseInt(await instance.currentChildBlock.call());
         assert.equal(prev, curr, "Allowed submit block from someone other than authority!");
     });
 
-    it("Submit block within 6 rootchain blocks fails", async () => {
+    it("Submit block within 6 rootchain blocks", async () => {
         let instance = await RootChain.deployed();
         // First submission waits and passes
         for (i = 0; i < 5; i++) {
@@ -141,7 +143,7 @@ contract('RootChain', async (accounts) => {
         let err;
         [err] = await to(instance.submitBlock(web3.fromAscii(blockRoot2)));
         if (!err) {
-            assert(false, "Submit does not wait 6 rootchain blocks.");
+            assert.fail("Submit does not wait 6 rootchain blocks.");
         }
     });
 });
