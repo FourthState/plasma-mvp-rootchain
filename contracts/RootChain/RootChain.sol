@@ -64,8 +64,8 @@ contract RootChain {
         public
     {
         authority = msg.sender;
-        currentChildBlock = 1;
-        validatorBlocks = 1;
+        currentChildBlock = 0;
+        validatorBlocks = 0;
         lastParentBlock = block.number;
 
         exitsQueue = new PriorityQueue();
