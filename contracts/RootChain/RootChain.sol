@@ -172,8 +172,9 @@ contract RootChain {
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
 
         // one-to-one mapping between priority and exit
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
         require(exits[priority].amount == 0);
+
         exitsQueue.insert(priority);
 
         exits[priority] = exit({
