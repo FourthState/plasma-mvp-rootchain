@@ -281,13 +281,16 @@ contract('RootChain', async (accounts) => {
 
         // fast forward the next block 1 week
         let oldTime = web3.eth.getBlock(web3.eth.blockNumber).timestamp
-
         // a bit over a week
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0})
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0})
 
+
         let currTime = web3.eth.getBlock(web3.eth.blockNumber).timestamp
-        assert((currTime - oldTime) == 804800, "Block time was not fast forwarded by 1 week");
+
+        // allow for some error up 3 secs from increasing time to mining the next block
+        let diff = (currTime - oldTime) - 804800
+        assert(diff < 3, "Block time was not fast forwarded by 1 week");
 
         let bal = (await rootchain.getBalance.call({'from': accounts[2]})).toNumber();
         assert(bal == 0, "Account balance on rootchain is not zero");
@@ -296,6 +299,11 @@ contract('RootChain', async (accounts) => {
         await rootchain.finalizeExits({'from': accounts[0]});
         bal = (await rootchain.getBalance.call({'from': accounts[2]})).toNumber();
         assert(bal == (10000 + 5000), "Account's rootchain balance was not credited");
+
+        let priority = blockNum * 1000000000;
+        let exit = await rootchain.getExit.call(priority);
+        // make sure the exit was deleted
+        assert(exit[0] == 0, "Incorrect exit owner");
     });
 
     it("Start an invalid exit", async () => {
