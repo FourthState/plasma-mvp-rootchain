@@ -197,7 +197,7 @@ contract('RootChain', async (accounts) => {
         let confirmSignature = web3.eth.sign(accounts[2], "INCORRECTCONFIRMSIGMUAHAHAHAHAHAHAHA-HamdiWasHere");
 
         let err;
-        [err] = await to(rootchain.challengeExit([6, 0, 0], [7, 0, 0],
+        [err] = await to(rootchain.challengeExit([7, 0, 0], [8, 0, 0],
             txBytes.toString('binary'), hexToBinary(proofForDepositBlock),
             hexToBinary(sigs), hexToBinary(confirmSignature), {'from': accounts[3]}));
 
@@ -208,7 +208,7 @@ contract('RootChain', async (accounts) => {
 
     it("Challenge with correct confirmSignature", async () => {
         // transact accounts[2] => accounts[3]. DOUBLE SPEND (earlier exit)
-        let txBytes = RLP.encode([6, 0, 0, 0, 0, 0, accounts[3], 5000, 0, 0, 0]);
+        let txBytes = RLP.encode([7, 0, 0, 0, 0, 0, accounts[3], 5000, 0, 0, 0]);
         let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
         let sigs = web3.eth.sign(accounts[2], txHash);
         sigs += new Buffer(65).toString('hex');
@@ -229,7 +229,7 @@ contract('RootChain', async (accounts) => {
         let balance = (await rootchain.getBalance.call({'from': accounts[3]})).toNumber();
         assert(balance === 0, "Account balance on rootchain is not zero");
         // challenge
-        await rootchain.challengeExit([6, 0, 0], [7, 0, 0],
+        await rootchain.challengeExit([7, 0, 0], [8, 0, 0],
             txBytes.toString('binary'), hexToBinary(proofForDepositBlock),
             hexToBinary(sigs), hexToBinary(confirmSignature), {'from': accounts[3]});
 
