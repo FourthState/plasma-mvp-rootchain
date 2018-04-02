@@ -5,7 +5,8 @@ let assert = require('chai').assert;
 let { 
     to,
     proofForDepositBlock,
-    hexToBinary
+    hexToBinary,
+    zeroHashes,
 } = require('./utilities.js');
 
 let RootChain = artifacts.require("RootChain");
@@ -168,7 +169,6 @@ contract('RootChain', async (accounts) => {
         let blockHeader = (await rootchain.getChildChain(blockNum))[0];
         let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
         let sigs = (new Buffer(130)).toString('hex');
-        let leaf = web3.sha3(txHash + sigs, {encoding: 'hex'});
 
         // create the confirm sig
         let confirmHash = web3.sha3(txHash.slice(2) + sigs + blockHeader.slice(2), {encoding: 'hex'});
@@ -185,7 +185,117 @@ contract('RootChain', async (accounts) => {
         let exit = await rootchain.getExit.call(priority);
         assert(exit[0] == accounts[2], "Incorrect exit owner");
         assert(exit[1].toNumber() == 5000, "Incorrect amount");
-        assert(exit[2][0].toNumber() == blockNum , "Incorrect block number");
+        assert(exit[2][0].toNumber() == blockNum, "Incorrect block number");
+    });
+
+    it("Challenge the above exit with the incorrect confirm sig", async () => {
+        let txBytes = RLP.encode([6, 0, 0, 0, 0, 0, accounts[3], 5000, 0, 0, 0]);
+        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+        let sigs = web3.eth.sign(accounts[2], txHash);
+        sigs += new Buffer(65).toString('hex');
+
+        let confirmSignature = web3.eth.sign(accounts[2], "INCORRECTCONFIRMSIGMUAHAHAHAHAHAHAHA-HamdiWasHere");
+
+        let err;
+        [err] = await to(rootchain.challengeExit([6, 0, 0], [7, 0, 0],
+            txBytes.toString('binary'), hexToBinary(proofForDepositBlock),
+            hexToBinary(sigs), hexToBinary(confirmSignature), {'from': accounts[3]}));
+
+        if (!err) {
+            assert.fail('Invalid start exit allowed');
+        }
+    });
+
+    it("Challenge with correct confirmSignature", async () => {
+        // transact accounts[2] => accounts[3]. DOUBLE SPEND (earlier exit)
+        let txBytes = RLP.encode([6, 0, 0, 0, 0, 0, accounts[3], 5000, 0, 0, 0]);
+        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+        let sigs = web3.eth.sign(accounts[2], txHash);
+        sigs += new Buffer(65).toString('hex');
+        let leaf = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
+
+        // create the block and submit as an authority
+        let computedRoot = leaf.slice(2);
+        for (let i = 0; i < 16; i++) {
+          computedRoot = web3.sha3(computedRoot + zeroHashes[i], 
+            {encoding: 'hex'}).slice(2)
+        }
+        await rootchain.submitBlock(hexToBinary(computedRoot));
+
+        // create the right confirm sig
+        let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
+        let confirmSignature = web3.eth.sign(accounts[2], confirmHash);
+
+        let balance = (await rootchain.getBalance.call({'from': accounts[3]})).toNumber();
+        assert(balance === 0, "Account balance on rootchain is not zero");
+        // challenge
+        await rootchain.challengeExit([6, 0, 0], [7, 0, 0],
+            txBytes.toString('binary'), hexToBinary(proofForDepositBlock),
+            hexToBinary(sigs), hexToBinary(confirmSignature), {'from': accounts[3]});
+
+        balance = (await rootchain.getBalance.call({'from': accounts[3]})).toNumber();
+        assert(balance == 10000, "Challenge bounty was not dispursed");
+
+        let priority = 6000000000;
+        let exit = await rootchain.getExit.call(priority);
+        // make sure the exit was deleted
+        assert(exit[0] == 0, "Incorrect exit owner");
+    });
+
+    it("Withdraw from the above successfull challenge", async () => {
+        let bal = web3.eth.getBalance(accounts[3]).toNumber();
+        let tx = (await rootchain.withdraw({'from': accounts[3]})).tx;
+        let gasUsed = web3.eth.getTransactionReceipt(tx).gasUsed;
+        let price = web3.eth.getTransaction(tx).gasPrice;
+        let amt = price * gasUsed;
+
+        let expectedBal = bal + 10000 - amt;
+        let currBal = web3.eth.getBalance(accounts[3]).toNumber();
+
+        assert(currBal == expectedBal, "Account was not accreddited"); 
+    });
+
+    it("Start exit and finalize after a week", async () => {
+        // submit a deposit
+        let blockNum = await rootchain.currentChildBlock.call();
+        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, accounts[2], 5000, 0, 0, 0]);
+        let validatorBlock = await rootchain.validatorBlocks.call();
+        await rootchain.deposit(validatorBlock, txBytes.toString('binary'), {'from': accounts[2], 'value': 5000});
+
+        // construct the confirm sig
+        // Remove all 0x prefixes from hex strings
+        let blockHeader = (await rootchain.getChildChain(blockNum))[0];
+        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+        let sigs = (new Buffer(130)).toString('hex');
+
+        // create the confirm sig
+        let confirmHash = web3.sha3(txHash.slice(2) + sigs + blockHeader.slice(2), {encoding: 'hex'});
+        let confirmSignature = web3.eth.sign(accounts[2], confirmHash);
+
+        // start the exit
+        let txPos = [blockNum, 0, 0];
+        let exitSigs = new Buffer(130).toString('hex') + confirmSignature.slice(2) + new Buffer(65).toString('hex');
+
+        await rootchain.startExit(txPos, txBytes.toString('binary'), 
+            hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {'from': accounts[2], 'value': 10000 });
+
+        // fast forward the next block 1 week
+        let oldTime = web3.eth.getBlock(web3.eth.blockNumber).timestamp
+
+        // a bit over a week
+        await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0})
+        await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0})
+
+        let currTime = web3.eth.getBlock(web3.eth.blockNumber).timestamp
+        assert((currTime - oldTime) == 804800, "Block time was not fast forwarded by 1 week");
+
+        let bal = (await rootchain.getBalance.call({'from': accounts[2]})).toNumber();
+        assert(bal == 0, "Account balance on rootchain is not zero");
+
+        // accounts[0] will eat up the gas cost
+        await rootchain.finalizeExits({'from': accounts[0]});
+        bal = (await rootchain.getBalance.call({'from': accounts[2]})).toNumber();
+        assert(bal == (10000 + 5000), "Account's rootchain balance was not credited");
     });
 
     it("Start an invalid exit", async () => {
@@ -211,8 +321,8 @@ contract('RootChain', async (accounts) => {
         let exitSigs = new Buffer(130).toString('hex') + confirmSignature.slice(2) + new Buffer(65).toString('hex');
 
         let err
-        [err] = await to(rootchain.startExit(txPos, txBytes.toString('binary'), 
-            hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {'from': accounts[3], 'value': 10000 }));
+        [err] = await to(rootchain.startExit.call(txPos, txBytes.toString('binary'), 
+            hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {'from': accounts[3], 'value': 10000 })); // incorrect account
         if (!err) {
             assert.fail("Invalid exit started");
         }
