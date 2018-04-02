@@ -188,7 +188,8 @@ contract RootChain {
     /// @param txPos [0] Plasma block number in which the challenger's transaction occured
     /// @param txPos [1] Transaction Index within the block
     /// @param txPos [2] Output Index within the transaction (either 0 or 1)
-    function challengeExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
+    /// @param newTxPos  Same as the above but the pos of the uxto created by the spend tx
+    function challengeExit(uint256[3] txPos, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
         public
     {
         // txBytes verification
@@ -196,11 +197,11 @@ contract RootChain {
         require(txList.length == 11);
 
         // start-exit verification
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
         uint256[3] memory utxoPos = exits[priority].utxoPos;
-        require(utxoPos[0] == txList[0 + 2 * utxoPos[2]].toUint());
-        require(utxoPos[1] == txList[1 + 2 * utxoPos[2]].toUint());
-        require(utxoPos[2] == txList[2 + 2 * utxoPos[2]].toUint());
+        require(utxoPos[0] == txList[0 + 3 * newTxPos[2]].toUint());
+        require(utxoPos[1] == txList[1 + 3 * newTxPos[2]].toUint());
+        require(utxoPos[2] == txList[2 + 3 * newTxPos[2]].toUint());
 
         /*
            Confirmation sig:
@@ -209,11 +210,12 @@ contract RootChain {
         
         var txHash = keccak256(txBytes);
         var merkleHash = keccak256(txHash, sigs);
-        var confirmationHash = keccak256(txHash, sigs, childChain[txPos[0]].root);
+        bytes32 root = childChain[newTxPos[0]].root;
+        var confirmationHash = keccak256(txHash, sigs, root);
 
         // challenge
         require(exits[priority].owner == ECRecovery.recover(confirmationHash, confirmationSig));
-        require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
+        require(merkleHash.checkMembership(newTxPos[1], root, proof));
 
         // exit successfully challenged. Award the sender with the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
@@ -248,6 +250,14 @@ contract RootChain {
             priority = exitsQueue.getMin();
             currentExit = exits[priority];
         }
+    }
+
+    function getBalance()
+          public
+          view
+          returns (uint256)
+    {
+        return balances[msg.sender];
     }
 
     function withdraw()
