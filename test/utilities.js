@@ -1,8 +1,9 @@
+let RLP = require('rlp');
+
 /* 
  How to avoid using try/catch blocks with promises' that could fail using async/await
  - https://blog.grossman.io/how-to-write-async-await-without-try-catch-blocks-in-javascript/
  */
-
 let to = function(promise) {
   return promise.then(result => [null, result])
       .catch(err => [err]);
@@ -14,6 +15,26 @@ let hexToBinary = function(value) {
     }
 
     return Buffer.from(value, 'hex').toString('binary');
+};
+
+let createAndSubmitTX = async function(rootchain, address) {
+    // submit a deposit
+    let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
+    let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, address, 5000, 0, 0, 0]);
+    let validatorBlock = await rootchain.validatorBlocks.call();
+    await rootchain.deposit(validatorBlock, txBytes.toString('binary'), {from: address, value: 5000});
+
+    // construct the confirm sig
+    // Remove all 0x prefixes from hex strings
+    let blockHeader = (await rootchain.getChildChain.call(blockNum))[0];
+    let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+    let sigs = (new Buffer(130)).toString('hex');
+
+    // create the confirm sig
+    let confirmHash = web3.sha3(txHash.slice(2) + sigs + blockHeader.slice(2), {encoding: 'hex'});
+    let confirmSignature = await web3.eth.sign(address, confirmHash);
+
+    return [blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader];
 };
 
 // 512 bytes
@@ -38,6 +59,7 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
 
 module.exports = {
     to,
+    createAndSubmitTX,
     proofForDepositBlock,
     hexToBinary,
     zeroHashes,
