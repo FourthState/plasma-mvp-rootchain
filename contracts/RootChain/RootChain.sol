@@ -149,6 +149,14 @@ contract RootChain {
         return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at);
     }
 
+    function getQueueLength()
+        public
+        view
+        returns (uint256)
+    {
+        return exitsQueue.currentSize();
+    }
+
     /// @param txPos [0] Plasma block number in which the transaction occured
     /// @param txPos [1] Transaction Index within the block
     /// @param txPos [2] Output Index within the transaction (either 0 or 1)
@@ -230,8 +238,10 @@ contract RootChain {
         exit memory currentExit = exits[priority];
 
         while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
+            // this can occur if challengeExit is sucessful on an exit
             if (currentExit.owner == address(0)) {
-                exitsQueue.delMin(); // delete priority of already deleted exit.
+                exitsQueue.delMin();
+
                 // move onto the next oldest exit
                 priority = exitsQueue.getMin();
                 currentExit = exits[priority];
@@ -271,7 +281,7 @@ contract RootChain {
         uint256 transferAmount = balances[msg.sender];
         delete balances[msg.sender];
         
-        // will revert the above deletions if fails
+        // will revert the above deletion if fails
         msg.sender.transfer(transferAmount);
         return transferAmount;
     }
