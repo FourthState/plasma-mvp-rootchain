@@ -46,6 +46,34 @@ contract('PriorityQueue', async (accounts) => {
         assert.equal(currSize, 0, "Insert allowed for someone other than owner");
     });
 
+    it("Insert, delete min, insert again", async () => {
+        for (i = 1; i < 6; i++) {
+            await instance.insert(i);
+            let min = parseInt(await instance.getMin());
+            assert.equal(min, 1, "getMin does not return minimum element in pq.");
+        }
+
+        // partially clear the pq
+        for (i = 0; i < 3; i++) {
+            await instance.delMin();
+        }
+        min = parseInt(await instance.getMin());
+        assert.equal(min, 4, "delMin deleted priorities out of order");
+
+        // insert to pq after partial delete
+        for (i = 2; i < 4; i++) {
+            await instance.insert(i);
+            let min = parseInt(await instance.getMin());
+            assert.equal(min, 2, "getMin does not return minimum element in pq.");
+        }
+        // clear the pq
+        for (i = 0; i < 4; i++) {
+            await instance.delMin();
+        }
+        currSize = parseInt(await instance.currentSize.call());
+        assert.equal(currSize, 0, "The priority queue has not been emptied");
+    });
+
     it ("Insert same priorities", async () => {
         let currentSize = parseInt(await instance.currentSize.call());
         assert.equal(currentSize, 0, "The size is not 0");
