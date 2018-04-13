@@ -31,6 +31,8 @@ contract('PriorityQueue', async (accounts) => {
         for (i = 0; i < 2; i++) {
             await instance.delMin();
         }
+        currSize = parseInt(await instance.currentSize.call());
+        assert.equal(currSize, 0, "The priority queue has not been emptied");
     });
 
     it ("Insert from someone other than owner", async () => {
