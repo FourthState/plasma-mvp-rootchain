@@ -67,6 +67,9 @@ contract PriorityQueue {
         onlyOwner
         returns (uint256)
     {
+        if (currentSize == 0) {
+            return 0;
+        }
         uint256 retVal = heapList[1];
         heapList[1] = heapList[currentSize];
         delete heapList[currentSize];

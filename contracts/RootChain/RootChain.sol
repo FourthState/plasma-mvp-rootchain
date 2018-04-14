@@ -240,12 +240,16 @@ contract RootChain {
         while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
             // this can occur if challengeExit is sucessful on an exit
             if (currentExit.owner == address(0)) {
-                exitsQueue.delMin();
+                priority = exitsQueue.delMin();
+                delete exits[priority];
 
                 // move onto the next oldest exit
-                priority = exitsQueue.getMin();
-                currentExit = exits[priority];
-                continue; // Prevent incorrect processing of deleted exits.
+                if (exitsQueue.currentSize() != 0) {
+                    priority = exitsQueue.getMin();
+                    currentExit = exits[priority];
+                    continue; // Prevent incorrect processing of deleted exits.
+                }
+                return;
             }
 
             // prevent a potential DoS attack if from someone purposely reverting a payment
@@ -257,8 +261,13 @@ contract RootChain {
             delete exits[priority];
 
             // move onto the next oldest exit
-            priority = exitsQueue.getMin();
-            currentExit = exits[priority];
+            if (exitsQueue.currentSize() != 0) {
+                priority = exitsQueue.getMin();
+                currentExit = exits[priority];
+            }
+        }
+        if (currentExit.owner != 0) {
+            revert();
         }
     }
 
