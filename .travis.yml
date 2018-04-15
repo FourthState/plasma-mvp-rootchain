@@ -3,7 +3,7 @@ language: node_js
 node_js: "node"
 
 before_script:
-  - npm install -g truffle ganache-cli
+  - npm install -g truffle@4.1.0 ganache-cli@6.1.0
   - npm install
 
 script: 

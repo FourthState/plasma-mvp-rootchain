@@ -30,6 +30,7 @@ contract RootChain {
      * Events
      */
     event Deposit(address depositor, uint256 amount);
+    event FinalizedExit(uint priority, address owner);
 
     /*
      *  Storage
@@ -59,6 +60,7 @@ contract RootChain {
 
     // avoid recomputations
     bytes32[16] zeroHashes;
+
 
     function RootChain()
         public
@@ -157,6 +159,7 @@ contract RootChain {
     function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
         public
         payable
+        returns (uint256)
     {
         // txBytes verification
         var txList = txBytes.toRLPItem().toList();
@@ -172,8 +175,10 @@ contract RootChain {
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
 
         // one-to-one mapping between priority and exit
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
+        require(exits[priority].owner == address(0));
         require(exits[priority].amount == 0);
+
         exitsQueue.insert(priority);
 
         exits[priority] = exit({
@@ -187,7 +192,8 @@ contract RootChain {
     /// @param txPos [0] Plasma block number in which the challenger's transaction occured
     /// @param txPos [1] Transaction Index within the block
     /// @param txPos [2] Output Index within the transaction (either 0 or 1)
-    function challengeExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
+    /// @param newTxPos  Same as the above but the pos of the uxto created by the spend tx
+    function challengeExit(uint256[3] txPos, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
         public
     {
         // txBytes verification
@@ -195,11 +201,11 @@ contract RootChain {
         require(txList.length == 11);
 
         // start-exit verification
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[0];
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
         uint256[3] memory utxoPos = exits[priority].utxoPos;
-        require(utxoPos[0] == txList[0 + 2 * utxoPos[2]].toUint());
-        require(utxoPos[1] == txList[1 + 2 * utxoPos[2]].toUint());
-        require(utxoPos[2] == txList[2 + 2 * utxoPos[2]].toUint());
+        require(utxoPos[0] == txList[0 + 3 * newTxPos[2]].toUint());
+        require(utxoPos[1] == txList[1 + 3 * newTxPos[2]].toUint());
+        require(utxoPos[2] == txList[2 + 3 * newTxPos[2]].toUint());
 
         /*
            Confirmation sig:
@@ -208,11 +214,12 @@ contract RootChain {
         
         var txHash = keccak256(txBytes);
         var merkleHash = keccak256(txHash, sigs);
-        var confirmationHash = keccak256(txHash, sigs, childChain[txPos[0]].root);
+        bytes32 root = childChain[newTxPos[0]].root;
+        var confirmationHash = keccak256(txHash, sigs, root);
 
         // challenge
         require(exits[priority].owner == ECRecovery.recover(confirmationHash, confirmationSig));
-        require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
+        require(merkleHash.checkMembership(newTxPos[1], root, proof));
 
         // exit successfully challenged. Award the sender with the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
@@ -222,13 +229,24 @@ contract RootChain {
     function finalizeExits()
         public
     {
+        // getMin will fail if nothing is in the queue
+        if (exitsQueue.currentSize() == 0) {
+            return;
+        }
+
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = exitsQueue.getMin();
         exit memory currentExit = exits[priority];
 
         while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
+            // this can occur if challengeExit is sucessful on an exit
             if (currentExit.owner == address(0)) {
-                exitsQueue.delMin(); // delete priority of already deleted exit.
+                exitsQueue.delMin();
+
+                if (exitsQueue.currentSize() == 0) {
+                    return;
+                }
+
                 // move onto the next oldest exit
                 priority = exitsQueue.getMin();
                 currentExit = exits[priority];
@@ -239,14 +257,28 @@ contract RootChain {
             uint256 amountToAdd = currentExit.amount.add(minExitBond);
             balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
 
+            FinalizedExit(priority, currentExit.owner);
+
             // delete the finalized exit
             priority = exitsQueue.delMin();
             delete exits[priority];
+
+            if (exitsQueue.currentSize() == 0) {
+                return;
+            }
 
             // move onto the next oldest exit
             priority = exitsQueue.getMin();
             currentExit = exits[priority];
         }
+    }
+
+    function getBalance()
+          public
+          view
+          returns (uint256)
+    {
+        return balances[msg.sender];
     }
 
     function withdraw()
@@ -260,7 +292,7 @@ contract RootChain {
         uint256 transferAmount = balances[msg.sender];
         delete balances[msg.sender];
         
-        // will revert the above deletions if fails
+        // will revert the above deletion if fails
         msg.sender.transfer(transferAmount);
         return transferAmount;
     }
