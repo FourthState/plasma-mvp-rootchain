@@ -180,8 +180,8 @@ contract('RootChain', async (accounts) => {
         let priority = 1000000000*blockNum;
         let exit = await rootchain.getExit.call(priority);
         assert(exit[0] == accounts[2], "Incorrect exit owner");
-        assert(exit[1].toNumber() == 5000, "Incorrect amount");
-        assert(exit[2][0].toNumber() == blockNum, "Incorrect block number");
+        assert(exit[1] == 5000, "Incorrect amount");
+        assert(exit[2][0] == blockNum, "Incorrect block number");
     });
 
     it("Try to exit with invalid parameters", async () => {
@@ -195,13 +195,13 @@ contract('RootChain', async (accounts) => {
         let exitSigs = new Buffer(130).toString('hex') + confirmSignature.slice(2) + new Buffer(65).toString('hex');
 
         let err;
-        [err] = await to(rootchain.startExit.call(txPos, txBytes.toString('binary'), 
+        [err] = await to(rootchain.startExit(txPos, txBytes.toString('binary'), 
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[3], value: 10000 }));
         if (!err) {
             assert.fail("Invalid owner started the exit");
         }
 
-        [err] = await to(rootchain.startExit.call(txPos, txBytes.toString('binary'), 
+        [err] = await to(rootchain.startExit(txPos, txBytes.toString('binary'), 
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: 10 }));
         if (!err) {
             assert.fail("Exit started with insufficient bond");
@@ -268,24 +268,24 @@ contract('RootChain', async (accounts) => {
 
         /*
          * authority will eat up the gas cost in the finalize exit
-         * TODO: finalizeExit's implementation needs to be changed to prevent a
+         * TODO: finalizeExit implementation needs to be changed to prevent a
          * revert from occuring if gas runs out
          */
-        
+
         // fast forward and finalize any exits from previous tests
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
         await rootchain.finalizeExits({from: authority});
 
-        let queueSize = await rootchain.getQueueLength.call();
-        assert(queueSize == 0, "Previous exits were not finalized");
-
         // start a new exit
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
         await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'),
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond });
-        queueSize = await rootchain.getQueueLength.call();
-        assert(queueSize == 1, "Single priority value is not in the queue");
+        let priority = 1000000000*blockNum;
+        let exit = await rootchain.getExit.call(priority);
+        assert(exit[0] == accounts[2], "Incorrect exit owner");
+        assert(exit[1] == 5000, "Incorrect amount");
+        assert(exit[2][0] == blockNum, "Incorrect block number");
 
         // fast forward again
         let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
@@ -295,27 +295,13 @@ contract('RootChain', async (accounts) => {
         let diff = (currTime - oldTime) - 804800
         assert(diff < 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
 
-        let priority = 1000000000*blockNum;
-        let exit = await rootchain.getExit.call(priority);
-        assert(exit[0] == accounts[2], "Incorrect exit owner");
-        assert(exit[1].toNumber() == 5000, "Incorrect amount");
-        assert(exit[2][0].toNumber() == blockNum, "Incorrect block number");
-
-
         // finalize
         let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
-        console.log('rootchain balance before finalize: ' + oldBal);
-
         await rootchain.finalizeExits({from: authority});
-
-        queueSize = await rootchain.getQueueLength.call();
-        exit = await rootchain.getExit.call(priority);
-        assert(queueSize == 0, "The exits priority queue is not empty afer finalize");
-        assert(exit[0] == 0, "Exit was not deleted after finalizing");
-
         let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
-        console.log('rootchain balance after finalize: ' + oldBal);
 
+        exit = await rootchain.getExit.call(priority);
+        assert(exit[0] == 0, "Exit was not deleted after finalizing");
         assert(balance == (oldBal + minExitBond + 5000), "Account's rootchain balance was not credited");
     });
 });
