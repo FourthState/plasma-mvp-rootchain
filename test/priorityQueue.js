@@ -8,6 +8,20 @@ contract('PriorityQueue', async (accounts) => {
         instance = await PriorityQueue.deployed();
     });
 
+    it("Add then remove", async () => {
+        await instance.insert(2)
+        await instance.insert(1)
+        await instance.insert(3)
+        
+        assert.equal(parseInt(await instance.getMin()), 1, "Did not delete correct minimum")
+        await instance.delMin()
+        assert.equal(parseInt(await instance.getMin()), 2, "Did not delete correct minimum")
+        await instance.delMin()
+        assert.equal(parseInt(await instance.getMin()), 3, "Did not delete correct minimum")
+        await instance.delMin()
+        assert(await instance.currentSize.call() == 0, "Size is not zero")
+    })
+
     it("Ascending insert", async () => {
         let currSize = parseInt(await instance.currentSize.call());
         for (i = 1; i < 6; i++) {
@@ -107,5 +121,6 @@ contract('PriorityQueue', async (accounts) => {
         assert.equal(min, 10, "PriorityQueue did not delete duplicate correctly")
 
         await instance.delMin();
+        assert.equal(await instance.currentSize.call(), 0)
     });
 });

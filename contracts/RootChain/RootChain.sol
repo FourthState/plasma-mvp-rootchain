@@ -260,10 +260,13 @@ contract RootChain {
             finalizedExit(priority, currentExit.owner);
 
             // delete the finalized exit
-            priority = exitsQueue.delMin();
+            exitsQueue.delMin();
             delete exits[priority];
 
             // move onto the next oldest exit
+            if (exitsQueue.currentSize() == 0) {
+                return;
+            }
             priority = exitsQueue.getMin();
             currentExit = exits[priority];
         }
