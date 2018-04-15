@@ -82,7 +82,8 @@ contract('PriorityQueue', async (accounts) => {
         let min = parseInt(await instance.getMin());
         currentSize = parseInt(await instance.currentSize.call());
         assert.equal(currentSize, 1, "The size is not 0");
-        // Breaks here - has min as 0 
+
+        // Breaks here - has min as 0
         assert.equal(min, 10, "First insert did not work");
 
         await instance.insert(10);

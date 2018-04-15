@@ -230,15 +230,15 @@ contract RootChain {
         delete exits[priority];
     }
 
-    function finalizeExits()
+    function finalizeExits(uint iterations)
         public
     {
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = exitsQueue.getMin();
         exit memory currentExit = exits[priority];
 
-        while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
-            // this can occur if challengeExit is sucessful on an exit
+        while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks && iterations != 0) {
+            // this can occur if challengeExit is sucessful on an exits
             if (currentExit.owner == address(0)) {
                 priority = exitsQueue.delMin();
                 delete exits[priority];
@@ -247,9 +247,9 @@ contract RootChain {
                 if (exitsQueue.currentSize() != 0) {
                     priority = exitsQueue.getMin();
                     currentExit = exits[priority];
+                    iterations -= 1;
                     continue; // Prevent incorrect processing of deleted exits.
                 }
-                return;
             }
 
             // prevent a potential DoS attack if from someone purposely reverting a payment
@@ -265,6 +265,7 @@ contract RootChain {
                 priority = exitsQueue.getMin();
                 currentExit = exits[priority];
             }
+            iterations -= 1;
         }
         if (currentExit.owner != 0) {
             revert();
