@@ -58,10 +58,6 @@ contract RootChain {
         uint256 created_at;
     }
 
-    // avoid recomputations
-    bytes32[16] zeroHashes;
-
-
     function RootChain()
         public
     {
@@ -73,12 +69,6 @@ contract RootChain {
         exitsQueue = new PriorityQueue();
 
         minExitBond = 10000; // minimum bond needed to exit.
-
-        bytes32 zeroBytes;
-        for (uint256 i = 0; i < 16; i += 1) { // depth-16 merkle tree
-            zeroHashes[i] = zeroBytes;
-            zeroBytes = keccak256(zeroBytes, zeroBytes);
-        }
     }
 
     /// @param root 32 byte merkleRoot of ChildChain block 
@@ -108,12 +98,12 @@ contract RootChain {
     {
         require(blocknum == validatorBlocks);
         var txList = txBytes.toRLPItem().toList();
-        require(txList.length == 11);
-        for(uint256 i = 0; i < 6; i++) {
+        require(txList.length == 13);
+        for(uint256 i = 0; i < 8; i++) {
             require(txList[i].toUint() == 0);
         }
-        require(txList[7].toUint() == msg.value);
-        require(txList[9].toUint() == 0); // second output value must be zero
+        require(txList[10].toUint() == msg.value);
+        require(txList[12].toUint() == 0); // second output value must be zero
 
         /*
             The signatures are kept seperate from the txBytes to avoid having to
@@ -121,10 +111,7 @@ contract RootChain {
         */
 
         // construct the merkle root
-        bytes32 root = keccak256(keccak256(txBytes), new bytes(130));
-        for (i = 0; i < 16; i++) {
-            root = keccak256(root, zeroHashes[i]);
-        }
+        bytes32 root = keccak256(txBytes);
 
         childChain[currentChildBlock] = childBlock({
             root: root,
@@ -132,7 +119,7 @@ contract RootChain {
         });
 
         currentChildBlock = currentChildBlock.add(1);
-        Deposit(txList[6].toAddress(), msg.value);
+        Deposit(txList[8].toAddress(), msg.value);
     }
 
     function getChildChain(uint256 blockNumber)
@@ -163,8 +150,8 @@ contract RootChain {
     {
         // txBytes verification
         var txList = txBytes.toRLPItem().toList();
-        require(txList.length == 11);
-        require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());
+        require(txList.length == 13);
+        require(msg.sender == txList[8 + 2 * txPos[2]].toAddress());
         require(msg.value == minExitBond);
 
 
@@ -198,14 +185,14 @@ contract RootChain {
     {
         // txBytes verification
         var txList = txBytes.toRLPItem().toList();
-        require(txList.length == 11);
+        require(txList.length == 13);
 
         // start-exit verification
         uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
         uint256[3] memory utxoPos = exits[priority].utxoPos;
-        require(utxoPos[0] == txList[0 + 3 * newTxPos[2]].toUint());
-        require(utxoPos[1] == txList[1 + 3 * newTxPos[2]].toUint());
-        require(utxoPos[2] == txList[2 + 3 * newTxPos[2]].toUint());
+        require(utxoPos[0] == txList[0 + 4 * newTxPos[2]].toUint());
+        require(utxoPos[1] == txList[1 + 4 * newTxPos[2]].toUint());
+        require(utxoPos[2] == txList[2 + 4 * newTxPos[2]].toUint());
 
         /*
            Confirmation sig:
