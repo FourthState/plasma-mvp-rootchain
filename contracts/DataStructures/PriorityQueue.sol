@@ -1,10 +1,13 @@
 pragma solidity ^0.4.18;
-import '../Libraries/SafeMath.sol';
+
+import "../Libraries/SafeMath.sol";
+/**
+ * @title PriorityQueue
+ * @dev A priority queue implementation
+ */
 
 contract PriorityQueue {
     using SafeMath for uint256;
-
-    //TODO: refactor and allow for contract to traverse through PQ and delete a node given its priority and exit ID.
 
     /*
      *  Modifiers
@@ -14,7 +17,7 @@ contract PriorityQueue {
         _;
     }
 
-    /* 
+    /*
      *  Storage
      */
     address owner;
@@ -29,7 +32,7 @@ contract PriorityQueue {
         currentSize = 0;
     }
 
-    function insert(uint256 k) 
+    function insert(uint256 k)
         public
         onlyOwner
     {
@@ -67,38 +70,42 @@ contract PriorityQueue {
         onlyOwner
         returns (uint256)
     {
+        require(currentSize > 0);
         uint256 retVal = heapList[1];
         heapList[1] = heapList[currentSize];
         delete heapList[currentSize];
         currentSize = currentSize.sub(1);
-        percDown(1);
+        if (currentSize > 1) {
+            percDown(1);
+        }
+        heapList.length = heapList.length.sub(1);
         return retVal;
     }
 
-    function percUp(uint256 i) 
+    function percUp(uint256 i)
         private
     {
-        while (i.div(2) > 0) {
-            if (heapList[i] < heapList[i.div(2)]) {
-                uint256 tmp = heapList[i.div(2)];
-                heapList[i.div(2)] = heapList[i];
-                heapList[i] = tmp;
-            }
+        uint256 j = i;
+        uint256 newVal = heapList[i];
+        while (newVal < heapList[i.div(2)]) {
+            heapList[i] = heapList[i.div(2)];
             i = i.div(2);
         }
+        if (i != j) heapList[i] = newVal;
     }
 
     function percDown(uint256 i)
         private
     {
-        while (i.mul(2) <= currentSize) {
-            uint256 mc = minChild(i);
-            if (heapList[i] > heapList[mc]) {
-                uint256 tmp = heapList[i];
-                heapList[i] = heapList[mc];
-                heapList[mc] = tmp;
-            }
+        uint256 j = i;
+        uint256 newVal = heapList[i];
+        uint256 mc = minChild(i);
+        while (mc <= currentSize && newVal > heapList[mc]) {
+            heapList[i] = heapList[mc];
             i = mc;
+            mc = minChild(i);
         }
+        if (i != j) heapList[i] = newVal;
     }
+
 }
