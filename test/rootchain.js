@@ -277,8 +277,6 @@ contract('RootChain', async (accounts) => {
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
         await rootchain.finalizeExits({from: authority});
 
-        console.log('reached first finalizeExits')
-
         // start a new exit
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
         await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'),
@@ -289,8 +287,6 @@ contract('RootChain', async (accounts) => {
         assert(exit[1] == 5000, "Incorrect amount");
         assert(exit[2][0] == blockNum, "Incorrect block number");
 
-        console.log('started the next exit')
-
         // fast forward again
         let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
@@ -298,8 +294,6 @@ contract('RootChain', async (accounts) => {
         let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
         let diff = (currTime - oldTime) - 804800
         assert(diff < 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
-
-        console.log('fast forwarded one week')
 
         // finalize
         let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();

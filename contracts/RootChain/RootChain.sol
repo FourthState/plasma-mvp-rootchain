@@ -263,6 +263,10 @@ contract RootChain {
             priority = exitsQueue.delMin();
             delete exits[priority];
 
+            if (exitsQueue.currentSize() == 0) {
+                return;
+            }
+
             // move onto the next oldest exit
             priority = exitsQueue.getMin();
             currentExit = exits[priority];
