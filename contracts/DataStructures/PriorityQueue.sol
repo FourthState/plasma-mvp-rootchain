@@ -75,7 +75,9 @@ contract PriorityQueue {
         heapList[1] = heapList[currentSize];
         delete heapList[currentSize];
         currentSize = currentSize.sub(1);
-        percDown(1);
+        if (currentSize > 1) {
+            percDown(1);
+        }
         heapList.length = heapList.length.sub(1);
         return retVal;
     }
@@ -105,5 +107,5 @@ contract PriorityQueue {
         }
         if (i != j) heapList[i] = newVal;
     }
-    
+
 }
