@@ -30,6 +30,7 @@ contract RootChain {
      * Events
      */
     event Deposit(address depositor, uint256 amount);
+    event finalizedExit(uint priority, address owner);
 
     /*
      *  Storage
@@ -59,6 +60,7 @@ contract RootChain {
 
     // avoid recomputations
     bytes32[16] zeroHashes;
+
 
     function RootChain()
         public
@@ -149,14 +151,6 @@ contract RootChain {
         return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at);
     }
 
-    function getQueueLength()
-        public
-        view
-        returns (uint256)
-    {
-        return exitsQueue.currentSize();
-    }
-
     /// @param txPos [0] Plasma block number in which the transaction occured
     /// @param txPos [1] Transaction Index within the block
     /// @param txPos [2] Output Index within the transaction (either 0 or 1)
@@ -165,6 +159,7 @@ contract RootChain {
     function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
         public
         payable
+        returns (uint256)
     {
         // txBytes verification
         var txList = txBytes.toRLPItem().toList();
@@ -181,6 +176,7 @@ contract RootChain {
 
         // one-to-one mapping between priority and exit
         uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
+        require(exits[priority].owner == address(0));
         require(exits[priority].amount == 0);
 
         exitsQueue.insert(priority);
@@ -233,6 +229,11 @@ contract RootChain {
     function finalizeExits()
         public
     {
+        // getMin will fail if nothing is in the queue
+        if (exitsQueue.currentSize() == 0) {
+            return;
+        }
+
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = exitsQueue.getMin();
         exit memory currentExit = exits[priority];
@@ -241,6 +242,10 @@ contract RootChain {
             // this can occur if challengeExit is sucessful on an exit
             if (currentExit.owner == address(0)) {
                 exitsQueue.delMin();
+
+                if (exitsQueue.currentSize() == 0) {
+                    return;
+                }
 
                 // move onto the next oldest exit
                 priority = exitsQueue.getMin();
@@ -251,6 +256,8 @@ contract RootChain {
             // prevent a potential DoS attack if from someone purposely reverting a payment
             uint256 amountToAdd = currentExit.amount.add(minExitBond);
             balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
+
+            finalizedExit(priority, currentExit.owner);
 
             // delete the finalized exit
             priority = exitsQueue.delMin();
