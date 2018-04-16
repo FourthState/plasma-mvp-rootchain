@@ -91,7 +91,11 @@ contract RootChain {
         lastParentBlock = block.number;
     }
 
-    /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
+    /// @dev txBytes Length 15 RLP encoding of Transaction excluding signatures
+    /// Transaction encoding: 
+    /// [Blknum1, TxIndex1, Oindex1, Amount1, ConfirmSig1, 
+    ///  Blknum2, TxIndex2, Oindex2, Amount2, ConfirmSig2, 
+    ///  NewOwner, Denom1, NewOwner, Denom2, Fee]
     /// @notice owner and value should be encoded in Output 1
     /// @notice hash of txBytes is hashed with a empty signature
     function deposit(uint blocknum, bytes txBytes)
