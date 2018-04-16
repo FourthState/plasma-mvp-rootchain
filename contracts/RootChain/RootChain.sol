@@ -30,7 +30,7 @@ contract RootChain {
      * Events
      */
     event Deposit(address depositor, uint256 amount);
-    event finalizedExit(uint priority, address owner);
+    event FinalizedExit(uint priority, address owner);
 
     /*
      *  Storage
@@ -244,11 +244,15 @@ contract RootChain {
             uint256 amountToAdd = currentExit.amount.add(minExitBond);
             balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
 
-            finalizedExit(priority, currentExit.owner);
+            FinalizedExit(priority, currentExit.owner);
 
             // delete the finalized exit
             exitsQueue.delMin();
             delete exits[priority];
+
+            if (exitsQueue.currentSize() == 0) {
+                return;
+            }
 
             // move onto the next oldest exit
             if (exitsQueue.currentSize() == 0) {
