@@ -230,11 +230,9 @@ contract RootChain {
         require(merkleHash.checkMembership(newTxPos[1], root, proof));
 
         // exit successfully challenged. Award the sender with the bond
-        if (!msg.sender.send(minExitBond)) {
-            balances[msg.sender] = balances[msg.sender].add(minExitBond);
-            totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
-            AddedToBalances(msg.sender, minExitBond);
-        }
+        balances[msg.sender] = balances[msg.sender].add(minExitBond);
+        totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
+        AddedToBalances(msg.sender, minExitBond);
 
         delete exits[priority];
     }
@@ -275,11 +273,9 @@ contract RootChain {
                 return;
             }
 
-            if (!currentExit.owner.send(amountToAdd)) {
-                balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
-                totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
-                AddedToBalances(currentExit.owner, amountToAdd);
-            } 
+            balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
+            totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
+            AddedToBalances(currentExit.owner, amountToAdd);
 
             FinalizedExit(priority, currentExit.owner, amountToAdd);
 
@@ -318,6 +314,7 @@ contract RootChain {
 
         uint256 transferAmount = balances[msg.sender];
         delete balances[msg.sender];
+        totalWithdrawBalance = totalWithdrawBalance.sub(transferAmount);
 
         // will revert the above deletion if fails
         msg.sender.transfer(transferAmount);
