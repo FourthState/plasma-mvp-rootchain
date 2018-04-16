@@ -2,7 +2,7 @@
 let RLP = require('rlp');
 let assert = require('chai').assert;
 
-let { 
+let {
     to,
     createAndDepositTX,
     proofForDepositBlock,
@@ -178,8 +178,8 @@ contract('RootChain', async (accounts) => {
         // start the exit
         let txPos = [blockNum, 0, 0];
         let exitSigs = new Buffer(130).toString('hex') + confirmSignature.slice(2) + new Buffer(65).toString('hex');
-        
-        await rootchain.startExit(txPos, txBytes.toString('binary'), 
+
+        await rootchain.startExit(txPos, txBytes.toString('binary'),
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond });
 
         let priority = 1000000000*blockNum;
@@ -200,13 +200,13 @@ contract('RootChain', async (accounts) => {
         let exitSigs = new Buffer(130).toString('hex') + confirmSignature.slice(2) + new Buffer(65).toString('hex');
 
         let err;
-        [err] = await to(rootchain.startExit(txPos, txBytes.toString('binary'), 
+        [err] = await to(rootchain.startExit(txPos, txBytes.toString('binary'),
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[3], value: 10000 }));
         if (!err) {
             assert.fail("Invalid owner started the exit");
         }
 
-        [err] = await to(rootchain.startExit(txPos, txBytes.toString('binary'), 
+        [err] = await to(rootchain.startExit(txPos, txBytes.toString('binary'),
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: 10 }));
         if (!err) {
             assert.fail("Exit started with insufficient bond");
@@ -219,7 +219,7 @@ contract('RootChain', async (accounts) => {
 
         // exit this transaction
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
-        await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'), 
+        await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'),
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond });
 
 
@@ -233,7 +233,7 @@ contract('RootChain', async (accounts) => {
         // create the block and submit as an authority
         let computedRoot = leaf.slice(2);
         for (let i = 0; i < 16; i++) {
-          computedRoot = web3.sha3(computedRoot + zeroHashes[i], 
+          computedRoot = web3.sha3(computedRoot + zeroHashes[i],
             {encoding: 'hex'}).slice(2)
         }
         let newBlockNum = await rootchain.currentChildBlock.call()
@@ -255,18 +255,26 @@ contract('RootChain', async (accounts) => {
         }
 
         // challenge correctly
-        let oldBal = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
-        await rootchain.challengeExit([blockNum, 0, 0], [newBlockNum, 0, 0],
+        let oldBal = (await web3.eth.getBalance(accounts[3])).toNumber();
+        // let oldBal = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
+        let result = await rootchain.challengeExit([blockNum, 0, 0], [newBlockNum, 0, 0],
             txBytes.toString('binary'), hexToBinary(proofForDepositBlock),
             hexToBinary(sigs), hexToBinary(confirmSignature), {from: accounts[3]});
 
-        balance = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
-        assert(balance == oldBal + minExitBond, "Challenge bounty was not dispursed");
+        let hash = result.receipt.transactionHash;
+        let gasPrice = web3.eth.getTransaction(hash).gasPrice;
+        let gasUsed = web3.eth.getTransactionReceipt(hash).gasUsed;
+        let gasCost = gasPrice * gasUsed;
+
+        // balance = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
+        let balance = (await web3.eth.getBalance(accounts[3])).toNumber();
+        console.log(gasCost, oldBal + minExitBond - balance);
+        assert.equal(balance, oldBal + minExitBond - gasCost, "Challenge bounty was not dispursed");
 
         let priority = 1000000000*blockNum;
         let exit = await rootchain.getExit.call(priority);
         // make sure the exit was deleted
-        assert(exit[0] == 0, "Exit was not deleted after successful challenge");
+        assert.equal(exit[0], 0, "Exit was not deleted after successful challenge");
     });
 
     it("Start exit and finalize after a week", async () => {
@@ -299,16 +307,26 @@ contract('RootChain', async (accounts) => {
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
         let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
-        let diff = (currTime - oldTime) - 804800
+        let diff = (currTime - oldTime) - 804800;
         assert(diff < 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
 
         // finalize
-        let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
-        await rootchain.finalizeExits({from: authority});
-        let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
+        // let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
+        let oldBal = (await web3.eth.getBalance(accounts[2])).toNumber();
+        let exitresult = await rootchain.finalizeExits({from: authority});
+
+        let hash = exitresult.receipt.transactionHash;
+        let gasPrice = web3.eth.getTransaction(hash).gasPrice;
+        let gasUsed = web3.eth.getTransactionReceipt(hash).gasUsed;
+        let gasCost = gasPrice * gasUsed;
+
+        // let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
+        let balance = (await web3.eth.getBalance(accounts[2])).toNumber();
 
         exit = await rootchain.getExit.call(priority);
         assert(exit[0] == 0, "Exit was not deleted after finalizing");
-        assert(balance == (oldBal + minExitBond + 5000), "Account's rootchain balance was not credited");
+
+        console.log(gasCost, oldBal + minExitBond + 5000 - balance);
+        assert.equal(balance, oldBal + minExitBond + 5000, "Account's rootchain balance was not credited");
     });
 });
