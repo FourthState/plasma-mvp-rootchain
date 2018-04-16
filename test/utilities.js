@@ -17,7 +17,7 @@ let hexToBinary = function(value) {
     return Buffer.from(value, 'hex').toString('binary');
 };
 
-let createAndSubmitTX = async function(rootchain, address) {
+let createAndDepositTX = async function(rootchain, address) {
     // submit a deposit
     let blockNum = (await rootchain.getDepositBlock.call()).toNumber();
     let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, 5000, 0, 0, 0]);
@@ -59,7 +59,7 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
 
 module.exports = {
     to,
-    createAndSubmitTX,
+    createAndDepositTX,
     proofForDepositBlock,
     hexToBinary,
     zeroHashes,

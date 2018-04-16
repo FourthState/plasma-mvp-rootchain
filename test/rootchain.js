@@ -4,7 +4,7 @@ let assert = require('chai').assert;
 
 let { 
     to,
-    createAndSubmitTX,
+    createAndDepositTX,
     proofForDepositBlock,
     hexToBinary,
     zeroHashes,
@@ -173,7 +173,7 @@ contract('RootChain', async (accounts) => {
         // submit a deposit
         let blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader;
         [blockNum, confirmHash, confirmSignature,
-            txBytes, txHash, sigs, blockHeader] = await createAndSubmitTX(rootchain, accounts[2]);
+            txBytes, txHash, sigs, blockHeader] = await createAndDepositTX(rootchain, accounts[2]);
 
         // start the exit
         let txPos = [blockNum, 0, 0];
@@ -193,7 +193,7 @@ contract('RootChain', async (accounts) => {
         // submit a deposit
         let blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader;
         [blockNum, confirmHash, confirmSignature,
-            txBytes, txHash, sigs, blockHeader] = await createAndSubmitTX(rootchain, accounts[2]);
+            txBytes, txHash, sigs, blockHeader] = await createAndDepositTX(rootchain, accounts[2]);
 
         // start the exit
         let txPos = [blockNum, 0, 0];
@@ -215,7 +215,7 @@ contract('RootChain', async (accounts) => {
 
     it("Challenge an exit with a correct/incorrect confirm sigs", async () => {
         let blockNum, rest;
-        [blockNum, ...rest] = await createAndSubmitTX(rootchain, accounts[2]);
+        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2]);
 
         // exit this transaction
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
@@ -224,7 +224,7 @@ contract('RootChain', async (accounts) => {
 
 
         // transact accounts[2] => accounts[3]. DOUBLE SPEND (earlier exit)
-        let txBytes = RLP.encode([blockNum, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[3], 5000, 0, 0, 0]);
+        let txBytes = RLP.encode([blockNum, 0, 0, 5000, 0, 0, 0, 0, 0, 0, accounts[3], 5000, 0, 0, 0]);
         let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
         let sigs = await web3.eth.sign(accounts[2], txHash);
         sigs += new Buffer(65).toString('hex');
@@ -271,7 +271,7 @@ contract('RootChain', async (accounts) => {
 
     it("Start exit and finalize after a week", async () => {
         let blockNum, rest;
-        [blockNum, ...rest] = await createAndSubmitTX(rootchain, accounts[2]);
+        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2]);
 
         /*
          * authority will eat up the gas cost in the finalize exit
