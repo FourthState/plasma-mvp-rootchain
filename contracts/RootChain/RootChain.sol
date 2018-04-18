@@ -50,35 +50,27 @@ contract RootChain {
     }
 
     // child chain
+    uint256 public childBlockInterval;
     uint256 public currentChildBlock;
-    uint256 public validatorBlocks;
+    uint256 public currentDepositBlock;
     uint256 public lastParentBlock;
     struct childBlock {
         bytes32 root;
         uint256 created_at;
     }
 
-    // avoid recomputations
-    bytes32[16] zeroHashes;
-
-
     function RootChain()
         public
     {
         authority = msg.sender;
-        currentChildBlock = 1;
-        validatorBlocks = 1;
+        childBlockInterval = 1000;
+        currentChildBlock = childBlockInterval;
+        currentDepositBlock = 1;
         lastParentBlock = block.number;
 
         exitsQueue = new PriorityQueue();
 
         minExitBond = 10000; // minimum bond needed to exit.
-
-        bytes32 zeroBytes;
-        for (uint256 i = 0; i < 16; i += 1) { // depth-16 merkle tree
-            zeroHashes[i] = zeroBytes;
-            zeroBytes = keccak256(zeroBytes, zeroBytes);
-        }
     }
 
     /// @param root 32 byte merkleRoot of ChildChain block 
@@ -94,26 +86,31 @@ contract RootChain {
             created_at: block.timestamp
         });
 
-        validatorBlocks = validatorBlocks.add(1);
-        currentChildBlock = currentChildBlock.add(1);
+        currentChildBlock = currentChildBlock.add(childBlockInterval);
+        currentDepositBlock = 1;
         lastParentBlock = block.number;
     }
 
-    /// @dev txBytes Length 11 RLP encoding of Transaction excluding signatures
+    /// @dev txBytes Length 15 RLP encoding of Transaction excluding signatures
+    /// Transaction encoding: 
+    /// [Blknum1, TxIndex1, Oindex1, Amount1, ConfirmSig1, 
+    ///  Blknum2, TxIndex2, Oindex2, Amount2, ConfirmSig2, 
+    ///  NewOwner, Denom1, NewOwner, Denom2, Fee]
     /// @notice owner and value should be encoded in Output 1
     /// @notice hash of txBytes is hashed with a empty signature
     function deposit(uint blocknum, bytes txBytes)
         public
         payable
     {
-        require(blocknum == validatorBlocks);
+        require(currentDepositBlock < childBlockInterval);
+        require(blocknum == currentChildBlock);
         var txList = txBytes.toRLPItem().toList();
-        require(txList.length == 11);
-        for(uint256 i = 0; i < 6; i++) {
+        require(txList.length == 15);
+        for(uint256 i = 0; i < 10; i++) {
             require(txList[i].toUint() == 0);
         }
-        require(txList[7].toUint() == msg.value);
-        require(txList[9].toUint() == 0); // second output value must be zero
+        require(txList[11].toUint() == msg.value);
+        require(txList[13].toUint() == 0); // second output value must be zero
 
         /*
             The signatures are kept seperate from the txBytes to avoid having to
@@ -121,18 +118,24 @@ contract RootChain {
         */
 
         // construct the merkle root
-        bytes32 root = keccak256(keccak256(txBytes), new bytes(130));
-        for (i = 0; i < 16; i++) {
-            root = keccak256(root, zeroHashes[i]);
-        }
+        bytes32 root = keccak256(txBytes);
+        uint256 position = getDepositBlock();
 
-        childChain[currentChildBlock] = childBlock({
+        childChain[position] = childBlock({
             root: root,
             created_at: block.timestamp
         });
 
-        currentChildBlock = currentChildBlock.add(1);
-        Deposit(txList[6].toAddress(), msg.value);
+        currentDepositBlock = currentDepositBlock.add(1);
+        Deposit(txList[10].toAddress(), msg.value);
+    }
+
+    function getDepositBlock()
+        public
+        view
+        returns (uint256)
+    {
+        return currentChildBlock.sub(childBlockInterval).add(currentDepositBlock);
     }
 
     function getChildChain(uint256 blockNumber)
@@ -163,27 +166,33 @@ contract RootChain {
     {
         // txBytes verification
         var txList = txBytes.toRLPItem().toList();
-        require(txList.length == 11);
-        require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());
+        require(txList.length == 15);
+        require(msg.sender == txList[10 + 2 * txPos[2]].toAddress());
         require(msg.value == minExitBond);
 
+        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
 
         // creating the correct merkle leaf
         bytes32 txHash = keccak256(txBytes);
-        bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
-        require(Validate.checkSigs(txHash, childChain[txPos[0]].root, txList[0].toUint(), txList[3].toUint(), sigs));
-        require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
+
+        if (txPos[0] % childBlockInterval != 0) {
+            require(txHash == childChain[txPos[0]].root);
+        }
+        else {
+            bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
+            require(Validate.checkSigs(txHash, childChain[txPos[0]].root, txList[0].toUint(), txList[5].toUint(), sigs));
+            require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
+        }
 
         // one-to-one mapping between priority and exit
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
         require(exits[priority].owner == address(0));
         require(exits[priority].amount == 0);
 
         exitsQueue.insert(priority);
 
         exits[priority] = exit({
-            owner: txList[6 + 2 * txPos[2]].toAddress(),
-            amount: txList[7 + 2 * txPos[2]].toUint(),
+            owner: txList[10 + 2 * txPos[2]].toAddress(),
+            amount: txList[11 + 2 * txPos[2]].toUint(),
             utxoPos: txPos,
             created_at: block.timestamp
         });
@@ -198,14 +207,14 @@ contract RootChain {
     {
         // txBytes verification
         var txList = txBytes.toRLPItem().toList();
-        require(txList.length == 11);
+        require(txList.length == 15);
 
         // start-exit verification
         uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
         uint256[3] memory utxoPos = exits[priority].utxoPos;
-        require(utxoPos[0] == txList[0 + 3 * newTxPos[2]].toUint());
-        require(utxoPos[1] == txList[1 + 3 * newTxPos[2]].toUint());
-        require(utxoPos[2] == txList[2 + 3 * newTxPos[2]].toUint());
+        require(utxoPos[0] == txList[0 + 5 * newTxPos[2]].toUint());
+        require(utxoPos[1] == txList[1 + 5 * newTxPos[2]].toUint());
+        require(utxoPos[2] == txList[2 + 5 * newTxPos[2]].toUint());
 
         /*
            Confirmation sig:
@@ -260,7 +269,7 @@ contract RootChain {
             FinalizedExit(priority, currentExit.owner);
 
             // delete the finalized exit
-            priority = exitsQueue.delMin();
+            exitsQueue.delMin();
             delete exits[priority];
 
             if (exitsQueue.currentSize() == 0) {
@@ -268,6 +277,9 @@ contract RootChain {
             }
 
             // move onto the next oldest exit
+            if (exitsQueue.currentSize() == 0) {
+                return;
+            }
             priority = exitsQueue.getMin();
             currentExit = exits[priority];
         }
