@@ -1,6 +1,6 @@
 # PLASMA MVP
 
-[![travis build](https://img.shields.io/travis/FourthState/plasma-mvp-rootchain.svg)](https://travis-ci.org/FourthState/plasma-mvp-rootchain)
+[![travis build](https://travis-ci.org/FourthState/plasma-mvp-rootchain.svg?branch=master)](https://travis-ci.org/FourthState/plasma-mvp-rootchain)
 [![license](https://img.shields.io/github/license/FourthState/plasma-mvp-rootchain.svg)](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/LICENSE)
 
 We're implementing [Minimum Viable Plasma](https://ethresear.ch/t/minimal-viable-plasma/426)
