@@ -39,7 +39,7 @@ contract RootChain {
     mapping(uint256 => childBlock) public childChain;
 
     mapping(address => uint256) public balances;
-    uint256 totalWithdrawBalance;
+    uint256 public totalWithdrawBalance;
 
     // startExit mechanism
     PriorityQueue exitsQueue;
@@ -292,10 +292,19 @@ contract RootChain {
         }
     }
 
+    // returns the amount of funds that are free: total balance - the amount allocated for withdrawal
+    function getFreeBalance()
+        public
+        view
+        returns (uint)
+    {
+        return this.balance - totalWithdrawBalance;
+    }
+
     function getBalance()
-          public
-          view
-          returns (uint256)
+        public
+        view
+        returns (uint256)
     {
         return balances[msg.sender];
     }

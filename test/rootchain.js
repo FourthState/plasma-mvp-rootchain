@@ -269,7 +269,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(exit[0], 0, "Exit was not deleted after successful challenge");
     });
 
-    it("Start exit and finalize after a week", async () => {
+    it("Start exit, finalize after a week, and withdraw", async () => {
         let blockNum, rest;
         [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2]);
 
@@ -304,6 +304,7 @@ contract('RootChain', async (accounts) => {
 
         // finalize
         let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
+        let oldFreeBalance = (await rootchain.getFreeBalance()).toNumber();
         let exitresult = await rootchain.finalizeExits({from: authority});
 
         let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
@@ -312,5 +313,25 @@ contract('RootChain', async (accounts) => {
         assert(exit[0] == 0, "Exit was not deleted after finalizing");
 
         assert.equal(balance, oldBal + minExitBond + 5000, "Account's rootchain balance was not credited");
+
+        var contractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
+        var freeBalance = (await rootchain.getFreeBalance()).toNumber();
+        assert.equal(freeBalance, oldFreeBalance - minExitBond - 5000, "totalWithdrawBalance was not updated correctly");
+
+        await rootchain.withdraw({from: accounts[2]});
+        let finalBalance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
+        assert.equal(finalBalance, 0, "Balance was not updated");
+
+        var finalContractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
+        assert.equal(finalContractBalance, contractBalance - balance, "Funds were not transfered");
+
+        var finalFreeBalance = (await rootchain.getFreeBalance()).toNumber();
+        assert.equal(finalFreeBalance, freeBalance, "totalWithdrawBalance was not updated correctly");
     });
+
+    // it("Start exit and finalize after a week", async () => {
+    //     var owed = (await rootchain.getFreeBalance()).toNumber();
+    //     var balance = (await web3.eth.getBalance(rootchain.address)).toNumber();
+    //     console.log(balance, owed)
+    // });
 });
