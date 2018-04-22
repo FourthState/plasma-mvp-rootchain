@@ -269,7 +269,7 @@ contract RootChain {
 
             // if the amount we want to send is greater than the contract's balance - the amount
             // allocated for invalid sends, terminate the function.
-            if (amountToAdd >= this.balance - totalWithdrawBalance) {
+            if (amountToAdd > this.balance - totalWithdrawBalance) {
                 return;
             }
 
