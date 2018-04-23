@@ -293,7 +293,7 @@ contract RootChain {
     }
 
     // returns the amount of funds that are free: total balance - the amount allocated for withdrawal
-    function getFreeBalance()
+    function childChainBalance()
         public
         view
         returns (uint)

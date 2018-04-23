@@ -5,7 +5,6 @@ let assert = require('chai').assert;
 let {
     to,
     createAndDepositTX,
-    createAndDepositTX2,
     proofForDepositBlock,
     hexToBinary,
     zeroHashes,
@@ -174,7 +173,7 @@ contract('RootChain', async (accounts) => {
         // submit a deposit
         let blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader;
         [blockNum, confirmHash, confirmSignature,
-            txBytes, txHash, sigs, blockHeader] = await createAndDepositTX(rootchain, accounts[2]);
+            txBytes, txHash, sigs, blockHeader] = await createAndDepositTX(rootchain, accounts[2], 5000);
 
         // start the exit
         let txPos = [blockNum, 0, 0];
@@ -185,16 +184,16 @@ contract('RootChain', async (accounts) => {
 
         let priority = 1000000000*blockNum;
         let exit = await rootchain.getExit.call(priority);
-        assert(exit[0] == accounts[2], "Incorrect exit owner");
-        assert(exit[1] == 5000, "Incorrect amount");
-        assert(exit[2][0] == blockNum, "Incorrect block number");
+        assert.equal(exit[0], accounts[2], "Incorrect exit owner");
+        assert.equal(exit[1], 5000, "Incorrect amount");
+        assert.equal(exit[2][0], blockNum, "Incorrect block number");
     });
 
     it("Try to exit with invalid parameters", async () => {
         // submit a deposit
         let blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader;
         [blockNum, confirmHash, confirmSignature,
-            txBytes, txHash, sigs, blockHeader] = await createAndDepositTX(rootchain, accounts[2]);
+            txBytes, txHash, sigs, blockHeader] = await createAndDepositTX(rootchain, accounts[2], 5000);
 
         // start the exit
         let txPos = [blockNum, 0, 0];
@@ -216,7 +215,7 @@ contract('RootChain', async (accounts) => {
 
     it("Challenge an exit with a correct/incorrect confirm sigs", async () => {
         let blockNum, rest;
-        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2]);
+        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], 5000);
 
         // exit this transaction
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
@@ -272,7 +271,7 @@ contract('RootChain', async (accounts) => {
 
     it("Start exit, finalize after a week, and withdraw", async () => {
         let blockNum, rest;
-        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2]);
+        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], 5000);
 
         /*
          * authority will eat up the gas cost in the finalize exit
@@ -291,9 +290,9 @@ contract('RootChain', async (accounts) => {
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond });
         let priority = 1000000000*blockNum;
         let exit = await rootchain.getExit.call(priority);
-        assert(exit[0] == accounts[2], "Incorrect exit owner");
-        assert(exit[1] == 5000, "Incorrect amount");
-        assert(exit[2][0] == blockNum, "Incorrect block number");
+        assert.equal(exit[0], accounts[2], "Incorrect exit owner");
+        assert.equal(exit[1], 5000, "Incorrect amount");
+        assert.equal(exit[2][0], blockNum, "Incorrect block number");
 
         // fast forward again
         let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
@@ -301,22 +300,22 @@ contract('RootChain', async (accounts) => {
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
         let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
         let diff = (currTime - oldTime) - 804800;
-        assert(diff < 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
+        assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
 
         // finalize
         let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
-        let oldFreeBalance = (await rootchain.getFreeBalance()).toNumber();
-        let exitresult = await rootchain.finalizeExits({from: authority});
+        let oldFreeBalance = (await rootchain.childChainBalance()).toNumber();
+        await rootchain.finalizeExits({from: authority});
 
         let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
 
         exit = await rootchain.getExit.call(priority);
-        assert(exit[0] == 0, "Exit was not deleted after finalizing");
+        assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
 
         assert.equal(balance, oldBal + minExitBond + 5000, "Account's rootchain balance was not credited");
 
         let contractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
-        let freeBalance = (await rootchain.getFreeBalance()).toNumber();
+        let freeBalance = (await rootchain.childChainBalance()).toNumber();
         assert.equal(freeBalance, oldFreeBalance - minExitBond - 5000, "totalWithdrawBalance was not updated correctly");
 
         await rootchain.withdraw({from: accounts[2]});
@@ -326,14 +325,14 @@ contract('RootChain', async (accounts) => {
         let finalContractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
         assert.equal(finalContractBalance, contractBalance - balance, "Funds were not transfered");
 
-        let finalFreeBalance = (await rootchain.getFreeBalance()).toNumber();
+        let finalFreeBalance = (await rootchain.childChainBalance()).toNumber();
         assert.equal(finalFreeBalance, freeBalance, "totalWithdrawBalance was not updated correctly");
     });
 
     it("Try to exit with insufficient funds", async () => {
 
       let blockNum, rest;
-      [blockNum, ...rest] = await createAndDepositTX2(rootchain, accounts[2]);
+      [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], 50000);
 
       /*
        * authority will eat up the gas cost in the finalize exit
@@ -356,9 +355,9 @@ contract('RootChain', async (accounts) => {
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond });
         let priority = 1000000000*blockNum;
         let exit = await rootchain.getExit.call(priority);
-        assert(exit[0] == accounts[2], "Incorrect exit owner");
-        assert(exit[1] == 50000, "Incorrect amount");
-        assert(exit[2][0] == blockNum, "Incorrect block number");
+        assert.equal(exit[0], accounts[2], "Incorrect exit owner");
+        assert.equal(exit[1], 50000, "Incorrect amount");
+        assert.equal(exit[2][0], blockNum, "Incorrect block number");
 
         // fast forward again
         let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
@@ -366,34 +365,32 @@ contract('RootChain', async (accounts) => {
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
         let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
         let diff = (currTime - oldTime) - 804800;
-        assert(diff < 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
+        assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
 
         // finalize
         let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
-        let oldFreeBalance = (await rootchain.getFreeBalance()).toNumber();
-        let exitresult = await rootchain.finalizeExits({from: authority});
+        let oldFreeBalance = (await rootchain.childChainBalance()).toNumber();
+        await rootchain.finalizeExits({from: authority});
 
         let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
 
         exit = await rootchain.getExit.call(priority);
-        assert(exit[0] == 0, "Exit was not deleted after finalizing");
+        assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
 
         assert.equal(balance, oldBal + minExitBond + 50000, "Account's rootchain balance was not credited");
 
         let contractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
-        let freeBalance = (await rootchain.getFreeBalance()).toNumber();
+        let freeBalance = (await rootchain.childChainBalance()).toNumber();
         assert.equal(freeBalance, oldFreeBalance - minExitBond - 50000, "totalWithdrawBalance was not updated correctly");
-
-        // console.log(i, oldFreeBalance, freeBalance);
       }
 
       await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'),
           hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond });
       let priority = 1000000000*blockNum;
       let exit = await rootchain.getExit.call(priority);
-      assert(exit[0] == accounts[2], "Incorrect exit owner");
-      assert(exit[1] == 50000, "Incorrect amount");
-      assert(exit[2][0] == blockNum, "Incorrect block number");
+      assert.equal(exit[0], accounts[2], "Incorrect exit owner");
+      assert.equal(exit[1], 50000, "Incorrect amount");
+      assert.equal(exit[2][0], blockNum, "Incorrect block number");
 
       // fast forward again
       let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
@@ -401,25 +398,22 @@ contract('RootChain', async (accounts) => {
       await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
       let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
       let diff = (currTime - oldTime) - 804800;
-      assert(diff < 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
+      assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
 
       // finalize
       let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
-      let oldFreeBalance = (await rootchain.getFreeBalance()).toNumber();
-      let exitresult = await rootchain.finalizeExits({from: authority});
+      let oldFreeBalance = (await rootchain.childChainBalance()).toNumber();
+      await rootchain.finalizeExits({from: authority});
 
       let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
 
       exit = await rootchain.getExit.call(priority);
-      assert(exit[0] != 0, "Exit should not have been was processed");
+      assert.notEqual(exit[0], 0, "Exit should not have been was processed");
 
       assert.equal(balance, oldBal, "Account's rootchain balance should stay the same");
 
       let contractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
-      let freeBalance = (await rootchain.getFreeBalance()).toNumber();
+      let freeBalance = (await rootchain.childChainBalance()).toNumber();
       assert.equal(freeBalance, oldFreeBalance, "totalWithdrawBalance should stay the same");
-
-      // console.log(i, oldFreeBalance, freeBalance);
-
     });
 });
