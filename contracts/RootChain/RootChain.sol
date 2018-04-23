@@ -30,13 +30,16 @@ contract RootChain {
      * Events
      */
     event Deposit(address depositor, uint256 amount);
-    event FinalizedExit(uint priority, address owner);
+    event FinalizedExit(uint priority, address owner, uint256 amount);
+    event AddedToBalances(address owner, uint256 amount);
 
     /*
      *  Storage
      */
     mapping(uint256 => childBlock) public childChain;
+
     mapping(address => uint256) public balances;
+    uint256 public totalWithdrawBalance;
 
     // startExit mechanism
     PriorityQueue exitsQueue;
@@ -73,7 +76,7 @@ contract RootChain {
         minExitBond = 10000; // minimum bond needed to exit.
     }
 
-    /// @param root 32 byte merkleRoot of ChildChain block 
+    /// @param root 32 byte merkleRoot of ChildChain block
     /// @notice childChain blocks can only be submitted at most every 6 root chain blocks
     function submitBlock(bytes32 root)
         public
@@ -114,7 +117,7 @@ contract RootChain {
 
         /*
             The signatures are kept seperate from the txBytes to avoid having to
-            recreate the txBytes for the confirmsig after both signatures are created. 
+            recreate the txBytes for the confirmsig after both signatures are created.
         */
 
         // construct the merkle root
@@ -220,7 +223,7 @@ contract RootChain {
            Confirmation sig:
               txHash, sigs, block header
           */
-        
+
         var txHash = keccak256(txBytes);
         var merkleHash = keccak256(txHash, sigs);
         bytes32 root = childChain[newTxPos[0]].root;
@@ -232,6 +235,9 @@ contract RootChain {
 
         // exit successfully challenged. Award the sender with the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
+        totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
+        AddedToBalances(msg.sender, minExitBond);
+
         delete exits[priority];
     }
 
@@ -264,17 +270,22 @@ contract RootChain {
 
             // prevent a potential DoS attack if from someone purposely reverting a payment
             uint256 amountToAdd = currentExit.amount.add(minExitBond);
-            balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
 
-            FinalizedExit(priority, currentExit.owner);
+            // if the amount we want to send is greater than the contract's balance - the amount
+            // allocated for invalid sends, terminate the function.
+            if (amountToAdd > this.balance - totalWithdrawBalance) {
+                return;
+            }
+
+            balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
+            totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
+            AddedToBalances(currentExit.owner, amountToAdd);
+
+            FinalizedExit(priority, currentExit.owner, amountToAdd);
 
             // delete the finalized exit
             exitsQueue.delMin();
             delete exits[priority];
-
-            if (exitsQueue.currentSize() == 0) {
-                return;
-            }
 
             // move onto the next oldest exit
             if (exitsQueue.currentSize() == 0) {
@@ -285,10 +296,19 @@ contract RootChain {
         }
     }
 
+    // returns the amount of funds that are free: total balance - the amount allocated for withdrawal
+    function childChainBalance()
+        public
+        view
+        returns (uint)
+    {
+        return this.balance - totalWithdrawBalance;
+    }
+
     function getBalance()
-          public
-          view
-          returns (uint256)
+        public
+        view
+        returns (uint256)
     {
         return balances[msg.sender];
     }
@@ -303,7 +323,8 @@ contract RootChain {
 
         uint256 transferAmount = balances[msg.sender];
         delete balances[msg.sender];
-        
+        totalWithdrawBalance = totalWithdrawBalance.sub(transferAmount);
+
         // will revert the above deletion if fails
         msg.sender.transfer(transferAmount);
         return transferAmount;

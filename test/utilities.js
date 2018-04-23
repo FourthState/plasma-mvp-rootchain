@@ -1,6 +1,6 @@
 let RLP = require('rlp');
 
-/* 
+/*
  How to avoid using try/catch blocks with promises' that could fail using async/await
  - https://blog.grossman.io/how-to-write-async-await-without-try-catch-blocks-in-javascript/
  */
@@ -17,12 +17,12 @@ let hexToBinary = function(value) {
     return Buffer.from(value, 'hex').toString('binary');
 };
 
-let createAndDepositTX = async function(rootchain, address) {
+let createAndDepositTX = async function(rootchain, address, amount) {
     // submit a deposit
     let blockNum = (await rootchain.getDepositBlock.call()).toNumber();
-    let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, 5000, 0, 0, 0]);
+    let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, amount, 0, 0, 0]);
     let validatorBlock = await rootchain.currentChildBlock.call();
-    await rootchain.deposit(validatorBlock, txBytes.toString('binary'), {from: address, value: 5000});
+    await rootchain.deposit(validatorBlock, txBytes.toString('binary'), {from: address, value: amount});
 
     // construct the confirm sig
     // Remove all 0x prefixes from hex strings
@@ -57,6 +57,8 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
   '5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8becc',
   'da7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d2' ];
 
+// let txBytesBad = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, 100000, 0, 0, 0]);
+
 module.exports = {
     to,
     createAndDepositTX,
@@ -64,4 +66,3 @@ module.exports = {
     hexToBinary,
     zeroHashes,
 };
-
