@@ -6,7 +6,7 @@ import '../Libraries/Merkle.sol';
 import '../Libraries/Merkle.sol';
 import '../Libraries/Validate.sol';
 import '../DataStructures/PriorityQueue.sol';
-
+ 
 
 contract RootChain {
     using SafeMath for uint256;
