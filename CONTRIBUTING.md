@@ -1,0 +1,27 @@
+# Contributing
+
+Thank you for considering making contributions to Fourth State's Plasma MVP implementation! We welcome contributions from anyone! See the [open issues](https://github.com/FourthState/plasma-mvp-rootchain/issues) for things we need help with!
+
+## How to get started:
+
+Fork, then clone the repo:
+``git clone git@github.com:your-username/plasma-mvp-rootchain``
+
+Install dependencies with:
+``npm install`` or ``sudo npm install``
+
+**Note**: requires Solidity 0.4.18.
+
+Make sure the tests pass:
+1. Start ganache-cli: ``ganache-cli -m=plasma_mvp``
+2. Deploy contract: ``truffle migrate``
+3. Run tests: ``npm test``
+
+Make your changes. Add tests and comment those changes. 
+
+If your tests pass, push to your fork and [submit a pull request](https://github.com/FourthState/plasma-mvp-rootchain/pulls). 
+
+## Proposals:
+
+If you would like to propose a protocol change, open up an issue. If the reviewers decide the proposed change is in line with the project's aim, then a writeup should also be added to the [research repository](https://github.com/FourthState/plasma-research). It is also advisable to publish the proposed change to [Eth Research](https://ethresear.ch/), so other plasma implementations can benefit from the proposed change. 
+
