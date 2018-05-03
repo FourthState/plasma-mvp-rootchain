@@ -15,11 +15,13 @@ Install dependencies with:
 Make sure the tests pass:
 1. Start ganache-cli: ``ganache-cli -m=plasma_mvp``
 2. Deploy contract: ``truffle migrate``
-3. Run tests: ``npm test``
+3. Run tests: ``truffle test``
+
+Create a branch that is named off the feature you are trying to implement. See these [guidelines](https://nvie.com/posts/a-successful-git-branching-model/)
 
 Make your changes. Add tests and comment those changes. 
 
-If your tests pass, push to your fork and [submit a pull request](https://github.com/FourthState/plasma-mvp-rootchain/pulls). 
+If your tests pass, push to your fork and [submit a pull request](https://github.com/FourthState/plasma-mvp-rootchain/pulls) to the master branch. 
 
 ## Proposals:
 
