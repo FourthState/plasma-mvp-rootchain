@@ -10,7 +10,7 @@ Fork, then clone the repo:
 Install dependencies with:
 ``npm install`` or ``sudo npm install``
 
-**Note**: requires Solidity 0.4.18.
+**Note**: requires Solidity 0.4.18 and Truffle 4.1.0
 
 Make sure the tests pass:
 1. Start ganache-cli: ``ganache-cli -m=plasma_mvp``
