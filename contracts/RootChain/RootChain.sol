@@ -39,7 +39,10 @@ contract RootChain {
     mapping(uint256 => childBlock) public childChain;
 
     mapping(address => uint256) public balances;
+
     uint256 public totalWithdrawBalance;
+
+    mapping(uint256 => exit) public finalizedExits;
 
     // startExit mechanism
     PriorityQueue exitsQueue;
@@ -173,7 +176,14 @@ contract RootChain {
         require(msg.sender == txList[10 + 2 * txPos[2]].toAddress());
         require(msg.value == minExitBond);
 
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
+        uint256 priority = 1000000000 * txPos[0] + 10000 * txPos[1] + txPos[2];
+
+        // check that the UTXO has not been previously exited
+        require(finalizedExits[priority].owner == address(0));
+        require(finalizedExits[priority].amount == 0);
+
+        // check that the UTXO's two direct inputs have not been previously exited
+        validateExitInputs(txList);
 
         // creating the correct merkle leaf
         bytes32 txHash = keccak256(txBytes);
@@ -199,6 +209,27 @@ contract RootChain {
             utxoPos: txPos,
             created_at: block.timestamp
         });
+    }
+
+    /// For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
+    /// been previously exited. If UTXO's inputs are in the exit queue, those inputs'
+    /// exits are deleted from the exit queue and the current UTXO's exit remains valid.
+    function validateExitInputs(RLP.RLPItem[] memory txList)
+        private
+    {
+        for (uint256 i = 0; i < 2; i++) {
+            uint256 txInputBlkNum = txList[5 * i + 0].toUint();
+            uint256 txInputIndex = txList[5 * i + 1].toUint();
+            uint256 txInputOutIndex = txList[5 * i + 2].toUint();
+            uint256 txInputPriority = 1000000000 * txInputBlkNum + 10000 * txInputIndex + txInputOutIndex;
+
+            require(finalizedExits[txInputPriority].owner == address(0));
+            require(finalizedExits[txInputPriority].amount == 0);
+
+            if (exits[txInputPriority].owner != address(0) || exits[txInputPriority].amount != 0) {
+                delete exits[txInputPriority];
+            }
+        }
     }
 
     /// @param txPos [0] Plasma block number in which the challenger's transaction occured
@@ -281,6 +312,8 @@ contract RootChain {
             totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
             AddedToBalances(currentExit.owner, amountToAdd);
 
+            // keep track of finalized exits to prevent repeated exits
+            finalizedExits[priority] = currentExit;
             FinalizedExit(priority, currentExit.owner, amountToAdd);
 
             // delete the finalized exit
