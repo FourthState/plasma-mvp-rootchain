@@ -36,17 +36,6 @@ A transaction is encoded in the following form:
 
 ``withdraw``: Allows users to withdraw any balance that avaliable after the successful processing of an exit. 
 
-## Setup
-Install dependencies with:
+### Contributing
 
-``npm install``
-
-**Note**: requires Solidity 0.4.18.
-
-How to run Plasma MVP:
-
-1. Start ganache-cli: ``ganache-cli -m=plasma_mvp``
-2. Deploy contract to the root chain with: ``truffle migrate``
-
-To run tests:
-    ``npm test``
+See our [contribution guidelines](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/CONTRIBUTING.md) 
