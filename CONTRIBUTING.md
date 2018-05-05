@@ -5,6 +5,7 @@ Thank you for considering making contributions to Fourth State's Plasma MVP impl
 ## How to get started:
 
 Fork, then clone the repo:
+
 If you have ssh keys:
 ``git clone git@github.com:your-username/plasma-mvp-rootchain``
 Otherwise:
