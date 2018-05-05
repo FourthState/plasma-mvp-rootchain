@@ -21,7 +21,7 @@ A transaction is encoded in the following form:
 
 ``Blknum2, TxIndex2, Oindex2, Amount2, ConfirmSig2,``
 
-``NewOwner, Denom1, NewOwner, Denom2, Fee1, Fee2]``
+``NewOwner, Denom1, NewOwner, Denom2, Fee]``
 
 
 ``submitBlock``: Validator(s) submits merkle root of the current block
