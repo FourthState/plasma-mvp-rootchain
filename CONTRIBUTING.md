@@ -5,10 +5,13 @@ Thank you for considering making contributions to Fourth State's Plasma MVP impl
 ## How to get started:
 
 Fork, then clone the repo:
+If you have ssh keys:
 ``git clone git@github.com:your-username/plasma-mvp-rootchain``
+Otherwise:
+``git clone https://github.com/your-username/plasma-mvp-rootchain``
 
 Install dependencies with:
-``npm install`` or ``sudo npm install``
+``npm install``
 
 **Note**: requires Solidity 0.4.18 and Truffle 4.1.0
 
