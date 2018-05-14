@@ -2,6 +2,8 @@
 
 Thank you for considering making contributions to Fourth State's Plasma MVP implementation! We welcome contributions from anyone! See the [open issues](https://github.com/FourthState/plasma-mvp-rootchain/issues) for things we need help with!
 
+Contribute to design discussions and conversation by joining the #plasma-dev channel on Blockchain @ Berkeley's [public slack](https://www.berkeleyblockchain.slack.com/).
+
 ## How to get started:
 
 Fork, then clone the repo:
