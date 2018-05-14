@@ -30,7 +30,6 @@ Make your changes. Add tests and comment those changes.
 
 If your tests pass, push to your fork and [submit a pull request](https://github.com/FourthState/plasma-mvp-rootchain/pulls) to the master branch. 
 
-
 ## Proposals:
 
 If you would like to propose a protocol change, open up an issue. If the reviewers decide the proposed change is in line with the project's aim, then a writeup should also be added to the [research repository](https://github.com/FourthState/plasma-research). It is also advisable to publish the proposed change to [Eth Research](https://ethresear.ch/), so other plasma implementations can benefit from the proposed change. 
