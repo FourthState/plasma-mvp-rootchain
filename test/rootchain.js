@@ -234,7 +234,7 @@ contract('RootChain', async (accounts) => {
         let computedRoot = leaf.slice(2);
         for (let i = 0; i < 16; i++) {
           computedRoot = web3.sha3(computedRoot + zeroHashes[i],
-            {encoding: 'hex'}).slice(2)
+            {encoding: 'hex'}).slice(2);
         }
         let newBlockNum = await rootchain.currentChildBlock.call()
         await rootchain.submitBlock(hexToBinary(computedRoot));
@@ -246,7 +246,7 @@ contract('RootChain', async (accounts) => {
 
 
         // challenge incorrectly
-        let err
+        let err;
         [err] = await to(rootchain.challengeExit([blockNum, 0, 0], [newBlockNum, 0, 0],
             txBytes.toString('binary'), hexToBinary(proofForDepositBlock),
             hexToBinary(sigs), hexToBinary(incorrectConfirmSig), {from: accounts[3]}));
@@ -443,80 +443,178 @@ contract('RootChain', async (accounts) => {
 
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
 
-      for (i = 0; i < 3; i++) {
-        // After the first startExit call, all subsequent attempts to startExit the same UTXO will fail.
-        if (i != 0) {
-            let err;
-            [err] = await to(rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[3], value: minExitBond}));
-            if (!err) {
-                assert.fail("Invalid startExit, did not revert");
+        for (i = 0; i < 3; i++) {
+            // After the first startExit call, all subsequent attempts to startExit the same UTXO will fail.
+            if (i != 0) {
+                let err;
+                [err] = await to(rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[3], value: minExitBond}));
+                if (!err) {
+                    assert.fail("Invalid startExit, did not revert");
+                }
+                let priority = 1000000000 * blockNum;
+                let exit = await rootchain.getExit.call(priority);
+                assert.equal(exit[0], 0, "Exit should not exist.");
+                assert.equal(parseInt(exit[1]), 0, "Exit should not exist");
+                continue;
             }
+            // start a new exit
+            await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'),
+                hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[3], value: minExitBond});
+
             let priority = 1000000000 * blockNum;
             let exit = await rootchain.getExit.call(priority);
-            assert.equal(exit[0], '0x0000000000000000000000000000000000000000', "Exit should not exist.");
-            assert.equal(parseInt(exit[1]), 0, "Exit should not exist");
-            continue;
+            assert.equal(exit[0], accounts[3], "Incorrect exit owner");
+            assert.equal(exit[1], 50000, "Incorrect amount");
+            assert.equal(exit[2][0], blockNum, "Incorrect block number");
+
+            // fast forward again
+            let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
+            await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
+            await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
+            let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
+            let diff = (currTime - oldTime) - 804800;
+            assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
+
+            // finalize
+            let oldBal = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
+            let oldChildChainBalance = (await rootchain.childChainBalance()).toNumber();
+            await rootchain.finalizeExits({from: authority});
+            let balance = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
+
+            // check that the is successfully removed from the PQ
+            exit = await rootchain.getExit.call(priority);
+            assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
+
+            // check that the correct amount has been deposited into the account's balance
+            assert.equal(balance, oldBal + minExitBond + 50000, "Account's rootchain balance was not credited");
+
+            // check that the child chain balance has been updated correctly
+            let contractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
+            let childChainBalance = (await rootchain.childChainBalance()).toNumber();
+            assert.equal(childChainBalance, oldChildChainBalance - minExitBond - 50000, "Child chain balance was not updated correctly");
         }
-        // start a new exit
-        await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'),
-            hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[3], value: minExitBond});
-
-        let priority = 1000000000 * blockNum;
-        let exit = await rootchain.getExit.call(priority);
-        assert.equal(exit[0], accounts[3], "Incorrect exit owner");
-        assert.equal(exit[1], 50000, "Incorrect amount");
-        assert.equal(exit[2][0], blockNum, "Incorrect block number");
-
-        // fast forward again
-        let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
-        await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
-        await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
-        let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
-        let diff = (currTime - oldTime) - 804800;
-        assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week"); // 3 sec error for mining the next block
-
-        // finalize
-        let oldBal = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
-        let oldChildChainBalance = (await rootchain.childChainBalance()).toNumber();
-        await rootchain.finalizeExits({from: authority});
-        let balance = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
-
-        // check that the is successfully removed from the PQ
-        exit = await rootchain.getExit.call(priority);
-        assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
-
-        // check that the correct amount has been deposited into the account's balance
-        assert.equal(balance, oldBal + minExitBond + 50000, "Account's rootchain balance was not credited");
-
-        // check that the child chain balance has been updated correctly
-        let contractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
-        let childChainBalance = (await rootchain.childChainBalance()).toNumber();
-        assert.equal(childChainBalance, oldChildChainBalance - minExitBond - 50000, "Child chain balance was not updated correctly");
-      }
     });
 
-    it("Try to exit an UTXO whose inputs have been exited", async () => {
+    it("Try to exit an UTXO whose inputs have started exit", async () => {
         let blockNum, rest;
-        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[3], 50000);
+        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], 50000);
 
         // fast forward and finalize any exits from previous tests
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
         await rootchain.finalizeExits({from: authority});
 
-        let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
+        // accounts[2] sends a deposit UTXO to accounts[3]
+        let txBytes = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
+        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+        let sigs = await web3.eth.sign(accounts[2], txHash);
+        sigs += new Buffer(65).toString('hex');
+        let leaf = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
 
-        // TODO
-        // See "Challenge an exit with a correct/incorrect confirm sigs" test for example transaction on sidechain
+        // the transaction is included in a new block,
+        // the block header is submitted to rootchain
+        let computedRoot = leaf.slice(2);
+        for (let i = 0; i < 16; i++) {
+          computedRoot = web3.sha3(computedRoot + zeroHashes[i],
+            {encoding: 'hex'}).slice(2);
+        }
+
+        let newBlockNum = await rootchain.currentChildBlock.call();
+        await rootchain.submitBlock(hexToBinary(computedRoot));
+
+        // accounts[2] signs confirmSig for the transaction
+        let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
+        let confirmSignature = await web3.eth.sign(accounts[2], confirmHash);
+
+        // accounts[2] starts exit 
+        let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
+        await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond});
+
+        let priority = 1000000000 * blockNum;
+        let exit = await rootchain.getExit.call(priority);
+        assert.equal(exit[0], accounts[2], "Incorrect exit owner");
+        assert.equal(exit[1], 50000, "Incorrect amount");
+        assert.equal(exit[2][0], blockNum, "Incorrect block number");
+
+        // accounts[3] starts exit the same UTXO
+        // without waiting for accounts[2] to finalize
+        let exitSigsNew = sigs.slice(2) + confirmSignature.slice(2) + new Buffer(65).toString('hex');
+        await rootchain.startExit([newBlockNum, 0, 0], txBytes.toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigsNew), {from: accounts[3], value: minExitBond});
+
+        // accounts[3]'s exit replaces accounts[2]'s exit
+        exit = await rootchain.getExit.call(priority);
+        assert.equal(exit[0], 0, "Exit should not exist.");
+        assert.equal(parseInt(exit[1]), 0, "Exit should not exist.");
+        let newPriority = 1000000000 * newBlockNum;
+        let newExit = await rootchain.getExit.call(newPriority);
+        assert.equal(newExit[0], accounts[3], "Incorrect exit owner");
+        assert.equal(newExit[1], 50000, "Incorrect amount");
+        assert.equal(parseInt(newExit[2][0]), parseInt(newBlockNum), "Incorrect block number");
+
     });
 
+    it("Try to exit an UTXO whose inputs have finalized exit", async () => {
+        let blockNum, rest;
+        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], 50000);
 
+        // fast forward and finalize any exits from previous tests
+        await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
+        await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
+        await rootchain.finalizeExits({from: authority});
 
+        // accounts[2] sends a deposit UTXO to accounts[3]
+        let txBytes = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
+        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+        let sigs = await web3.eth.sign(accounts[2], txHash);
+        sigs += new Buffer(65).toString('hex');
+        let leaf = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
 
+        // the transaction is included in a new block,
+        // the block header is submitted to rootchain
+        let computedRoot = leaf.slice(2);
+        for (let i = 0; i < 16; i++) {
+          computedRoot = web3.sha3(computedRoot + zeroHashes[i],
+            {encoding: 'hex'}).slice(2);
+        }
+        let newBlockNum = await rootchain.currentChildBlock.call()
+        await rootchain.submitBlock(hexToBinary(computedRoot));
 
+        // accounts[2] signs confirmSig for the transaction
+        let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
+        let confirmSignature = await web3.eth.sign(accounts[2], confirmHash);
 
+        // accounts[2] starts exit 
+        let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
+        await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond});
 
+        let priority = 1000000000 * blockNum;
+        let exit = await rootchain.getExit.call(priority);
+        assert.equal(exit[0], accounts[2], "Incorrect exit owner");
+        assert.equal(exit[1], 50000, "Incorrect amount");
+        assert.equal(exit[2][0], blockNum, "Incorrect block number");
 
+        // fast forward and finalize any exits from previous tests
+        await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
+        await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
+        await rootchain.finalizeExits({from: authority});
 
+        let finalizedExit = await rootchain.finalizedExits.call(priority);
+        assert.equal(finalizedExit[0], accounts[2], "Incorrect finalized exit owner");
+        assert.equal(finalizedExit[1], 50000, "Incorrect finalized exit amount.");
+
+        // accounts[3] starts exit the same UTXO
+        // after accounts[2]'s exit has been finalized
+        let exitSigsNew = sigs.slice(2) + confirmSignature.slice(2) + new Buffer(65).toString('hex');
+        let err;
+        [err] = await to(rootchain.startExit([newBlockNum, 0, 0], txBytes.toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigsNew), {from: accounts[3], value: minExitBond}));
+        if (!err) {
+            assert.fail("Allowed already withdrawn UTXO to start exit!");
+        }
+
+        let newPriority = 1000000000 * newBlockNum;
+        let newExit = await rootchain.getExit.call(newPriority);
+        assert.equal(newExit[0], 0, "Exit should not exist.");
+        assert.equal(parseInt(newExit[1]), 0, "Exit should not exist.");
+    });
 
 });
