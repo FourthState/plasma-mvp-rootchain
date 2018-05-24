@@ -8,6 +8,7 @@ let {
     proofForDepositBlock,
     hexToBinary,
     zeroHashes,
+    sendUTXO
 } = require('./utilities.js');
 
 let RootChain = artifacts.require("RootChain");
@@ -222,28 +223,11 @@ contract('RootChain', async (accounts) => {
         await rootchain.startExit([blockNum, 0, 0], rest[2].toString('binary'),
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond });
 
-
         // transact accounts[2] => accounts[3]. DOUBLE SPEND (earlier exit)
-        let txBytes = RLP.encode([blockNum, 0, 0, 5000, 0, 0, 0, 0, 0, 0, accounts[3], 5000, 0, 0, 0]);
-        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-        let sigs = await web3.eth.sign(accounts[2], txHash);
-        sigs += new Buffer(65).toString('hex');
-        let leaf = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
+        let txBytes, sigs, confirmSignature, newBlockNum;
+        [txBytes, sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], blockNum, 0, 0, 50000, 0, 0, 0, 0, accounts[3], 50000, 0, 0);
 
-        // create the block and submit as an authority
-        let computedRoot = leaf.slice(2);
-        for (let i = 0; i < 16; i++) {
-          computedRoot = web3.sha3(computedRoot + zeroHashes[i],
-            {encoding: 'hex'}).slice(2);
-        }
-        let newBlockNum = await rootchain.currentChildBlock.call()
-        await rootchain.submitBlock(hexToBinary(computedRoot));
-
-        // create the right confirm sig
-        let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
-        let confirmSignature = await web3.eth.sign(accounts[2], confirmHash);
         let incorrectConfirmSig = await web3.eth.sign(accounts[2], "0x1234");
-
 
         // challenge incorrectly
         let err;
@@ -505,26 +489,8 @@ contract('RootChain', async (accounts) => {
         await rootchain.finalizeExits({from: authority});
 
         // accounts[2] sends a deposit UTXO to accounts[3]
-        let txBytes = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
-        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-        let sigs = await web3.eth.sign(accounts[2], txHash);
-        sigs += new Buffer(65).toString('hex');
-        let leaf = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
-
-        // the transaction is included in a new block,
-        // the block header is submitted to rootchain
-        let computedRoot = leaf.slice(2);
-        for (let i = 0; i < 16; i++) {
-          computedRoot = web3.sha3(computedRoot + zeroHashes[i],
-            {encoding: 'hex'}).slice(2);
-        }
-
-        let newBlockNum = await rootchain.currentChildBlock.call();
-        await rootchain.submitBlock(hexToBinary(computedRoot));
-
-        // accounts[2] signs confirmSig for the transaction
-        let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
-        let confirmSignature = await web3.eth.sign(accounts[2], confirmHash);
+        let txBytes, sigs, confirmSignature, newBlockNum;
+        [txBytes, sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], blockNum, 0, 0, 50000, 0, 0, 0, 0, accounts[3], 50000, 0, 0);
 
         // accounts[2] starts exit 
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
@@ -563,25 +529,8 @@ contract('RootChain', async (accounts) => {
         await rootchain.finalizeExits({from: authority});
 
         // accounts[2] sends a deposit UTXO to accounts[3]
-        let txBytes = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
-        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-        let sigs = await web3.eth.sign(accounts[2], txHash);
-        sigs += new Buffer(65).toString('hex');
-        let leaf = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
-
-        // the transaction is included in a new block,
-        // the block header is submitted to rootchain
-        let computedRoot = leaf.slice(2);
-        for (let i = 0; i < 16; i++) {
-          computedRoot = web3.sha3(computedRoot + zeroHashes[i],
-            {encoding: 'hex'}).slice(2);
-        }
-        let newBlockNum = await rootchain.currentChildBlock.call()
-        await rootchain.submitBlock(hexToBinary(computedRoot));
-
-        // accounts[2] signs confirmSig for the transaction
-        let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
-        let confirmSignature = await web3.eth.sign(accounts[2], confirmHash);
+        let txBytes, sigs, confirmSignature, newBlockNum;
+        [txBytes, sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], blockNum, 0, 0, 50000, 0, 0, 0, 0, accounts[3], 50000, 0, 0);
 
         // accounts[2] starts exit 
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
