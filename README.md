@@ -36,6 +36,11 @@ A transaction is encoded in the following form:
 
 ``withdraw``: Allows users to withdraw any balance that avaliable after the successful processing of an exit. 
 
+### Doecumentation
+
+See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob/documentation/documentation.md) 
+
+
 ### Contributing
 
 See our [contribution guidelines](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/CONTRIBUTING.md) 
