@@ -13,7 +13,7 @@ Sender can deposit Eth into the smart contract, which will become redeemable on 
 `@param bytes txBytes`: the transaction bytes of the deposit, which is an encoded list of 15 elements.
 
 **function** `startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)` </br>
-Begins the exit procedure for exiting a utxo on the child chain. Checks the validity of the inputs and adds the exit to the priority queue. The sender must deposit an exit bond. </br>
+Begins the exit procedure for exiting a utxo on the child chain. The function checks that the inputs are valid, that this exit hasn't been finalized or challenged before, and that the sender has bonded funds to this exit. Then, it adds the exit to the priority queue. </br>
 `@param uint256 txPos[0]`: plasma block number in which the transaction occured </br>
 `@param uint256 txPos[1]`: transaction Index within the block </br>
 `@param uint256 txPos[2]`: output Index within the transaction (either 0 or 1) </br>
