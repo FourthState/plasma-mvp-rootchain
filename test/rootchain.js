@@ -188,6 +188,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(exit[0], accounts[2], "Incorrect exit owner");
         assert.equal(exit[1], 5000, "Incorrect amount");
         assert.equal(exit[2][0], blockNum, "Incorrect block number");
+        assert.equal(exit[4], 1, "Incorrect exit state: should be 'started'");
     });
 
     it("Try to exit with invalid parameters", async () => {
@@ -249,18 +250,15 @@ contract('RootChain', async (accounts) => {
         assert.equal(result.logs[0].event, 'AddedToBalances', 'AddedToBalances event was not emitted.');
         assert.equal(result.logs[1].event, 'ChallengedExit', 'ChallengedExit event was not emitted.');
 
-        let priority = 1000000000 * blockNum;
-        // make sure the succesfully challenged exit was added to finalizedExits mapping
-        let challengedExit = await rootchain.finalizedExits.call(priority);
-        assert.equal(challengedExit[0], accounts[2], "Incorrect challenged exit owner");
-        assert.equal(parseInt(challengedExit[1]), 5000, "Incorrect finalized exit amount.");
-
         balance = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
         assert.equal(balance, oldBal + minExitBond, "Challenge bounty was not dispursed");
 
+        let priority = 1000000000 * blockNum;
         let exit = await rootchain.getExit.call(priority);
         // make sure the exit was deleted
-        assert.equal(exit[0], 0, "Exit was not deleted after successful challenge");
+        assert.equal(exit[0], accounts[2], "Exit should not be deleted after successful challenge.");
+        assert.equal(parseInt(exit[1]), 5000, "Incorrect finalized exit amount.");
+        assert.equal(exit[4], 2, "Exit state was not set to 'challenged' after successful challenge.");
     });
 
     it("Start exit, finalize after a week, and withdraw", async () => {
@@ -287,6 +285,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(exit[0], accounts[2], "Incorrect exit owner");
         assert.equal(exit[1], 5000, "Incorrect amount");
         assert.equal(exit[2][0], blockNum, "Incorrect block number");
+        assert.equal(exit[4], 1, "Exit state was not set to 'started'.");
 
         // fast forward again
         let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
@@ -305,7 +304,8 @@ contract('RootChain', async (accounts) => {
 
         // check that the is successfully removed from the PQ
         exit = await rootchain.getExit.call(priority);
-        assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
+        assert.equal(exit[0], accounts[2], "Exit was deleted after finalizing");
+        assert.equal(exit[4], 3, "Exit state was not set to 'finalized'.");
 
         // check that the correct amount has been deposited into the account's balance
         assert.equal(balance, oldBal + minExitBond + 5000, "Account's rootchain balance was not credited");
@@ -351,8 +351,8 @@ contract('RootChain', async (accounts) => {
                 }
                 let priority = 1000000000 * blockNum;
                 let exit = await rootchain.getExit.call(priority);
-                assert.equal(exit[0], 0, "Exit should not exist.");
-                assert.equal(parseInt(exit[1]), 0, "Exit should not exist");
+                assert.equal(exit[0], accounts[3], "Exit should not be deleted.");
+                assert.equal(exit[4], 3, "Exit state should be 'finalized'.")
                 continue;
             }
             // start a new exit
@@ -364,6 +364,7 @@ contract('RootChain', async (accounts) => {
             assert.equal(exit[0], accounts[3], "Incorrect exit owner");
             assert.equal(exit[1], 50000, "Incorrect amount");
             assert.equal(exit[2][0], blockNum, "Incorrect block number");
+            assert.equal(exit[4], 1, "Exit state was not set to 'started'.");
 
             // fast forward again
             let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
@@ -381,7 +382,8 @@ contract('RootChain', async (accounts) => {
 
             // check that the is successfully removed from the PQ
             exit = await rootchain.getExit.call(priority);
-            assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
+            assert.equal(exit[0], accounts[3], "Exit should not be deleted after finalizing");
+            assert.equal(exit[4], 3, "Exit state was not set to 'finalized'.");
 
             // check that the correct amount has been deposited into the account's balance
             assert.equal(balance, oldBal + minExitBond + 50000, "Account's rootchain balance was not credited");
@@ -416,6 +418,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(exit[0], accounts[2], "Incorrect exit owner");
         assert.equal(exit[1], 50000, "Incorrect amount");
         assert.equal(exit[2][0], blockNum, "Incorrect block number");
+        assert.equal(exit[4], 1, "Exit state was not set to 'started'.");
 
         // accounts[3] starts exit the same UTXO
         // without waiting for accounts[2] to finalize
@@ -431,7 +434,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(newExit[0], accounts[3], "Incorrect exit owner");
         assert.equal(newExit[1], 50000, "Incorrect amount");
         assert.equal(parseInt(newExit[2][0]), parseInt(newBlockNum), "Incorrect block number");
-
+        assert.equal(newExit[4], 1, "Exit state was not set to 'started'.");
     });
 
     it("Try to exit an UTXO whose inputs have finalized exit", async () => {
@@ -463,9 +466,10 @@ contract('RootChain', async (accounts) => {
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
         await rootchain.finalizeExits({from: authority});
 
-        let finalizedExit = await rootchain.finalizedExits.call(priority);
+        let finalizedExit = await rootchain.getExit.call(priority);
         assert.equal(finalizedExit[0], accounts[2], "Incorrect finalized exit owner");
         assert.equal(finalizedExit[1], 50000, "Incorrect finalized exit amount.");
+        assert.equal(finalizedExit[4], 3, "Incorrect finalized exit state.");
 
         // accounts[3] starts exit the same UTXO
         // after accounts[2]'s exit has been finalized
