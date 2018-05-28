@@ -38,7 +38,7 @@ A transaction is encoded in the following form:
 
 ### Documentation
 
-See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob/docs/rootchainFunctions.md) 
+See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/docs/rootchainFunctions.md) 
 
 
 ### Contributing
