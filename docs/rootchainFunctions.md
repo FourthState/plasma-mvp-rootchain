@@ -10,7 +10,7 @@ The validator submits the merkle root of a child chain block. </br>
 **function** `deposit(uint blocknum, bytes txBytes)` </br>
 Sender can deposit Eth into the smart contract, which will become redeemable on the child chain. </br>
 `@param uint blocknum`: the current child chain block number </br>
-`@param bytes txBytes`: the transaction bytes of the deposit, which is an encoded list of 15 elements.
+`@param bytes txBytes`: the transaction bytes of the deposit, which is an RLP-encoded list of 15 elements
 
 **function** `startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)` </br>
 Begins the exit procedure for exiting a utxo on the child chain. The function checks that the inputs are valid, that this exit hasn't been finalized or challenged before, and that the sender has bonded funds to this exit. Then, it adds the exit to the priority queue. </br>
@@ -18,7 +18,7 @@ Begins the exit procedure for exiting a utxo on the child chain. The function ch
 `@param uint256 txPos[1]`: transaction Index within the block </br>
 `@param uint256 txPos[2]`: output Index within the transaction (either 0 or 1) </br>
 `@param bytes txBytes`: transaction bytes of the utxo </br>
-`@param bytes proof`: proof of transaction's existence in the child chain block </br>
+`@param bytes proof`: merkle proof of transaction's existence in the child chain block; should be 512-bytes long (the concatenation of 16 hashes, each 32 bytes long) </br>
 `@param bytes sigs`: first 130 bytes are signature of transaction and the rest is confirm signature
 
 **function** `challengeExit(uint256[3] txPos, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)` </br>
