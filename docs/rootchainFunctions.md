@@ -19,7 +19,7 @@ Begins the exit procedure for exiting a utxo on the child chain. The function ch
 `@param uint256 txPos[2]`: output Index within the transaction (either 0 or 1) </br>
 `@param bytes txBytes`: transaction bytes of the utxo </br>
 `@param bytes proof`: merkle proof of transaction's existence in the child chain block; should be 512-bytes long (the concatenation of 16 hashes, each 32 bytes long) </br>
-`@param bytes sigs`: first 130 bytes are signature of transaction and the rest is confirm signature
+`@param bytes sigs`: bytes 0-65 is the signature over the first input; bytes 65-130 is the signature over the second input; bytes 130-195 is the first confirmation signature; bytes 195-260 is the second confirmation signature
 
 **function** `challengeExit(uint256[3] txPos, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)` </br>
 Challenge an exit that's currently in the priority queue. A successful challenge results in the sender receiving the exit bond as a reward. </br>
@@ -27,8 +27,8 @@ Challenge an exit that's currently in the priority queue. A successful challenge
 `@param uint256 txPos [1]`: transaction index within the block </br>
 `@param uint256 txPos [2]`: output index within the transaction (either 0 or 1) </br>
 `@param uint256 newTxPos`: same as the above but the pos of the uxto created by the spend transaction </br>
-`@param bytes proof`: proof of transaction's existence in the child chain block </br>
-`@param bytes sigs`: first 130 bytes are signature of transaction and the rest is confirm signature </br>
+`@param bytes proof`: merkle proof of transaction's existence in the child chain block; should be 512-bytes long (the concatenation of 16 hashes, each 32 bytes long) </br>
+`@param bytes sigs`: bytes 0-65 is the signature over the first input; bytes 65-130 is the signature over the second input; bytes 130-195 is the first confirmation signature; bytes 195-260 is the second confirmation signature </br>
 `@param bytes confirmationSig`: the confirm sig confirming that the sender acknowledges the spend of the utxo
 
 **function** `finalizeExits()` </br>
