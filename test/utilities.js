@@ -18,9 +18,8 @@ let hexToBinary = function(value) {
 };
 
 // helper function to send a UTXO on childchain and submit blockheader to rootchain.
-let sendUTXO = async function(rootchain, sender, blkNum1, txIndex1, oIndex1, amount1, blkNum2, txIndex2, oIndex2, amount2, newOwner1, denom1, newOwner2, denom2) {
+let sendUTXO = async function(rootchain, sender, txBytes) {
     // sender sends a deposit UTXO to recipient
-    let txBytes = RLP.encode([blkNum1, txIndex1, oIndex1, amount1, 0, blkNum2, txIndex2, oIndex2, amount2, 0, newOwner1, denom1, newOwner2, denom2, 0]);
     let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
     let sigs = await web3.eth.sign(sender, txHash);
     sigs += new Buffer(65).toString('hex');
@@ -40,7 +39,7 @@ let sendUTXO = async function(rootchain, sender, blkNum1, txIndex1, oIndex1, amo
     // sender signs confirmSig for the transaction
     let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
     let confirmSignature = await web3.eth.sign(sender, confirmHash);
-    return [txBytes, sigs, confirmSignature, newBlockNum];
+    return [sigs, confirmSignature, newBlockNum];
 }
 
 let createAndDepositTX = async function(rootchain, address, amount) {

@@ -31,6 +31,7 @@ contract RootChain {
      */
     event Deposit(address depositor, uint256 amount);
     event FinalizedExit(uint priority, address owner, uint256 amount);
+    event ChallengedExit(uint priority, address owner, uint256 amount, uint256[3] utxoPos);
     event AddedToBalances(address owner, uint256 amount);
 
     /*
@@ -268,6 +269,10 @@ contract RootChain {
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
         totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
         AddedToBalances(msg.sender, minExitBond);
+
+        // keep track of successfully challenged exits
+        finalizedExits[priority] = exits[priority];
+        ChallengedExit(priority, finalizedExits[priority].owner, finalizedExits[priority].amount, finalizedExits[priority].utxoPos);
 
         delete exits[priority];
     }

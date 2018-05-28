@@ -224,8 +224,9 @@ contract('RootChain', async (accounts) => {
             hexToBinary(proofForDepositBlock), hexToBinary(exitSigs), {from: accounts[2], value: minExitBond });
 
         // transact accounts[2] => accounts[3]. DOUBLE SPEND (earlier exit)
-        let txBytes, sigs, confirmSignature, newBlockNum;
-        [txBytes, sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], blockNum, 0, 0, 50000, 0, 0, 0, 0, accounts[3], 50000, 0, 0);
+        let txBytes = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
+        let sigs, confirmSignature, newBlockNum;
+        [sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], txBytes);
 
         let incorrectConfirmSig = await web3.eth.sign(accounts[2], "0x1234");
 
@@ -244,10 +245,19 @@ contract('RootChain', async (accounts) => {
             txBytes.toString('binary'), hexToBinary(proofForDepositBlock),
             hexToBinary(sigs), hexToBinary(confirmSignature), {from: accounts[3]});
 
+        // make sure the correct events were emitted
+        assert.equal(result.logs[0].event, 'AddedToBalances', 'AddedToBalances event was not emitted.');
+        assert.equal(result.logs[1].event, 'ChallengedExit', 'ChallengedExit event was not emitted.');
+
+        let priority = 1000000000 * blockNum;
+        // make sure the succesfully challenged exit was added to finalizedExits mapping
+        let challengedExit = await rootchain.finalizedExits.call(priority);
+        assert.equal(challengedExit[0], accounts[2], "Incorrect challenged exit owner");
+        assert.equal(parseInt(challengedExit[1]), 5000, "Incorrect finalized exit amount.");
+
         balance = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
         assert.equal(balance, oldBal + minExitBond, "Challenge bounty was not dispursed");
 
-        let priority = 1000000000*blockNum;
         let exit = await rootchain.getExit.call(priority);
         // make sure the exit was deleted
         assert.equal(exit[0], 0, "Exit was not deleted after successful challenge");
@@ -393,8 +403,9 @@ contract('RootChain', async (accounts) => {
         await rootchain.finalizeExits({from: authority});
 
         // accounts[2] sends a deposit UTXO to accounts[3]
-        let txBytes, sigs, confirmSignature, newBlockNum;
-        [txBytes, sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], blockNum, 0, 0, 50000, 0, 0, 0, 0, accounts[3], 50000, 0, 0);
+        let txBytes = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
+        let sigs, confirmSignature, newBlockNum;
+        [sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], txBytes);
 
         // accounts[2] starts exit 
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
@@ -433,8 +444,9 @@ contract('RootChain', async (accounts) => {
         await rootchain.finalizeExits({from: authority});
 
         // accounts[2] sends a deposit UTXO to accounts[3]
-        let txBytes, sigs, confirmSignature, newBlockNum;
-        [txBytes, sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], blockNum, 0, 0, 50000, 0, 0, 0, 0, accounts[3], 50000, 0, 0);
+        let txBytes = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
+        let sigs, confirmSignature, newBlockNum;
+        [sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], txBytes);
 
         // accounts[2] starts exit 
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
