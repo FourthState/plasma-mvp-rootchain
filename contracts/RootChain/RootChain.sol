@@ -200,12 +200,8 @@ contract RootChain {
         // check that the UTXO's two direct inputs have not been previously exited
         validateExitInputs(txList);
 
-        // one-to-one mapping between priority and exit
-        // require(exits[priority].owner == address(0));
-        // require(exits[priority].amount == 0);
-
+        // create new started/pending exit after passing all previous checks
         exitsQueue.insert(priority);
-
         exits[priority] = exit({
             amount: txList[11 + 2 * txPos[2]].toUint(),
             utxoPos: txPos,
@@ -248,7 +244,8 @@ contract RootChain {
         require(txList.length == 15);
 
         // start-exit verification
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
+        uint256 priority = 1000000000 * txPos[0] + 10000 * txPos[1] + txPos[2];
+        // check that the exit being challenged is a pending exit
         require(exits[priority].state == 1);
 
         uint256[3] memory utxoPos = exits[priority].utxoPos;
