@@ -290,8 +290,8 @@ contract RootChain {
         exit memory currentExit = exits[priority];
 
         while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
-            // this can occur if challengeExit is sucessful on an exit
-            if (currentExit.owner == address(0)) {
+            // skip currentExit if it is not in 'started/pending' state.
+            if (currentExit.state != 1) {
                 exitsQueue.delMin();
 
                 if (exitsQueue.currentSize() == 0) {
@@ -303,6 +303,8 @@ contract RootChain {
                 currentExit = exits[priority];
                 continue; // Prevent incorrect processing of deleted exits.
             }
+
+            require(currentExit.state == 1);
 
             // prevent a potential DoS attack if from someone purposely reverting a payment
             uint256 amountToAdd = currentExit.amount.add(minExitBond);
