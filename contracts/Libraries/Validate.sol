@@ -1,6 +1,6 @@
 pragma solidity ^0.4.18;
 import './ByteUtils.sol';
-import './ECRecovery.sol';
+import 'openzeppelin-solidity/contracts/ECRecovery.sol';
 
 
 library Validate {
@@ -13,7 +13,7 @@ library Validate {
         bytes memory sig1 = ByteUtils.slice(sigs, 0, 65);
         bytes memory sig2 = ByteUtils.slice(sigs, 65, 65);
         bytes memory confSig1 = ByteUtils.slice(sigs, 130, 65);
-        bytes32 confirmationHash = keccak256(txHash, sig1, sig2, rootHash);
+        bytes32 confirmationHash = keccak256(abi.encodePacked(txHash, sig1, sig2, rootHash));
         
         if (blknum1 == 0 && blknum2 == 0) {
             return msg.sender == ECRecovery.recover(confirmationHash, confSig1);

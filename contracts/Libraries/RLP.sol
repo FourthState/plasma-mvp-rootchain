@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 /**
  * @title RLPReader
  *
@@ -35,8 +35,8 @@ library RLP {
         returns (RLPItem memory subItem)
     {
         require(hasNext(self));
-        var ptr = self._unsafe_nextPtr;
-        var itemLength = _itemLength(ptr);
+        uint ptr = self._unsafe_nextPtr;
+        uint itemLength = _itemLength(ptr);
         subItem._unsafe_memPtr = ptr;
         subItem._unsafe_length = itemLength;
         self._unsafe_nextPtr = ptr + itemLength;
@@ -58,7 +58,7 @@ library RLP {
         pure
         returns (bool)
     {
-        var item = self._unsafe_item;
+        RLPItem memory item = self._unsafe_item;
         return self._unsafe_nextPtr < item._unsafe_memPtr + item._unsafe_length;
     }
 
@@ -94,7 +94,7 @@ library RLP {
         pure
         returns (RLPItem memory)
     {
-        var item = toRLPItem(self);
+        RLPItem memory item = toRLPItem(self);
         if(strict) {
             uint len = self.length;
             require(_payloadOffset(item) <= len);
@@ -212,7 +212,7 @@ library RLP {
         pure
         returns (bytes memory bts)
     {
-        var len = self._unsafe_length;
+        uint len = self._unsafe_length;
         if (len == 0)
             return;
         bts = new bytes(len);
@@ -229,7 +229,7 @@ library RLP {
         returns (bytes memory bts)
     {
         require(isData(self));
-        var (rStartPos, len) = _decode(self);
+        (uint rStartPos, uint len) = _decode(self);
         bts = new bytes(len);
         _copyToBytes(rStartPos, bts, len);
     }
@@ -244,9 +244,9 @@ library RLP {
         returns (RLPItem[] memory list)
     {
         require(isList(self));
-        var numItems = items(self);
+        uint numItems = items(self);
         list = new RLPItem[](numItems);
-        var it = iterator(self);
+        Iterator memory it = iterator(self);
         uint idx;
         while(hasNext(it)) {
             list[idx] = next(it);
@@ -264,7 +264,7 @@ library RLP {
         returns (string memory str)
     {
         require(isData(self));
-        var (rStartPos, len) = _decode(self);
+        (uint rStartPos, uint len) = _decode(self);
         bytes memory bts = new bytes(len);
         _copyToBytes(rStartPos, bts, len);
         str = string(bts);
@@ -280,7 +280,7 @@ library RLP {
         returns (uint data)
     {
         require(isData(self));
-        var (rStartPos, len) = _decode(self);
+        (uint rStartPos, uint len) = _decode(self);
         require(len <= 32);
         assembly {
             data := div(mload(rStartPos), exp(256, sub(32, len)))
@@ -297,7 +297,7 @@ library RLP {
         returns (bool data)
     {
         require(isData(self));
-        var (rStartPos, len) = _decode(self);
+        (uint rStartPos, uint len) = _decode(self);
         require(len == 1);
         uint temp;
         assembly {
@@ -317,7 +317,7 @@ library RLP {
         returns (byte data)
     {
         require(isData(self));
-        var (rStartPos, len) = _decode(self);
+        (uint rStartPos, uint len) = _decode(self);
         require(len == 1);
         uint temp;
         assembly {
@@ -361,7 +361,7 @@ library RLP {
         returns (address data)
     {
         require(isData(self));
-        var (rStartPos, len) = _decode(self);
+        (uint rStartPos, uint len) = _decode(self);
         require(len == 20);
         assembly {
             data := div(mload(rStartPos), exp(256, 12))

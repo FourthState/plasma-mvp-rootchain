@@ -1,6 +1,7 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
-import "../Libraries/SafeMath.sol";
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+
 /**
  * @title PriorityQueue
  * @dev A priority queue implementation
@@ -24,7 +25,7 @@ contract PriorityQueue {
     uint256[] heapList;
     uint256 public currentSize;
 
-    function PriorityQueue()
+    constructor()
         public
     {
         owner = msg.sender;
