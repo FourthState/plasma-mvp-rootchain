@@ -298,7 +298,11 @@ contract('RootChain', async (accounts) => {
         // finalize
         let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
         let oldChildChainBalance = (await rootchain.childChainBalance()).toNumber();
-        await rootchain.finalizeExits({from: authority});
+        let finalizeExitsResult = await rootchain.finalizeExits({from: authority});
+
+        // check the FinalizedExit event was broadcast correctly.
+        assert.equal(finalizeExitsResult.logs[1].event, 'FinalizedExit', 'FinalizedExit event was not emitted.');
+        assert.equal(finalizeExitsResult.logs[1].args.sigs.slice(2), exitSigs, "Incorrect sigs for the finalized exit in FinalizedExit event.")
 
         let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
 
@@ -395,7 +399,7 @@ contract('RootChain', async (accounts) => {
         }
     });
 
-    it("Try to exit an UTXO whose inputs have started exit", async () => {
+    it("Try to exit a fraudulent UTXO whose legitimate inputs are pending exit", async () => {
         let blockNum, rest;
         [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], 50000);
 
@@ -405,9 +409,19 @@ contract('RootChain', async (accounts) => {
         await rootchain.finalizeExits({from: authority});
 
         // accounts[2] sends a deposit UTXO to accounts[3]
-        let txBytes = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
-        let sigs, confirmSignature, newBlockNum;
-        [sigs, confirmSignature, newBlockNum] = await sendUTXO(rootchain, accounts[2], txBytes);
+        let txBytes1 = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[3], 50000, 0, 0, 0]);
+        let sigs1, confirmSignature1, newBlockNum1;
+        [sigs1, confirmSignature1, newBlockNum1] = await sendUTXO(rootchain, accounts[2], txBytes1);
+
+        // waiting at least 5 root chain blocks before submitting a block with new transaction
+        for (i = 0; i < 5; i++) {
+            await web3.eth.sendTransaction({from: authority, 'to': accounts[1], value: 100});
+        }
+
+        // accounts[2] sends the same deposit UTXO to accounts[4] (DOUBLE SPEND)
+        let txBytes2 = RLP.encode([blockNum, 0, 0, 50000, 0, 0, 0, 0, 0, 0, accounts[4], 50000, 0, 0, 0]);
+        let sigs2, confirmSignature2, newBlockNum2;
+        [sigs2, confirmSignature2, newBlockNum2] = await sendUTXO(rootchain, accounts[2], txBytes2);
 
         // accounts[2] starts exit 
         let exitSigs = new Buffer(130).toString('hex') + rest[1].slice(2) + new Buffer(65).toString('hex');
@@ -421,20 +435,31 @@ contract('RootChain', async (accounts) => {
         assert.equal(exit[4], 1, "Exit state was not set to 'started'.");
 
         // accounts[3] starts exit the same UTXO
-        // without waiting for accounts[2] to finalize
-        let exitSigsNew = sigs.slice(2) + confirmSignature.slice(2) + new Buffer(65).toString('hex');
-        await rootchain.startExit([newBlockNum, 0, 0], txBytes.toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigsNew), {from: accounts[3], value: minExitBond});
+        // while accounts[2]'s exit is pending
+        let exitSigsNew1 = sigs1.slice(2) + confirmSignature1.slice(2) + new Buffer(65).toString('hex');
+        let err1;
+        [err1] = await to(rootchain.startExit([newBlockNum1, 0, 0], txBytes1.toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigsNew1), {from: accounts[3], value: minExitBond}));
+        if (!err1) {
+            assert.fail("Allowed UTXO with pending parent to start exit!");
+        }
 
-        // accounts[3]'s exit replaces accounts[2]'s exit
+        // accounts[4] starts exit the same UTXO
+        // while accounts[2]'s exit is pending
+        let exitSigsNew2 = sigs2.slice(2) + confirmSignature2.slice(2) + new Buffer(65).toString('hex');
+        let err2;
+        [err2] = await to(rootchain.startExit([newBlockNum2, 0, 0], txBytes2.toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigsNew2), {from: accounts[4], value: minExitBond}));
+        if (!err2) {
+            assert.fail("Allowed UTXO with pending parent to start exit!");
+        }
+
         exit = await rootchain.getExit.call(priority);
-        assert.equal(exit[0], 0, "Exit should not exist.");
-        assert.equal(parseInt(exit[1]), 0, "Exit should not exist.");
-        let newPriority = 1000000000 * newBlockNum;
-        let newExit = await rootchain.getExit.call(newPriority);
-        assert.equal(newExit[0], accounts[3], "Incorrect exit owner");
-        assert.equal(newExit[1], 50000, "Incorrect amount");
-        assert.equal(parseInt(newExit[2][0]), parseInt(newBlockNum), "Incorrect block number");
-        assert.equal(newExit[4], 1, "Exit state was not set to 'started'.");
+        assert.equal(exit[0], accounts[2], "Exit should exist.");
+        assert.equal(parseInt(exit[1]), 50000, "Exit should exist.");
+
+        let newPriority1 = 1000000000 * newBlockNum1;
+        let newExit1 = await rootchain.getExit.call(newPriority1);
+        assert.equal(newExit1[0], 0, "Exit should not exist.");
+        assert.equal(parseInt(newExit1[1]), 0, "Exit should not exist.");
     });
 
     it("Try to exit an UTXO whose inputs have finalized exit", async () => {
@@ -461,7 +486,7 @@ contract('RootChain', async (accounts) => {
         assert.equal(exit[1], 50000, "Incorrect amount");
         assert.equal(exit[2][0], blockNum, "Incorrect block number");
 
-        // fast forward and finalize any exits from previous tests
+        // fast forward and finalize accounts[2]'s exit
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
         await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
         await rootchain.finalizeExits({from: authority});
@@ -477,13 +502,13 @@ contract('RootChain', async (accounts) => {
         let err;
         [err] = await to(rootchain.startExit([newBlockNum, 0, 0], txBytes.toString('binary'), hexToBinary(proofForDepositBlock), hexToBinary(exitSigsNew), {from: accounts[3], value: minExitBond}));
         if (!err) {
-            assert.fail("Allowed already withdrawn UTXO to start exit!");
+            assert.fail("Allowed startExit of already withdrawn UTXO!");
         }
 
         let newPriority = 1000000000 * newBlockNum;
         let newExit = await rootchain.getExit.call(newPriority);
-        assert.equal(newExit[0], 0, "Exit should not exist.");
-        assert.equal(parseInt(newExit[1]), 0, "Exit should not exist.");
+        assert.equal(newExit[0], 0, "New exit should not exist.");
+        assert.equal(parseInt(newExit[1]), 0, "New exit should not exist.");
     });
 
 });

@@ -32,7 +32,6 @@ let sendUTXO = async function(rootchain, sender, txBytes) {
       computedRoot = web3.sha3(computedRoot + zeroHashes[i],
         {encoding: 'hex'}).slice(2);
     }
-
     let newBlockNum = await rootchain.currentChildBlock.call();
     await rootchain.submitBlock(hexToBinary(computedRoot));
 

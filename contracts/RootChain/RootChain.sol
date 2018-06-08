@@ -30,7 +30,7 @@ contract RootChain {
      * Events
      */
     event Deposit(address depositor, uint256 amount);
-    event FinalizedExit(uint priority, address owner, uint256 amount);
+    event FinalizedExit(uint priority, address owner, bytes sigs, uint256 amount);
     event ChallengedExit(uint priority, address owner, uint256 amount, uint256[3] utxoPos);
     event AddedToBalances(address owner, uint256 amount);
 
@@ -55,6 +55,7 @@ contract RootChain {
         uint256[3] utxoPos;
         address owner;
         uint8 state;
+        bytes sigs;
     }
 
     // child chain
@@ -157,9 +158,9 @@ contract RootChain {
     function getExit(uint256 priority)
         public
         view
-        returns (address, uint256, uint256[3], uint256, uint8)
+        returns (address, uint256, uint256[3], uint256, uint8, bytes)
     {
-        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at, exits[priority].state);
+        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at, exits[priority].state, exits[priority].sigs);
     }
 
     /// @param txPos [0] Plasma block number in which the transaction occured
@@ -207,7 +208,8 @@ contract RootChain {
             utxoPos: txPos,
             created_at: block.timestamp,
             owner: txList[10 + 2 * txPos[2]].toAddress(),
-            state: 1
+            state: 1,
+            sigs: sigs
         });
     }
 
@@ -216,6 +218,7 @@ contract RootChain {
     /// exits are deleted from the exit queue and the current UTXO's exit remains valid.
     function validateExitInputs(RLP.RLPItem[] memory txList)
         private
+        view
     {
         for (uint256 i = 0; i < 2; i++) {
             uint256 txInputBlkNum = txList[5 * i + 0].toUint();
@@ -223,11 +226,9 @@ contract RootChain {
             uint256 txInputOutIndex = txList[5 * i + 2].toUint();
             uint256 txInputPriority = 1000000000 * txInputBlkNum + 10000 * txInputIndex + txInputOutIndex;
 
-            // check that the UTXO's inputs have not been finalized
-            require(exits[txInputPriority].state != 3);
-
-            if (exits[txInputPriority].state == 1 && exits[txInputPriority].owner != address(0)) {
-                delete exits[txInputPriority];
+            // this UTXO's inputs must have been challenged or not exited
+            if (exits[txInputPriority].state != 0) {
+                require(exits[txInputPriority].state == 2);
             }
         }
     }
@@ -321,7 +322,7 @@ contract RootChain {
 
             // set Exit's state to 'finalized'
             exits[priority].state = 3;
-            FinalizedExit(priority, currentExit.owner, amountToAdd);
+            FinalizedExit(priority, currentExit.owner, currentExit.sigs, amountToAdd);
 
             // delete the finalized exit
             exitsQueue.delMin();
