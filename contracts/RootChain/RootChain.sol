@@ -30,7 +30,8 @@ contract RootChain {
      * Events
      */
     event Deposit(address depositor, uint256 amount);
-    event FinalizedExit(uint priority, address owner, uint256 amount);
+    event FinalizedExit(uint priority, address owner, bytes sigs, uint256 amount);
+    event ChallengedExit(uint priority, address owner, uint256 amount, uint256[3] utxoPos);
     event AddedToBalances(address owner, uint256 amount);
 
     /*
@@ -39,17 +40,22 @@ contract RootChain {
     mapping(uint256 => childBlock) public childChain;
 
     mapping(address => uint256) public balances;
+
     uint256 public totalWithdrawBalance;
 
     // startExit mechanism
     PriorityQueue exitsQueue;
     uint256 minExitBond;
     mapping(uint256 => exit) public exits;
+
+    // exit.state flags: 0 -> does not exist; 1 -> started/pending; 2 -> challenged; 3 -> finalized
     struct exit {
-        address owner;
         uint256 amount;
         uint256 created_at;
         uint256[3] utxoPos;
+        address owner;
+        uint8 state;
+        bytes sigs;
     }
 
     // child chain
@@ -152,9 +158,9 @@ contract RootChain {
     function getExit(uint256 priority)
         public
         view
-        returns (address, uint256, uint256[3], uint256)
+        returns (address, uint256, uint256[3], uint256, uint8, bytes)
     {
-        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at);
+        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at, exits[priority].state, exits[priority].sigs);
     }
 
     /// @param txPos [0] Plasma block number in which the transaction occured
@@ -173,7 +179,12 @@ contract RootChain {
         require(msg.sender == txList[10 + 2 * txPos[2]].toAddress());
         require(msg.value == minExitBond);
 
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
+        uint256 priority = 1000000000 * txPos[0] + 10000 * txPos[1] + txPos[2];
+
+        // check that the UTXO has not been previously exited
+        require(exits[priority].state == 0);
+        require(exits[priority].owner == address(0));
+        require(exits[priority].amount == 0);
 
         // creating the correct merkle leaf
         bytes32 txHash = keccak256(txBytes);
@@ -187,18 +198,39 @@ contract RootChain {
             require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
         }
 
-        // one-to-one mapping between priority and exit
-        require(exits[priority].owner == address(0));
-        require(exits[priority].amount == 0);
+        // check that the UTXO's two direct inputs have not been previously exited
+        validateExitInputs(txList);
 
+        // create new started/pending exit after passing all previous checks
         exitsQueue.insert(priority);
-
         exits[priority] = exit({
-            owner: txList[10 + 2 * txPos[2]].toAddress(),
             amount: txList[11 + 2 * txPos[2]].toUint(),
             utxoPos: txPos,
-            created_at: block.timestamp
+            created_at: block.timestamp,
+            owner: txList[10 + 2 * txPos[2]].toAddress(),
+            state: 1,
+            sigs: sigs
         });
+    }
+
+    /// For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
+    /// been previously exited. If UTXO's inputs are in the exit queue, those inputs'
+    /// exits are deleted from the exit queue and the current UTXO's exit remains valid.
+    function validateExitInputs(RLP.RLPItem[] memory txList)
+        private
+        view
+    {
+        for (uint256 i = 0; i < 2; i++) {
+            uint256 txInputBlkNum = txList[5 * i + 0].toUint();
+            uint256 txInputIndex = txList[5 * i + 1].toUint();
+            uint256 txInputOutIndex = txList[5 * i + 2].toUint();
+            uint256 txInputPriority = 1000000000 * txInputBlkNum + 10000 * txInputIndex + txInputOutIndex;
+
+            // this UTXO's inputs must have been challenged or not exited
+            if (exits[txInputPriority].state != 0) {
+                require(exits[txInputPriority].state == 2);
+            }
+        }
     }
 
     /// @param txPos [0] Plasma block number in which the challenger's transaction occured
@@ -213,7 +245,10 @@ contract RootChain {
         require(txList.length == 15);
 
         // start-exit verification
-        uint256 priority = 1000000000*txPos[0] + 10000*txPos[1] + txPos[2];
+        uint256 priority = 1000000000 * txPos[0] + 10000 * txPos[1] + txPos[2];
+        // check that the exit being challenged is a pending exit
+        require(exits[priority].state == 1);
+
         uint256[3] memory utxoPos = exits[priority].utxoPos;
         require(utxoPos[0] == txList[0 + 5 * newTxPos[2]].toUint());
         require(utxoPos[1] == txList[1 + 5 * newTxPos[2]].toUint());
@@ -238,7 +273,9 @@ contract RootChain {
         totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
         AddedToBalances(msg.sender, minExitBond);
 
-        delete exits[priority];
+        // change the Exit's state to 'challenged'
+        exits[priority].state = 2;
+        ChallengedExit(priority, exits[priority].owner, exits[priority].amount, exits[priority].utxoPos);
     }
 
     function finalizeExits()
@@ -254,8 +291,8 @@ contract RootChain {
         exit memory currentExit = exits[priority];
 
         while (exitsQueue.currentSize() > 0 && (block.timestamp - currentExit.created_at) > 1 weeks) {
-            // this can occur if challengeExit is sucessful on an exit
-            if (currentExit.owner == address(0)) {
+            // skip currentExit if it is not in 'started/pending' state.
+            if (currentExit.state != 1) {
                 exitsQueue.delMin();
 
                 if (exitsQueue.currentSize() == 0) {
@@ -267,6 +304,8 @@ contract RootChain {
                 currentExit = exits[priority];
                 continue; // Prevent incorrect processing of deleted exits.
             }
+
+            require(currentExit.state == 1);
 
             // prevent a potential DoS attack if from someone purposely reverting a payment
             uint256 amountToAdd = currentExit.amount.add(minExitBond);
@@ -281,11 +320,12 @@ contract RootChain {
             totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
             AddedToBalances(currentExit.owner, amountToAdd);
 
-            FinalizedExit(priority, currentExit.owner, amountToAdd);
+            // set Exit's state to 'finalized'
+            exits[priority].state = 3;
+            FinalizedExit(priority, currentExit.owner, currentExit.sigs, amountToAdd);
 
             // delete the finalized exit
             exitsQueue.delMin();
-            delete exits[priority];
 
             // move onto the next oldest exit
             if (exitsQueue.currentSize() == 0) {

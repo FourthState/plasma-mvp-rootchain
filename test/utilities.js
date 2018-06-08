@@ -17,6 +17,30 @@ let hexToBinary = function(value) {
     return Buffer.from(value, 'hex').toString('binary');
 };
 
+// helper function to send a UTXO on childchain and submit blockheader to rootchain.
+let sendUTXO = async function(rootchain, sender, txBytes) {
+    // sender sends a deposit UTXO to recipient
+    let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+    let sigs = await web3.eth.sign(sender, txHash);
+    sigs += new Buffer(65).toString('hex');
+    let leaf = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
+
+    // the transaction is included in a new block,
+    // the block header is submitted to rootchain
+    let computedRoot = leaf.slice(2);
+    for (let i = 0; i < 16; i++) {
+      computedRoot = web3.sha3(computedRoot + zeroHashes[i],
+        {encoding: 'hex'}).slice(2);
+    }
+    let newBlockNum = await rootchain.currentChildBlock.call();
+    await rootchain.submitBlock(hexToBinary(computedRoot));
+
+    // sender signs confirmSig for the transaction
+    let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
+    let confirmSignature = await web3.eth.sign(sender, confirmHash);
+    return [sigs, confirmSignature, newBlockNum];
+}
+
 let createAndDepositTX = async function(rootchain, address, amount) {
     // submit a deposit
     let blockNum = (await rootchain.getDepositBlock.call()).toNumber();
@@ -65,4 +89,5 @@ module.exports = {
     proofForDepositBlock,
     hexToBinary,
     zeroHashes,
+    sendUTXO
 };
