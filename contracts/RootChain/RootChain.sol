@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24; 
+pragma solidity ^0.4.24;
 
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
@@ -7,7 +7,7 @@ import "solidity-rlp/contracts/RLPReader.sol";
 
 import "../libraries/Validator.sol";
 import "../libraries/PriorityQueue.sol";
- 
+
 
 contract RootChain is Ownable {
     using SafeMath for uint256;
@@ -85,9 +85,9 @@ contract RootChain is Ownable {
     }
 
     /// @dev txBytes Length 15 RLP encoding of Transaction excluding signatures
-    /// Transaction encoding: 
-    /// [Blknum1, TxIndex1, Oindex1, Amount1, ConfirmSig1, 
-    ///  Blknum2, TxIndex2, Oindex2, Amount2, ConfirmSig2, 
+    /// Transaction encoding:
+    /// [Blknum1, TxIndex1, Oindex1, Amount1, ConfirmSig1,
+    ///  Blknum2, TxIndex2, Oindex2, Amount2, ConfirmSig2,
     ///  NewOwner, Denom1, NewOwner, Denom2, Fee]
     /// @notice owner and value should be encoded in Output 1
     /// @notice hash of txBytes is hashed with a empty signature
@@ -240,27 +240,25 @@ contract RootChain is Ownable {
                 exitsQueue.delMin();
                 emit ExitedChallengedExit();
                 emit QueueLength(exitsQueue.currentSize());
-
-                if (exitsQueue.currentSize() == 0) {
-                    return;
-                }
+            }
+            else {
+                amountToAdd = currentExit.amount.add(minExitBond);
+                balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
+                totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
+                emit AddedToBalances(currentExit.owner, amountToAdd);
+                emit FinalizedExit(priority, currentExit.owner, amountToAdd);
 
                 // move onto the next oldest exit
-                priority = exitsQueue.getMin();
-                currentExit = exits[priority];
-                continue;
+                exitsQueue.delMin();
+                emit QueueLength(exitsQueue.currentSize());
+                delete exits[priority];
             }
 
-            amountToAdd = currentExit.amount.add(minExitBond);
-            balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
-            totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
-            emit AddedToBalances(currentExit.owner, amountToAdd);
-            emit FinalizedExit(priority, currentExit.owner, amountToAdd);
+            if (exitsQueue.currentSize() == 0) {
+                return;
+            }
 
             // move onto the next oldest exit
-            exitsQueue.delMin();
-            emit QueueLength(exitsQueue.currentSize());
-            delete exits[priority];
             priority = exitsQueue.getMin();
             currentExit = exits[priority];
         }
