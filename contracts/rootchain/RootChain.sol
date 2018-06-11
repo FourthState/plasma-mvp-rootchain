@@ -166,7 +166,7 @@ contract RootChain is Ownable {
         });
     }
 
-    /// @param txPos [0] Plasma block number in which the challenger"s transaction occured
+    /// @param txPos [0] Plasma block number in which the challenger's transaction occured
     /// @param txPos [1] Transaction Index within the block
     /// @param txPos [2] Output Index within the transaction (either 0 or 1)
     /// @param newTxPos  Same as the above but the pos of the uxto created by the spend tx
