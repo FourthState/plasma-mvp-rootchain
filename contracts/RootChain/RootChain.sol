@@ -1,33 +1,25 @@
 pragma solidity ^0.4.24; 
 
+// external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import "solidity-rlp/contracts/RLPReader.sol";
 
-import "../Libraries/RLP.sol";
-import "../Libraries/Merkle.sol";
-import "../Libraries/Validate.sol";
-import "../DataStructures/PriorityQueue.sol";
+import "../libraries/Validator.sol";
+import "../libraries/PriorityQueue.sol";
  
 
-contract RootChain {
+contract RootChain is Ownable {
     using SafeMath for uint256;
-    using RLP for bytes;
-    using RLP for RLP.RLPItem;
-    using RLP for RLP.Iterator;
-    using Merkle for bytes32;
-
-    address public authority;
-
-    /*
-     *  Modifiers
-     */
-    modifier isAuthority() {
-        require(msg.sender == authority, "not authority");
-        _;
-    }
+    using Validator for bytes32;
+    using RLPReader for bytes;
+    using RLPReader for RLPReader.RLPItem;
 
     /*
      * Events
      */
+    event QueueLength(uint amt);
+    event ExitedChallengedExit();
     event Deposit(address depositor, uint256 amount);
     event FinalizedExit(uint priority, address owner, uint256 amount);
     event AddedToBalances(address owner, uint256 amount);
@@ -63,13 +55,13 @@ contract RootChain {
 
     constructor() public
     {
-        authority = msg.sender;
+        exitsQueue = new PriorityQueue();
+        require(exitsQueue.owner() == address(this), "incorrect PriorityQueue owner");
+
         childBlockInterval = 1000;
         currentChildBlock = childBlockInterval;
         currentDepositBlock = 1;
         lastParentBlock = block.number;
-
-        exitsQueue = new PriorityQueue();
 
         minExitBond = 10000; // minimum bond needed to exit.
     }
@@ -78,7 +70,7 @@ contract RootChain {
     /// @notice childChain blocks can only be submitted at most every 6 root chain blocks
     function submitBlock(bytes32 root)
         public
-        isAuthority
+        onlyOwner
     {
         // ensure finality on previous blocks before submitting another
         require(block.number >= lastParentBlock.add(6), "presumed finality required");
@@ -106,9 +98,8 @@ contract RootChain {
         require(currentDepositBlock < childBlockInterval, "blocknum cannot be a multiple of 1000");
         require(blocknum == currentChildBlock, "incorrect committed blocknum");
 
-        RLP.RLPItem[] memory txList = txBytes.toRLPItem().toList();
+        RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 15, "incorrect tx list");
-        return;
         for(uint256 i = 0; i < 10; i++) {
             require(txList[i].toUint() == 0, "incorrect tx fields");
         }
@@ -145,7 +136,7 @@ contract RootChain {
         returns (uint256)
     {
         // txBytes verification
-        RLP.RLPItem[] memory txList = txBytes.toRLPItem().toList();
+        RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 15, "incorrect tx length");
         require(msg.sender == txList[10 + 2 * txPos[2]].toAddress(), "address mismatch");
         require(msg.value == minExitBond, "incorrect exit bond");
@@ -160,7 +151,7 @@ contract RootChain {
         }
         else {
             bytes32 merkleHash = keccak256(abi.encodePacked(txHash, ByteUtils.slice(sigs, 0, 130)));
-            require(Validate.checkSigs(txHash, childChain[txPos[0]].root, txList[0].toUint(), txList[5].toUint(), sigs), "validation error");
+            require(txHash.checkSigs(childChain[txPos[0]].root, txList[0].toUint(), txList[5].toUint(), sigs), "validation error");
             require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "incorrect merkle proof");
         }
 
@@ -185,7 +176,7 @@ contract RootChain {
         public
     {
         // txBytes verification
-        RLP.RLPItem[] memory txList = txBytes.toRLPItem().toList();
+        RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 15, "incorrect tx list");
 
         // start-exit verification
@@ -206,7 +197,7 @@ contract RootChain {
         bytes32 confirmationHash = keccak256(abi.encodePacked(txHash, sigs, root));
 
         // challenge
-        require(exits[priority].owner == ECRecovery.recover(confirmationHash, confirmationSig), "mismatch in exit owner");
+        require(exits[priority].owner == confirmationHash.recover(confirmationSig), "mismatch in exit owner");
         require(merkleHash.checkMembership(newTxPos[1], root, proof), "incorrect merkle proof");
 
         // exit successfully challenged. Award the sender with the bond
@@ -220,10 +211,14 @@ contract RootChain {
     function finalizeExits()
         public
     {
+        emit QueueLength(10);
+        emit QueueLength(exitsQueue.currentSize());
         // getMin will fail if nothing is in the queue
         if (exitsQueue.currentSize() == 0) {
             return;
         }
+
+        emit QueueLength(exitsQueue.currentSize());
 
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = exitsQueue.getMin();
@@ -235,7 +230,7 @@ contract RootChain {
         *   2. Exits must be a week old
         *   3. Funds must exists for the exit to withdraw
         */
-       uint256 amountToAdd;
+        uint256 amountToAdd;
         while (exitsQueue.currentSize() > 0 &&
                (block.timestamp - currentExit.created_at) > 1 weeks &&
                currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance) {
@@ -243,6 +238,8 @@ contract RootChain {
             // this can occur if challengeExit is sucessful on an exit
             if (currentExit.owner == address(0)) {
                 exitsQueue.delMin();
+                emit ExitedChallengedExit();
+                emit QueueLength(exitsQueue.currentSize());
 
                 if (exitsQueue.currentSize() == 0) {
                     return;
@@ -262,6 +259,7 @@ contract RootChain {
 
             // move onto the next oldest exit
             exitsQueue.delMin();
+            emit QueueLength(exitsQueue.currentSize());
             delete exits[priority];
             priority = exitsQueue.getMin();
             currentExit = exits[priority];

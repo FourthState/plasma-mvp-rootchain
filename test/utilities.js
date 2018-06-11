@@ -9,26 +9,25 @@ let to = function(promise) {
       .catch(err => [err]);
 };
 
-let hexToBinary = function(value) {
-    if (value.length > 2 && value.substr(0,2) == '0x') {
-        value = value.slice(2);
-    }
-
-    return Buffer.from(value, 'hex').toString('binary');
-};
+let toHex = function(buffer) {
+    buffer = buffer.toString('hex');
+    if (buffer.substring(0, 2) == '0x')
+        return buffer;
+    return '0x' + buffer.toString('hex');
+}
 
 let createAndDepositTX = async function(rootchain, address, amount) {
     // submit a deposit
     let blockNum = (await rootchain.getDepositBlock.call()).toNumber();
     let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, amount, 0, 0, 0]);
     let validatorBlock = await rootchain.currentChildBlock.call();
-    await rootchain.deposit(validatorBlock, txBytes.toString('binary'), {from: address, value: amount});
+    await rootchain.deposit(validatorBlock, toHex(txBytes), {from: address, value: amount});
 
     // construct the confirm sig
     // Remove all 0x prefixes from hex strings
     let blockHeader = (await rootchain.getChildChain.call(blockNum))[0];
     let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-    let sigs = (new Buffer(130)).toString('hex');
+    let sigs = Buffer.alloc(130).toString('hex');
 
     // create the confirm sig
     let confirmHash = web3.sha3(txHash.slice(2) + sigs + blockHeader.slice(2), {encoding: 'hex'});
@@ -61,8 +60,8 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
 
 module.exports = {
     to,
+    toHex,
     createAndDepositTX,
     proofForDepositBlock,
-    hexToBinary,
     zeroHashes,
 };
