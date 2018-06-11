@@ -18,8 +18,6 @@ contract RootChain is Ownable {
     /*
      * Events
      */
-    event QueueLength(uint amt);
-    event ExitedChallengedExit();
     event Deposit(address depositor, uint256 amount);
     event FinalizedExit(uint priority, address owner, uint256 amount);
     event AddedToBalances(address owner, uint256 amount);
@@ -211,14 +209,10 @@ contract RootChain is Ownable {
     function finalizeExits()
         public
     {
-        emit QueueLength(10);
-        emit QueueLength(exitsQueue.currentSize());
         // getMin will fail if nothing is in the queue
         if (exitsQueue.currentSize() == 0) {
             return;
         }
-
-        emit QueueLength(exitsQueue.currentSize());
 
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = exitsQueue.getMin();
@@ -238,8 +232,6 @@ contract RootChain is Ownable {
             // this can occur if challengeExit is sucessful on an exit
             if (currentExit.owner == address(0)) {
                 exitsQueue.delMin();
-                emit ExitedChallengedExit();
-                emit QueueLength(exitsQueue.currentSize());
             }
             else {
                 amountToAdd = currentExit.amount.add(minExitBond);
@@ -250,7 +242,6 @@ contract RootChain is Ownable {
 
                 // move onto the next oldest exit
                 exitsQueue.delMin();
-                emit QueueLength(exitsQueue.currentSize());
                 delete exits[priority];
             }
 
