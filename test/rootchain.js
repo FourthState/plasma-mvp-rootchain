@@ -28,6 +28,11 @@ contract('RootChain', async (accounts) => {
 
     let authority = accounts[0];
 
+    it("Owned by the correct address", async () => {
+        let owner = await rootchain.owner.call();
+        assert(owner == authority);
+    })
+
     it("Submit block from authority", async () => {
         let curr = parseInt(await rootchain.currentChildBlock.call());
 
