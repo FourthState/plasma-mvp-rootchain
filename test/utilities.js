@@ -63,7 +63,7 @@ let startNewExit = async function(rootchain, accounts, amount, minExitBond, bloc
   assert.equal(exit[2][0], blockNum, "Incorrect block number");
 };
 
-let successfulFinalizeExit = async function(rootchain, accounts, authority, blockNum, amount, minExitBond) {
+let successfulFinalizeExit = async function(rootchain, accounts, authority, blockNum, amount, minExitBond, success) {
   // finalize
   let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
   let oldChildChainBalance = (await rootchain.childChainBalance()).toNumber();
@@ -72,20 +72,33 @@ let successfulFinalizeExit = async function(rootchain, accounts, authority, bloc
   // exit prority
   let priority = 1000000000 * blockNum;
 
-  // check that the is successfully removed from the PQ
   exit = await rootchain.getExit.call(priority);
-  assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
+  if (success) {
+    // check that the exit is successfully removed from the PQ
+    assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
+  } else {
+    // check that the exit hasn't been removed from the PQ
+    assert.notEqual(exit[0], 0, "Exit should not have been was processed");
+  }
 
-  // check that the correct amount has been deposited into the account's balance
   let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
-  assert.equal(balance, oldBal + minExitBond + amount, "Account's rootchain balance was not credited");
+  if (success) {
+    // check that the correct amount has been deposited into the account's balance
+    assert.equal(balance, oldBal + minExitBond + amount, "Account's rootchain balance was not credited");
+  } else {
+    // check that nothing has been deposited into the account's balance
+    assert.equal(balance, oldBal, "Account's rootchain balance should stay the same");
+  }
 
-  // check that the child chain balance has been updated correctly
   let contractBalance = (await web3.eth.getBalance(rootchain.address)).toNumber();
   let childChainBalance = (await rootchain.childChainBalance()).toNumber();
-  assert.equal(childChainBalance, oldChildChainBalance - minExitBond - amount, "Child chain balance was not updated correctly");
-  //
-  // return [contractBalance, childChainBalance];
+  if (success) {
+    // check that the child chain balance has been updated correctly
+    assert.equal(childChainBalance, oldChildChainBalance - minExitBond - amount, "Child chain balance was not updated correctly");
+  } else {
+    // check that the child chain balance has not changed
+    assert.equal(childChainBalance, oldChildChainBalance, "Child chain balance should stay the same");
+  }
 
   return [balance, contractBalance, childChainBalance];
 };
