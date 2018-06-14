@@ -9,6 +9,7 @@ let {
     waitForNBlocks,
     fastForward,
     startNewExit,
+    startFailedExit,
     successfulFinalizeExit,
     successfulWithdraw,
     proofForDepositBlock,
@@ -37,15 +38,7 @@ contract('RootChain Exit Tests', async (accounts) => {
         let validatorBlock = parseInt(await rootchain.currentChildBlock.call())
 
         await rootchain.deposit(validatorBlock, toHex(txBytes), {from: accounts[2], value: depositAmount});
-
-        validatorBlock = parseInt(await rootchain.currentChildBlock.call());
-
         await rootchain.deposit(validatorBlock, toHex(txBytes), {from: accounts[2], value: depositAmount});
-
-        await waitForNBlocks(5, authority, accounts);
-
-        let blockRoot = '2984748479872';
-        await rootchain.submitBlock(web3.fromAscii(blockRoot));
     });
 
     it("Start an exit", async () => {
@@ -56,31 +49,24 @@ contract('RootChain Exit Tests', async (accounts) => {
         [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], depositAmount);
 
         // start the exit
-        await startNewExit(rootchain, accounts, depositAmount, minExitBond, blockNum, rest);
+        let txPos = [blockNum, 0, 0];
+        
+        await startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
     });
 
     it("Try to exit with invalid parameters", async () => {
         // submit a deposit
-        let blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader;
-        [blockNum, confirmHash, confirmSignature,
-            txBytes, txHash, sigs, blockHeader] = await createAndDepositTX(rootchain, accounts[2], 5000);
+        let blockNum, rest;
+        [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], 5000);
 
         // start the exit
         let txPos = [blockNum, 0, 0];
-        let exitSigs = Buffer.alloc(130).toString('hex') + confirmSignature.slice(2) + Buffer.alloc(65).toString('hex');
 
-        let err;
-        [err] = await to(rootchain.startExit(txPos, toHex(txBytes),
-            toHex(proofForDepositBlock), toHex(exitSigs), {from: accounts[3], value: 10000 }));
-        if (!err) {
-            assert.fail("Invalid owner started the exit");
-        }
+        // Invalid owner started the exit
+        await startFailedExit(rootchain, accounts[3], 10000, minExitBond, blockNum, txPos, rest[1], rest[2]);
 
-        [err] = await to(rootchain.startExit(txPos, toHex(txBytes),
-            toHex(proofForDepositBlock), toHex(exitSigs), {from: accounts[2], value: 10 }));
-        if (!err) {
-            assert.fail("Exit started with insufficient bond");
-        }
+        // Exit started with insufficient bond
+        await startFailedExit(rootchain, accounts[2], 10, minExitBond, blockNum, txPos, rest[1], rest[2]);
     });
 
     it("Challenge an exit with a correct/incorrect confirm sigs", async () => {
@@ -91,7 +77,9 @@ contract('RootChain Exit Tests', async (accounts) => {
         [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], depositAmount);
 
         // start the exit
-        await startNewExit(rootchain, accounts, depositAmount, minExitBond, blockNum, rest);
+        let txPos = [blockNum, 0, 0];
+
+        await startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
 
         // transact accounts[2] => accounts[3]. DOUBLE SPEND (earlier exit)
         let txBytes = RLP.encode([blockNum, 0, 0, 5000, 0, 0, 0, 0, 0, 0, accounts[3], 5000, 0, 0, 0]);
@@ -156,7 +144,9 @@ contract('RootChain Exit Tests', async (accounts) => {
         await rootchain.finalizeExits({from: authority});
 
         // start a new exit
-        await startNewExit(rootchain, accounts, depositAmount, minExitBond, blockNum, rest);
+        let txPos = [blockNum, 0, 0];
+
+        await startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
 
         // fast forward again
         await fastForward();
@@ -164,10 +154,10 @@ contract('RootChain Exit Tests', async (accounts) => {
         // finalize
         let balance, contractBalance, childChainBalance;
         [balance, contractBalance, childChainBalance]
-            = await successfulFinalizeExit(rootchain, accounts, authority, blockNum, depositAmount, minExitBond, true);
+            = await successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, true);
 
         // send remaining the funds back to the account
-        await successfulWithdraw(rootchain, accounts, balance, contractBalance, childChainBalance);
+        await successfulWithdraw(rootchain, accounts[2], balance, contractBalance, childChainBalance);
     });
 
     it("Try to exit with insufficient funds", async () => {
@@ -176,6 +166,8 @@ contract('RootChain Exit Tests', async (accounts) => {
 
       let blockNum, rest;
       [blockNum, ...rest] = await createAndDepositTX(rootchain, accounts[2], depositAmount);
+
+      let txPos = [blockNum, 0, 0];
 
       /*
        * authority will eat up the gas cost in the finalize exit
@@ -191,7 +183,7 @@ contract('RootChain Exit Tests', async (accounts) => {
       let i;
       for (i = 0; i < 3; i++) {
         // start a new exit
-        await startNewExit(rootchain, accounts, depositAmount, minExitBond, blockNum, rest);
+        await startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
 
         // fast forward again
         await fastForward();
@@ -199,17 +191,17 @@ contract('RootChain Exit Tests', async (accounts) => {
         // finalize
         let balance, contractBalance, childChainBalance;
         [balance, contractBalance, childChainBalance]
-            = await successfulFinalizeExit(rootchain, accounts, authority, blockNum, depositAmount, minExitBond, true);
+            = await successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, true);
       }
 
       // start a new exit
       // this should fail since the child chain doesn't have nough to pay it back
-      await startNewExit(rootchain, accounts, depositAmount, minExitBond, blockNum, rest);
+      await startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
 
       // fast forward again
       await fastForward();
 
-      // finalize
-      await successfulFinalizeExit(rootchain, accounts, authority, blockNum, depositAmount, minExitBond, false);
+      // failed finalize
+      await successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, false);
     });
 });

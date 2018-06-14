@@ -16,6 +16,7 @@ let toHex = function(buffer) {
     return '0x' + buffer.toString('hex');
 };
 
+// Create a generic deposit
 let createAndDepositTX = async function(rootchain, address, amount) {
     // submit a deposit
     let blockNum = (await rootchain.getDepositBlock.call()).toNumber();
@@ -36,9 +37,63 @@ let createAndDepositTX = async function(rootchain, address, amount) {
     return [blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader];
 };
 
-let waitForNBlocks = async function(numBlocks, authority, accounts) {
+// Wait for n blocks to pass
+let waitForNBlocks = async function(numBlocks, authority) {
   for (i = 0; i < numBlocks; i++) {
-    await web3.eth.sendTransaction({from: authority, 'to': accounts[1], value: 100});
+    await web3.eth.sendTransaction({from: authority, 'to': authority, value: 100});
+  }
+}
+
+// submit a valid deposit
+// checks that it succeeds
+let submitValidDeposit = async function(rootchain, sender, txBytes, amount) {
+  let prevValidatorBlock = parseInt(await rootchain.currentChildBlock.call());
+  let prevDepositBlock = parseInt(await rootchain.getDepositBlock.call())
+
+  let result = await rootchain.deposit(prevValidatorBlock, toHex(txBytes), {from: sender, value: amount});
+
+  let currValidatorBlock = parseInt(await rootchain.currentChildBlock.call());
+  let currDepositBlock = parseInt(await rootchain.getDepositBlock.call())
+
+  assert.equal(prevValidatorBlock, currValidatorBlock, "Child block incremented after Deposit.");
+  assert.equal(prevDepositBlock + 1, currDepositBlock, "Deposit block did not increment");
+
+  assert.equal(result.logs[0].args.depositor, sender, 'Deposit event does not match depositor address.');
+  assert.equal(parseInt(result.logs[0].args.amount), amount, 'Deposit event does not match deposit amount.');
+
+  assert.equal(prevDepositBlock + 1, currDepositBlock, "Child block did not increment");
+
+  return [prevValidatorBlock, prevDepositBlock, currValidatorBlock, currDepositBlock];
+}
+
+// submit an invalid deposit
+// checks that it fails
+let submitInvalidDeposit = async function (rootchain, sender, validatorBlock, txBytes, amount) {
+  let err;
+  [err] = await to(rootchain.deposit(validatorBlock, toHex(txBytes), {from: sender, value: amount}));
+  if (!err) {
+      assert.fail("Invalid deposit, did not revert");
+  }
+}
+
+// submit a block
+// can toggle whether it succeeds or not
+// checks for correct behavior
+let submitBlockCheck = async function (rootchain, authority, blockRoot, sender, numWaitBlocks, shouldsucceed, validatorBlock) {
+  waitForNBlocks(numWaitBlocks, authority);
+
+  let err;
+  [err] = await to(rootchain.submitBlock(web3.fromAscii(blockRoot), {from: sender}));
+  if (shouldsucceed && err) {
+      assert.fail("submitBlock fails when it shouldn't");
+  }
+  if (!shouldsucceed && !err) {
+      assert.fail("submitBlock doesn't fail when it should");
+  }
+  if (shouldsucceed) {
+    let interval = parseInt(await rootchain.childBlockInterval.call())
+    let newValidatorBlock = parseInt(await rootchain.currentChildBlock.call())
+    assert.equal(validatorBlock + interval, newValidatorBlock, "Validator Block doesn't increment")
   }
 }
 
@@ -52,20 +107,36 @@ let fastForward = async function() {
   assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week");
 };
 
-let startNewExit = async function(rootchain, accounts, amount, minExitBond, blockNum, rest) {
-  let exitSigs = Buffer.alloc(130).toString('hex') + rest[1].slice(2) + Buffer.alloc(65).toString('hex');
-  await rootchain.startExit([blockNum, 0, 0], toHex(rest[2]),
-      toHex(proofForDepositBlock), toHex(exitSigs), {from: accounts[2], value: minExitBond });
-  let priority = 1000000000*blockNum;
+// start a new exit
+// checks that it succeeds
+let startNewExit = async function(rootchain, sender, amount, minExitBond, blockNum, txPos, confirmSignature, txBytes) {
+  let exitSigs = Buffer.alloc(130).toString('hex') + confirmSignature.slice(2) + Buffer.alloc(65).toString('hex');
+  await rootchain.startExit(txPos, toHex(txBytes),
+      toHex(proofForDepositBlock), toHex(exitSigs), {from: sender, value: minExitBond });
+  let priority = 1000000000 * blockNum;
   let exit = await rootchain.getExit.call(priority);
-  assert.equal(exit[0], accounts[2], "Incorrect exit owner");
+  assert.equal(exit[0], sender, "Incorrect exit owner");
   assert.equal(exit[1], amount, "Incorrect amount");
   assert.equal(exit[2][0], blockNum, "Incorrect block number");
 };
 
-let successfulFinalizeExit = async function(rootchain, accounts, authority, blockNum, amount, minExitBond, success) {
+// starts a new failed exit
+// checks that it fails
+let startFailedExit = async function(rootchain, sender, amount, minExitBond, blockNum, txPos, confirmSignature, txBytes) {
+  let exitSigs = Buffer.alloc(130).toString('hex') + confirmSignature.slice(2) + Buffer.alloc(65).toString('hex');
+  let err;
+  [err] = await to(rootchain.startExit(txPos, toHex(txBytes),
+      toHex(proofForDepositBlock), toHex(exitSigs), {from: sender, value: amount }));
+  if (!err) {
+      assert.fail("Exit did not fail.");
+  }
+};
+
+// finalize exits
+// checks that it succeeds
+let successfulFinalizeExit = async function(rootchain, sender, authority, blockNum, amount, minExitBond, success) {
   // finalize
-  let oldBal = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
+  let oldBal = (await rootchain.getBalance.call({from: sender})).toNumber();
   let oldChildChainBalance = (await rootchain.childChainBalance()).toNumber();
   await rootchain.finalizeExits({from: authority});
 
@@ -81,7 +152,7 @@ let successfulFinalizeExit = async function(rootchain, accounts, authority, bloc
     assert.notEqual(exit[0], 0, "Exit should not have been was processed");
   }
 
-  let balance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
+  let balance = (await rootchain.getBalance.call({from: sender})).toNumber();
   if (success) {
     // check that the correct amount has been deposited into the account's balance
     assert.equal(balance, oldBal + minExitBond + amount, "Account's rootchain balance was not credited");
@@ -103,9 +174,11 @@ let successfulFinalizeExit = async function(rootchain, accounts, authority, bloc
   return [balance, contractBalance, childChainBalance];
 };
 
-let successfulWithdraw = async function(rootchain, accounts, balance, contractBalance, childChainBalance) {
-  await rootchain.withdraw({from: accounts[2]});
-  let finalBalance = (await rootchain.getBalance.call({from: accounts[2]})).toNumber();
+// withdraw funds
+// checks that it succeeds
+let successfulWithdraw = async function(rootchain, sender, balance, contractBalance, childChainBalance) {
+  await rootchain.withdraw({from: sender});
+  let finalBalance = (await rootchain.getBalance.call({from: sender})).toNumber();
   // check that the balance is now 0 since the funds have been sent
   assert.equal(finalBalance, 0, "Balance was not updated");
 
@@ -145,8 +218,12 @@ module.exports = {
     toHex,
     createAndDepositTX,
     waitForNBlocks,
+    submitValidDeposit,
+    submitInvalidDeposit,
+    submitBlockCheck,
     fastForward,
     startNewExit,
+    startFailedExit,
     successfulFinalizeExit,
     successfulWithdraw,
     proofForDepositBlock,
