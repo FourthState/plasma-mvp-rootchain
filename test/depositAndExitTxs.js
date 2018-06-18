@@ -18,15 +18,8 @@ contract('Deposit and Exit Transactions', async (accounts) => {
     let minExitBond = 10000;
     let authority = accounts[0];
     before(async () => {
-        rootchain = await RootChain.deployed();
-
-        // Not sure why the following code is needed for the last test to pass
-        let depositAmount = 50000;
-        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
-        let validatorBlock = parseInt(await rootchain.currentChildBlock.call())
-
-        await rootchain.deposit(validatorBlock, utilities.toHex(txBytes), {from: accounts[2], value: depositAmount});
-        await rootchain.deposit(validatorBlock, utilities.toHex(txBytes), {from: accounts[2], value: depositAmount});
+        // clean contract: needed because of balance dependent tests (last test)
+        rootchain = await RootChain.new();
     });
 
     it("Start an exit", async () => {
@@ -150,7 +143,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
 
     it("Try to exit with insufficient funds", async () => {
 
-      let depositAmount = 50000;
+      let depositAmount = 4000;
 
       let blockNum, rest;
       [blockNum, ...rest] = await utilities.createAndDepositTX(rootchain, accounts[2], depositAmount);
@@ -170,6 +163,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
       // Drain contract so there are insufficient funds so an exit can fail due to the check amountToAdd > this.balance - totalWithdrawBalance
       let i;
       for (i = 0; i < 3; i++) {
+
         // start a new exit
         await utilities.startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
 

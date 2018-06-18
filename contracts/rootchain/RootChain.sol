@@ -21,6 +21,7 @@ contract RootChain is Ownable {
     event Deposit(address depositor, uint256 amount);
     event FinalizedExit(uint priority, address owner, uint256 amount);
     event AddedToBalances(address owner, uint256 amount);
+    event QueueSize(uint256 size);
 
     /*
      *  Storage
@@ -314,6 +315,7 @@ contract RootChain is Ownable {
         view
         returns (address, uint256, uint256[3], uint256)
     {
+        emit FinalizedExit(priority, exits[priority].owner, exits[priority].amount);
         return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at);
     }
 }
