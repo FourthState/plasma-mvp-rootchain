@@ -211,21 +211,21 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
   '5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8becc',
   'da7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d2' ];
 
-// let txBytesBad = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, 100000, 0, 0, 0]);
-
-module.exports = {
-    to,
-    toHex,
-    createAndDepositTX,
-    waitForNBlocks,
-    submitValidDeposit,
-    submitInvalidDeposit,
-    submitBlockCheck,
-    fastForward,
-    startNewExit,
-    startFailedExit,
-    successfulFinalizeExit,
-    successfulWithdraw,
-    proofForDepositBlock,
-    zeroHashes,
+var utilities = {
+    to: to,
+    toHex: toHex,
+    createAndDepositTX: createAndDepositTX,
+    waitForNBlocks: waitForNBlocks,
+    submitValidDeposit: submitValidDeposit,
+    submitInvalidDeposit: submitInvalidDeposit,
+    submitBlockCheck: submitBlockCheck,
+    fastForward: fastForward,
+    startNewExit: startNewExit,
+    startFailedExit: startFailedExit,
+    successfulFinalizeExit: successfulFinalizeExit,
+    successfulWithdraw: successfulWithdraw,
+    proofForDepositBlock: proofForDepositBlock,
+    zeroHashes: zeroHashes
 };
+
+module.exports = utilities;

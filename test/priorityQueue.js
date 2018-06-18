@@ -1,6 +1,8 @@
-let PriorityQueue = artifacts.require("PriorityQueue");
 let assert = require('chai').assert;
-let to = require('./utilities.js').to;
+
+let PriorityQueue = artifacts.require("PriorityQueue");
+
+let utilities = require('./utilities.js');
 
 contract('PriorityQueue', async (accounts) => {
     let instance;
@@ -12,7 +14,7 @@ contract('PriorityQueue', async (accounts) => {
         await instance.insert(2)
         await instance.insert(1)
         await instance.insert(3)
-        
+
         assert.equal(parseInt(await instance.getMin()), 1, "Did not delete correct minimum")
         await instance.delMin()
         assert.equal(parseInt(await instance.getMin()), 2, "Did not delete correct minimum")
@@ -52,7 +54,7 @@ contract('PriorityQueue', async (accounts) => {
 
     it ("Insert from someone other than owner", async () => {
         let err;
-        [err] = await to(instance.insert(3, {'from': accounts[1]}));
+        [err] = await utilities.to(instance.insert(3, {'from': accounts[1]}));
         if (!err) {
             assert(false, "Insert allowed for someone other than owner");
         }

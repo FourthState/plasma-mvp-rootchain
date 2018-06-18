@@ -2,18 +2,9 @@
 let RLP = require('rlp');
 let assert = require('chai').assert;
 
-let {
-    to,
-    toHex,
-    createAndDepositTX,
-    submitValidDeposit,
-    submitInvalidDeposit,
-    submitBlockCheck,
-    proofForDepositBlock,
-    zeroHashes,
-} = require('./utilities.js');
-
 let RootChain = artifacts.require("RootChain");
+
+let utilities = require('./utilities.js');
 
 /*
  * Alot of the tests contain duplicated transactions
@@ -21,7 +12,7 @@ let RootChain = artifacts.require("RootChain");
  *
  */
 
-contract('RootChain', async (accounts) => {
+contract('Block Submissions', async (accounts) => {
     // one rootchain contract for all tests
     let rootchain;
     let minExitBond = 10000;
@@ -41,7 +32,7 @@ contract('RootChain', async (accounts) => {
 
         // waiting at least 5 root chain blocks before submitting a block
         let blockRoot = '2984748479872';
-        await submitBlockCheck(rootchain, authority, blockRoot, accounts[0], 5, true, curr);
+        await utilities.submitBlockCheck(rootchain, authority, blockRoot, accounts[0], 5, true, curr);
 
         let childBlock = await rootchain.getChildChain.call(curr);
         assert.equal(web3.toUtf8(childBlock[0]), blockRoot, 'Child block merkle root does not match submitted merkle root.');
@@ -51,7 +42,7 @@ contract('RootChain', async (accounts) => {
         let depositAmount = 50000;
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
 
-        await submitValidDeposit(rootchain, accounts[2], txBytes, depositAmount);
+        await utilities.submitValidDeposit(rootchain, accounts[2], txBytes, depositAmount);
     });
 
     it("Deposit then submit block", async () => {
@@ -60,9 +51,9 @@ contract('RootChain', async (accounts) => {
 
         let prevValidatorBlock, prevDepositBlock, currValidatorBlock, currDepositBlock;
         [prevValidatorBlock, prevDepositBlock, currValidatorBlock, currDepositBlock]
-            = await submitValidDeposit(rootchain, accounts[2], txBytes, depositAmount);
+            = await utilities.submitValidDeposit(rootchain, accounts[2], txBytes, depositAmount);
 
-        await submitBlockCheck(rootchain, authority, '2984748479872', accounts[0], 5, true, currValidatorBlock);
+        await utilities.submitBlockCheck(rootchain, authority, '2984748479872', accounts[0], 5, true, currValidatorBlock);
         let nextDepositBlock = parseInt(await rootchain.currentDepositBlock.call());
         assert.equal(nextDepositBlock, 1, "Deposit Block did not reset");
     });
@@ -71,28 +62,28 @@ contract('RootChain', async (accounts) => {
         let validatorBlock = parseInt(await rootchain.currentChildBlock.call())
 
         let txBytes1 = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
-        await submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes1, 50);
+        await utilities.submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes1, 50);
 
         let txBytes2 = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, accounts[3], 10000, 0]);
-        await submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes2, 50000);
+        await utilities.submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes2, 50000);
 
         let txBytes3 = RLP.encode([3, 5, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
-        await submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes3, 50000);
+        await utilities.submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes3, 50000);
     });
 
     it("Deposit after unseen submitted block", async () => {
         let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         let validatorBlock = parseInt(await rootchain.currentChildBlock.call())
 
-        await submitBlockCheck(rootchain, authority, '578484785954', accounts[0], 5, true, validatorBlock);
+        await utilities.submitBlockCheck(rootchain, authority, '578484785954', accounts[0], 5, true, validatorBlock);
 
-        await submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes, 50000);
+        await utilities.submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes, 50000);
     });
 
     it("Submit block from someone other than authority", async () => {
         let prev = parseInt(await rootchain.currentChildBlock.call());
 
-        await submitBlockCheck(rootchain, authority, '496934090963', accounts[1], 5, false);
+        await utilities.submitBlockCheck(rootchain, authority, '496934090963', accounts[1], 5, false);
 
         let curr = parseInt(await rootchain.currentChildBlock.call());
         assert.equal(prev, curr, "Allowed submit block from someone other than authority!");
@@ -101,9 +92,9 @@ contract('RootChain', async (accounts) => {
     it("Submit block within 6 rootchain blocks", async () => {
         // First submission waits and passes
         let validatorBlock = parseInt(await rootchain.currentChildBlock.call())
-        await submitBlockCheck(rootchain, authority, '2984748479872', accounts[0], 5, true, validatorBlock);
+        await utilities.submitBlockCheck(rootchain, authority, '2984748479872', accounts[0], 5, true, validatorBlock);
 
         // Second submission does not wait and therfore fails.
-        await submitBlockCheck(rootchain, authority, '8473748479872', accounts[0], 3, false);
+        await utilities.submitBlockCheck(rootchain, authority, '8473748479872', accounts[0], 3, false);
     });
 });
