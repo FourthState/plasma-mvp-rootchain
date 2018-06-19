@@ -4,7 +4,7 @@ let RLP = require('rlp');
  How to avoid using try/catch blocks with promises' that could fail using async/await
  - https://blog.grossman.io/how-to-write-async-await-without-try-catch-blocks-in-javascript/
  */
-let to = function(promise) {
+let catchError = function(promise) {
   return promise.then(result => [null, result])
       .catch(err => [err]);
 };
@@ -14,26 +14,23 @@ let toHex = function(buffer) {
     if (buffer.substring(0, 2) == '0x')
         return buffer;
     return '0x' + buffer.toString('hex');
+};
+
+// Wait for n blocks to pass
+let waitForNBlocks = async function(numBlocks, authority) {
+  for (i = 0; i < numBlocks; i++) {
+    await web3.eth.sendTransaction({from: authority, 'to': authority, value: 100});
+  }
 }
 
-let createAndDepositTX = async function(rootchain, address, amount) {
-    // submit a deposit
-    let blockNum = (await rootchain.getDepositBlock.call()).toNumber();
-    let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, amount, 0, 0, 0]);
-    let validatorBlock = await rootchain.currentChildBlock.call();
-    await rootchain.deposit(validatorBlock, toHex(txBytes), {from: address, value: amount});
-
-    // construct the confirm sig
-    // Remove all 0x prefixes from hex strings
-    let blockHeader = (await rootchain.getChildChain.call(blockNum))[0];
-    let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-    let sigs = Buffer.alloc(130).toString('hex');
-
-    // create the confirm sig
-    let confirmHash = web3.sha3(txHash.slice(2) + sigs + blockHeader.slice(2), {encoding: 'hex'});
-    let confirmSignature = await web3.eth.sign(address, confirmHash);
-
-    return [blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader];
+// Fast forward 1 week
+let fastForward = async function() {
+  let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
+  await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [804800], id: 0});
+  await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
+  let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
+  let diff = (currTime - oldTime) - 804800;
+  assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week");
 };
 
 // 512 bytes
@@ -56,12 +53,20 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
   '5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8becc',
   'da7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d2' ];
 
-// let txBytesBad = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, 100000, 0, 0, 0]);
+// var utilities = {
+//     catchError: catchError,
+//     toHex: toHex,
+//     waitForNBlocks: waitForNBlocks,
+//     fastForward: fastForward,
+//     proofForDepositBlock: proofForDepositBlock,
+//     zeroHashes: zeroHashes
+// };
 
 module.exports = {
-    to,
-    toHex,
-    createAndDepositTX,
-    proofForDepositBlock,
-    zeroHashes,
+    catchError: catchError,
+    toHex: toHex,
+    waitForNBlocks: waitForNBlocks,
+    fastForward: fastForward,
+    proofForDepositBlock: proofForDepositBlock,
+    zeroHashes: zeroHashes
 };
