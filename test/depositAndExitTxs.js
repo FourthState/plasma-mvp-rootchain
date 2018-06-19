@@ -2,8 +2,13 @@
 let RLP = require('rlp');
 let assert = require('chai').assert;
 
-let utilities = require('./utilities.js');
-let rootchainHelpers = require('./rootchain_helpers.js');
+let {
+    catchError,
+    toHex,
+    fastForward,
+    proofForDepositBlock,
+    zeroHashes
+} = require('./utilities.js');let rootchainHelpers = require('./rootchain_helpers.js');
 
 let RootChain = artifacts.require("RootChain");
 
@@ -73,11 +78,11 @@ contract('Deposit and Exit Transactions', async (accounts) => {
         // create the block and submit as an authority
         let computedRoot = leaf.slice(2);
         for (let i = 0; i < 16; i++) {
-          computedRoot = web3.sha3(computedRoot + utilities.zeroHashes[i],
+          computedRoot = web3.sha3(computedRoot + zeroHashes[i],
             {encoding: 'hex'}).slice(2)
         }
         let newBlockNum = await rootchain.currentChildBlock.call()
-        await rootchain.submitBlock(utilities.toHex(computedRoot));
+        await rootchain.submitBlock(toHex(computedRoot));
 
         // create the right confirm sig
         let confirmHash = web3.sha3(txHash.slice(2) + sigs.slice(2) + computedRoot, {encoding: 'hex'});
@@ -86,9 +91,9 @@ contract('Deposit and Exit Transactions', async (accounts) => {
 
         // challenge incorrectly
         let err
-        [err] = await utilities.to(rootchain.challengeExit([blockNum, 0, 0], [newBlockNum, 0, 0],
-            utilities.toHex(txBytes), utilities.toHex(utilities.proofForDepositBlock),
-            utilities.toHex(sigs), utilities.toHex(incorrectConfirmSig), {from: accounts[3]}));
+        [err] = await catchError(rootchain.challengeExit([blockNum, 0, 0], [newBlockNum, 0, 0],
+            toHex(txBytes), toHex(proofForDepositBlock),
+            toHex(sigs), toHex(incorrectConfirmSig), {from: accounts[3]}));
         if (!err) {
             assert.fail("Successful Challenge with incorrect confirm signature");
         }
@@ -96,8 +101,8 @@ contract('Deposit and Exit Transactions', async (accounts) => {
         // challenge correctly
         let oldBal = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
         let result = await rootchain.challengeExit([blockNum, 0, 0], [newBlockNum, 0, 0],
-            utilities.toHex(txBytes), utilities.toHex(utilities.proofForDepositBlock),
-            utilities.toHex(sigs), utilities.toHex(confirmSignature), {from: accounts[3]});
+            toHex(txBytes), toHex(proofForDepositBlock),
+            toHex(sigs), toHex(confirmSignature), {from: accounts[3]});
 
         balance = (await rootchain.getBalance.call({from: accounts[3]})).toNumber();
         assert.equal(balance, oldBal + minExitBond, "Challenge bounty was not dispursed");
@@ -122,7 +127,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
          */
 
         // fast forward and finalize any exits from previous tests
-        await utilities.fastForward();
+        await fastForward();
         await rootchain.finalizeExits({from: authority});
 
         // start a new exit
@@ -131,7 +136,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
         await rootchainHelpers.startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
 
         // fast forward again
-        await utilities.fastForward();
+        await fastForward();
 
         // finalize
         let balance, contractBalance, childChainBalance;
@@ -158,7 +163,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
        */
 
       // fast forward and finalize any exits from previous tests
-      await utilities.fastForward();
+      await fastForward();
       await rootchain.finalizeExits({from: authority});
 
       // Drain contract so there are insufficient funds so an exit can fail due to the check amountToAdd > this.balance - totalWithdrawBalance
@@ -169,7 +174,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
         await rootchainHelpers.startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
 
         // fast forward again
-        await utilities.fastForward();
+        await fastForward();
 
         // finalize
         let balance, contractBalance, childChainBalance;
@@ -182,7 +187,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
       await rootchainHelpers.startNewExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, rest[1], rest[2]);
 
       // fast forward again
-      await utilities.fastForward();
+      await fastForward();
 
       // failed finalize
       await rootchainHelpers.successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, false);

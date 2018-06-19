@@ -2,7 +2,13 @@ let assert = require('chai').assert;
 
 let PriorityQueue = artifacts.require("PriorityQueue");
 
-let utilities = require('./utilities.js');
+let {
+    catchError,
+    toHex,
+    fastForward,
+    proofForDepositBlock,
+    zeroHashes
+} = require('./utilities.js');let rootchainHelpers = require('./rootchain_helpers.js');
 
 contract('PriorityQueue', async (accounts) => {
     let instance;
@@ -54,7 +60,7 @@ contract('PriorityQueue', async (accounts) => {
 
     it ("Insert from someone other than owner", async () => {
         let err;
-        [err] = await utilities.to(instance.insert(3, {'from': accounts[1]}));
+        [err] = await catchError(instance.insert(3, {'from': accounts[1]}));
         if (!err) {
             assert(false, "Insert allowed for someone other than owner");
         }

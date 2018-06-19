@@ -4,7 +4,6 @@ let assert = require('chai').assert;
 
 let RootChain = artifacts.require("RootChain");
 
-let utilities = require('./utilities.js');
 let rootchainHelpers = require('./rootchain_helpers.js');
 
 /*

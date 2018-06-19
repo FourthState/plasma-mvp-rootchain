@@ -4,7 +4,7 @@ let RLP = require('rlp');
  How to avoid using try/catch blocks with promises' that could fail using async/await
  - https://blog.grossman.io/how-to-write-async-await-without-try-catch-blocks-in-javascript/
  */
-let to = function(promise) {
+let catchError = function(promise) {
   return promise.then(result => [null, result])
       .catch(err => [err]);
 };
@@ -53,13 +53,20 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
   '5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8becc',
   'da7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d2' ];
 
-var utilities = {
-    to: to,
+// var utilities = {
+//     catchError: catchError,
+//     toHex: toHex,
+//     waitForNBlocks: waitForNBlocks,
+//     fastForward: fastForward,
+//     proofForDepositBlock: proofForDepositBlock,
+//     zeroHashes: zeroHashes
+// };
+
+module.exports = {
+    catchError: catchError,
     toHex: toHex,
     waitForNBlocks: waitForNBlocks,
     fastForward: fastForward,
     proofForDepositBlock: proofForDepositBlock,
     zeroHashes: zeroHashes
 };
-
-module.exports = utilities;
