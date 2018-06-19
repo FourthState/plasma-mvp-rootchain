@@ -11,3 +11,6 @@ script:
   - sleep 5
   - truffle migrate
   - truffle test
+
+after_script:
+  - npm run coverage && cat coverage/lcov.info | coveralls
