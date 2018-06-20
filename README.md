@@ -2,7 +2,7 @@
 
 [![travis build](https://travis-ci.org/FourthState/plasma-mvp-rootchain.svg?branch=master)](https://travis-ci.org/FourthState/plasma-mvp-rootchain)
 [![license](https://img.shields.io/github/license/FourthState/plasma-mvp-rootchain.svg)](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/LICENSE)
-[![Coverage Status](https://coveralls.io/repos/github/FourthState/plasma-mvp-rootchain/badge.svg?branch=coverage)](https://coveralls.io/github/FourthState/plasma-mvp-rootchain?branch=coverage)
+[![Coverage Status](https://coveralls.io/repos/github/FourthState/plasma-mvp-rootchain/badge.svg?branch=master)](https://coveralls.io/github/FourthState/plasma-mvp-rootchain?branch=master)
 
 We're implementing [Minimum Viable Plasma](https://ethresear.ch/t/minimal-viable-plasma/426)
 
