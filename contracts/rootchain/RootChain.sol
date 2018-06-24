@@ -206,7 +206,8 @@ contract RootChain is Ownable {
         delete exits[priority];
     }
 
-    function finalizeExits()
+    // @param numIter Number of exits to finalize (Each iteration costs < 70k gas)
+    function finalizeExits(uint numIter)
         public
     {
         // getMin will fail if nothing is in the queue
@@ -225,9 +226,13 @@ contract RootChain is Ownable {
         *   3. Funds must exists for the exit to withdraw
         */
         uint256 amountToAdd;
+        uint iter = 0;
         while (exitsQueue.currentSize() > 0 &&
-               (block.timestamp - currentExit.created_at) > 1 weeks &&
-               currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance) {
+               (block.timestamp.sub(currentExit.created_at)) > 1 weeks &&
+               currentExit.amount.add(minExitBond) <= address(this).balance.sub(totalWithdrawBalance) &&
+               iter < numIter) {
+
+            iter = iter.add(1);
 
             // this can occur if challengeExit is sucessful on an exit
             if (currentExit.owner == address(0)) {
@@ -282,7 +287,7 @@ contract RootChain is Ownable {
         returns (uint)
     {
         // takes into accounts the failed withdrawals
-        return address(this).balance - totalWithdrawBalance;
+        return address(this).balance.sub(totalWithdrawBalance);
     }
 
     function getBalance()
@@ -315,5 +320,13 @@ contract RootChain is Ownable {
         returns (address, uint256, uint256[3], uint256)
     {
         return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at);
+    }
+
+    function getExitQueueSize()
+        public
+        view
+        returns (uint256)
+    {
+        return exitsQueue.currentSize();
     }
 }

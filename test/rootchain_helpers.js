@@ -110,11 +110,17 @@ let startFailedExit = async function(rootchain, sender, amount, minExitBond, blo
 
 // finalize exits
 // checks that it succeeds
-let successfulFinalizeExit = async function(rootchain, sender, authority, blockNum, amount, minExitBond, success) {
+let successfulFinalizeExit = async function(rootchain, sender, authority, blockNum, amount, minExitBond, numIter, success) {
+  let queueSizeBefore = (await rootchain.getExitQueueSize()).toNumber();
+
   // finalize
   let oldBal = (await rootchain.getBalance.call({from: sender})).toNumber();
   let oldChildChainBalance = (await rootchain.childChainBalance()).toNumber();
-  await rootchain.finalizeExits({from: authority});
+  let result = await rootchain.finalizeExits(numIter, {from: authority});
+
+  // Calculate gas used
+  // let gasUsed = Number(web3.eth.getTransactionReceipt(result.receipt.transactionHash).gasUsed);
+  // console.log(numIter, gasUsed);
 
   // exit prority
   let priority = 1000000000 * blockNum;
@@ -145,6 +151,15 @@ let successfulFinalizeExit = async function(rootchain, sender, authority, blockN
   } else {
     // check that the child chain balance has not changed
     assert.equal(childChainBalance, oldChildChainBalance, "Child chain balance should stay the same");
+  }
+
+  let queueSizeAfter = (await rootchain.getExitQueueSize()).toNumber();
+  if (success) {
+    // check that the child chain processed the correct number of exits
+    assert.equal(queueSizeBefore - numIter, queueSizeAfter, "Incorrect number of exits were processed");
+  } else {
+    // check that the child chain did not proccess any exits
+    assert.equal(queueSizeBefore, queueSizeAfter, "Exits were processed");
   }
 
   return [balance, contractBalance, childChainBalance];
