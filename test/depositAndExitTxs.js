@@ -129,8 +129,18 @@ contract('Deposit and Exit Transactions', async (accounts) => {
          */
 
         // fast forward and finalize any exits from previous tests
+        let queueSize = (await rootchain.getExitQueueSize()).toNumber();
+
         await fastForward();
-        await rootchain.finalizeExits({from: authority});
+        let result = await rootchain.finalizeExits(queueSize, {from: authority});
+
+        // Calculate gas used
+        // let gasUsed = Number(web3.eth.getTransactionReceipt(result.receipt.transactionHash).gasUsed);
+        // console.log(queueSize, gasUsed);
+
+        queueSize = (await rootchain.getExitQueueSize()).toNumber();
+
+        assert.equal(queueSize, 0, "The exits have not been flushed.");
 
         // start a new exit
         let txPos = [blockNum, 0, 0];
@@ -143,7 +153,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
         // finalize
         let balance, contractBalance, childChainBalance;
         [balance, contractBalance, childChainBalance]
-            = await rootchainHelpers.successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, true);
+            = await rootchainHelpers.successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, 1, true);
 
         // send remaining the funds back to the account
         await rootchainHelpers.successfulWithdraw(rootchain, accounts[2], balance, contractBalance, childChainBalance);
@@ -158,15 +168,19 @@ contract('Deposit and Exit Transactions', async (accounts) => {
 
       let txPos = [blockNum, 0, 0];
 
-      /*
-       * authority will eat up the gas cost in the finalize exit
-       * TODO: finalizeExit implementation needs to be changed to prevent a
-       * revert from occuring if gas runs out
-       */
-
       // fast forward and finalize any exits from previous tests
+      let queueSize = (await rootchain.getExitQueueSize()).toNumber();
+
       await fastForward();
-      await rootchain.finalizeExits({from: authority});
+      let result = await rootchain.finalizeExits(queueSize, {from: authority});
+
+      // Calculate gas used
+      // let gasUsed = Number(web3.eth.getTransactionReceipt(result.receipt.transactionHash).gasUsed);
+      // console.log(queueSize, gasUsed);
+
+      queueSize = (await rootchain.getExitQueueSize()).toNumber();
+
+      assert.equal(queueSize, 0, "The exits have not been flushed.");
 
       // Drain contract so there are insufficient funds so an exit can fail due to the check amountToAdd > this.balance - totalWithdrawBalance
       let i;
@@ -181,7 +195,7 @@ contract('Deposit and Exit Transactions', async (accounts) => {
         // finalize
         let balance, contractBalance, childChainBalance;
         [balance, contractBalance, childChainBalance]
-            = await rootchainHelpers.successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, true);
+            = await rootchainHelpers.successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, 1, true);
       }
 
       // start a new exit
@@ -192,6 +206,6 @@ contract('Deposit and Exit Transactions', async (accounts) => {
       await fastForward();
 
       // failed finalize
-      await rootchainHelpers.successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, false);
+      await rootchainHelpers.successfulFinalizeExit(rootchain, accounts[2], authority, blockNum, depositAmount, minExitBond, 1, false);
     });
 });
