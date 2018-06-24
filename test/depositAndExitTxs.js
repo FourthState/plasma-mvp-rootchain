@@ -122,12 +122,6 @@ contract('Deposit and Exit Transactions', async (accounts) => {
         let blockNum, rest;
         [blockNum, ...rest] = await rootchainHelpers.createAndDepositTX(rootchain, accounts[2], depositAmount);
 
-        /*
-         * authority will eat up the gas cost in the finalize exit
-         * TODO: finalizeExit implementation needs to be changed to prevent a
-         * revert from occuring if gas runs out
-         */
-
         // fast forward and finalize any exits from previous tests
         let queueSize = (await rootchain.getExitQueueSize()).toNumber();
 
