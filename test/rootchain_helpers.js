@@ -13,7 +13,7 @@ let {
 let createAndDepositTX = async function(rootchain, address, amount) {
     // submit a deposit
     let blockNum = (await rootchain.getDepositBlock.call()).toNumber();
-    let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, address, amount, 0, 0, 0]);
+    let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, address, amount, 0, 0, 0]);
     let validatorBlock = await rootchain.currentChildBlock.call();
     await rootchain.deposit(validatorBlock, toHex(txBytes), {from: address, value: amount});
 
@@ -24,10 +24,10 @@ let createAndDepositTX = async function(rootchain, address, amount) {
     let sigs = Buffer.alloc(130).toString('hex');
 
     // create the confirm sig
-    let confirmHash = web3.sha3(txHash.slice(2) + sigs + blockHeader.slice(2), {encoding: 'hex'});
-    let confirmSignature = await web3.eth.sign(address, confirmHash);
+    // let confirmHash = web3.sha3(txHash.slice(2) + sigs + blockHeader.slice(2), {encoding: 'hex'});
+    // let confirmSignature = await web3.eth.sign(address, confirmHash);
 
-    return [blockNum, confirmHash, confirmSignature, txBytes, txHash, sigs, blockHeader];
+    return [blockNum, txBytes, txHash, sigs, blockHeader];
 };
 
 // submit a valid deposit
@@ -85,8 +85,9 @@ let submitBlockCheck = async function (rootchain, authority, blockRoot, sender, 
 
 // start a new exit
 // checks that it succeeds
-let startNewExit = async function(rootchain, sender, amount, minExitBond, blockNum, txPos, confirmSignature, txBytes) {
-  let exitSigs = Buffer.alloc(130).toString('hex') + confirmSignature.slice(2) + Buffer.alloc(65).toString('hex');
+let startNewExit = async function(rootchain, sender, amount, minExitBond, blockNum, txPos, txBytes) {
+  let exitSigs = Buffer.alloc(130).toString('hex');
+  
   await rootchain.startExit(txPos, toHex(txBytes),
       toHex(proofForDepositBlock), toHex(exitSigs), {from: sender, value: minExitBond });
   let priority = 1000000000 * blockNum;
@@ -98,8 +99,8 @@ let startNewExit = async function(rootchain, sender, amount, minExitBond, blockN
 
 // starts a new failed exit
 // checks that it fails
-let startFailedExit = async function(rootchain, sender, amount, minExitBond, blockNum, txPos, confirmSignature, txBytes) {
-  let exitSigs = Buffer.alloc(130).toString('hex') + confirmSignature.slice(2) + Buffer.alloc(65).toString('hex');
+let startFailedExit = async function(rootchain, sender, amount, minExitBond, blockNum, txPos, txBytes) {
+  let exitSigs = Buffer.alloc(130).toString('hex');
   let err;
   [err] = await catchError(rootchain.startExit(txPos, toHex(txBytes),
       toHex(proofForDepositBlock), toHex(exitSigs), {from: sender, value: amount }));

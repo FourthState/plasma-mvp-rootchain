@@ -40,14 +40,14 @@ contract('Block Submissions', async (accounts) => {
 
     it("Depositing a block", async () => {
         let depositAmount = 50000;
-        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
+        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
 
         await rootchainHelpers.submitValidDeposit(rootchain, accounts[2], txBytes, depositAmount);
     });
 
     it("Deposit then submit block", async () => {
         let depositAmount = 50000;
-        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
+        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, accounts[2], depositAmount, 0, 0, 0]);
 
         let prevValidatorBlock, prevDepositBlock, currValidatorBlock, currDepositBlock;
         [prevValidatorBlock, prevDepositBlock, currValidatorBlock, currDepositBlock]
@@ -61,18 +61,18 @@ contract('Block Submissions', async (accounts) => {
     it("Invalid deposits", async () => {
         let validatorBlock = parseInt(await rootchain.currentChildBlock.call())
 
-        let txBytes1 = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
+        let txBytes1 = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         await rootchainHelpers.submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes1, 50);
 
-        let txBytes2 = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, accounts[3], 10000, 0]);
+        let txBytes2 = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, accounts[3], 10000, 0]);
         await rootchainHelpers.submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes2, 50000);
 
-        let txBytes3 = RLP.encode([3, 5, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
+        let txBytes3 = RLP.encode([3, 5, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         await rootchainHelpers.submitInvalidDeposit(rootchain, accounts[2], validatorBlock, txBytes3, 50000);
     });
 
     it("Deposit after unseen submitted block", async () => {
-        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
+        let txBytes = RLP.encode([0, 0, 0, 0, 0, 0, 0, 0, accounts[2], 50000, 0, 0, 0]);
         let validatorBlock = parseInt(await rootchain.currentChildBlock.call())
 
         await rootchainHelpers.submitBlockCheck(rootchain, authority, '578484785954', accounts[0], 5, true, validatorBlock);
