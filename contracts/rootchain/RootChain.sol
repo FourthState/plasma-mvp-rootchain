@@ -226,7 +226,7 @@ contract RootChain is Ownable {
 
         // change the Exit's state to 'challenged'
         exits[priority].state = 2;
-        ChallengedExit(priority, exits[priority].owner, exits[priority].amount, exits[priority].utxoPos);
+        emit ChallengedExit(priority, exits[priority].owner, exits[priority].amount, exits[priority].utxoPos);
     }
 
     function finalizeExits()
@@ -309,12 +309,12 @@ contract RootChain is Ownable {
         return address(this).balance - totalWithdrawBalance;
     }
 
-    function getBalance()
+    function balanceOf(address _address)
         public
         view
         returns (uint256)
     {
-        return balances[msg.sender];
+        return balances[_address];
     }
 
     function getDepositBlock()
