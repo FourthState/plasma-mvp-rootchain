@@ -18,9 +18,9 @@ The root contract of a Plasma child chain represents an intermediary who can res
 ## Root Contract Details
 A transaction is encoded in the following form:
 
-``[Blknum1, TxIndex1, Oindex1, Amount1, ConfirmSig1,``
+``[Blknum1, TxIndex1, Oindex1, Amount1,``
 
-``Blknum2, TxIndex2, Oindex2, Amount2, ConfirmSig2,``
+``Blknum2, TxIndex2, Oindex2, Amount2,``
 
 ``NewOwner, Denom1, NewOwner, Denom2, Fee]``
 

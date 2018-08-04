@@ -18,8 +18,9 @@ contract RootChain is Ownable {
     /*
      * Events
      */
+    event BlockSubmitted(bytes32 root, uint256 position);
     event Deposit(address depositor, uint256 amount);
-    event FinalizedExit(uint priority, address owner, uint256 amount);
+    event FinalizedExit(uint256 priority, address owner, uint256 amount);
     event AddedToBalances(address owner, uint256 amount);
 
     /*
@@ -77,6 +78,8 @@ contract RootChain is Ownable {
             created_at: block.timestamp
         });
 
+        emit BlockSubmitted(root, currentChildBlock);
+
         currentChildBlock = currentChildBlock.add(childBlockInterval);
         currentDepositBlock = 1;
         lastParentBlock = block.number;
@@ -98,7 +101,7 @@ contract RootChain is Ownable {
 
         RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 13, "incorrect tx list");
-        for(uint256 i = 0; i < 8; i++) {
+        for(uint i = 0; i < 8; i++) {
             require(txList[i].toUint() == 0, "incorrect tx fields");
         }
         require(txList[9].toUint() == msg.value, "mismatch in value");
@@ -119,7 +122,7 @@ contract RootChain is Ownable {
         });
 
         currentDepositBlock = currentDepositBlock.add(1);
-        emit Deposit(txList[10].toAddress(), msg.value);
+        emit Deposit(txList[8].toAddress(), msg.value);
     }
 
 

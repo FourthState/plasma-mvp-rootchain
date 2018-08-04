@@ -8,7 +8,7 @@ let {
     fastForward,
     proofForDepositBlock,
     zeroHashes
-} = require('./utilities.js');
+} = require('../utilities.js');
 
 let rootchainHelpers = require('./rootchain_helpers.js');
 

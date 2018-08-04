@@ -1,13 +1,13 @@
 let RLP = require('rlp');
 
 let {
-    catchError: catchError,
-    toHex: toHex,
-    waitForNBlocks: waitForNBlocks,
-    fastForward: fastForward,
-    proofForDepositBlock: proofForDepositBlock,
-    zeroHashes: zeroHashes
-} = require('./utilities.js');
+    catchError,
+    toHex,
+    waitForNBlocks,
+    fastForward,
+    proofForDepositBlock,
+    zeroHashes
+} = require('../utilities.js');
 
 // Create a generic deposit
 let createAndDepositTX = async function(rootchain, address, amount) {
@@ -33,13 +33,13 @@ let createAndDepositTX = async function(rootchain, address, amount) {
 // submit a valid deposit
 // checks that it succeeds
 let submitValidDeposit = async function(rootchain, sender, txBytes, amount) {
-  let prevValidatorBlock = parseInt(await rootchain.currentChildBlock.call());
-  let prevDepositBlock = parseInt(await rootchain.getDepositBlock.call())
+  let prevValidatorBlock = (await rootchain.currentChildBlock.call()).toNumber();
+  let prevDepositBlock = (await rootchain.getDepositBlock.call()).toNumber();
 
   let result = await rootchain.deposit(prevValidatorBlock, toHex(txBytes), {from: sender, value: amount});
 
-  let currValidatorBlock = parseInt(await rootchain.currentChildBlock.call());
-  let currDepositBlock = parseInt(await rootchain.getDepositBlock.call())
+  let currValidatorBlock = (await rootchain.currentChildBlock.call()).toNumber();
+  let currDepositBlock = (await rootchain.getDepositBlock.call()).toNumber();
 
   assert.equal(prevValidatorBlock, currValidatorBlock, "Child block incremented after Deposit.");
   assert.equal(prevDepositBlock + 1, currDepositBlock, "Deposit block did not increment");
