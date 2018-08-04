@@ -74,6 +74,8 @@ contract('Exit Transactions', async (accounts) => {
         let txPos = [blockNum, 0, 0];
         let priority = 1000000000 * blockNum;
         await rootchainHelpers.startExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, txBytes);
+        let state = (await rootchain.getExit.call(priority))[4];
+        assert(state == 1, "Exit not in the pending state");
 
         // fast forward again
         await rootchainHelpers.fastForward();
@@ -82,6 +84,9 @@ contract('Exit Transactions', async (accounts) => {
         let oldBalance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         let oldChildChainBalance = (await rootchain.childChainBalance()).toNumber();
         await rootchain.finalizeExits({from: authority});
+
+        state = (await rootchain.getExit.call(priority))[4];
+        assert(state == 3, "Exit not in the finalized state");
 
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, oldBalance + minExitBond + depositAmount, "Account's rootchain balance was not credited");
@@ -99,5 +104,26 @@ contract('Exit Transactions', async (accounts) => {
         assert.equal(accountBalance, 0, "Account's rootchain balance was not updated");
         assert.equal(contractBalance, oldContractBalance - balance, "Funds not transferred");
         assert.equal(childChainBalance, oldChildChainBalance, "Child chain balance should remain unaffected");
+    });
+
+    it("Cannot reopen a finalized exit", async () => {
+        let depositAmount = 5000;
+
+        // create a new deposit
+        [tx, blockNum, txBytes] = await rootchainHelpers.createAndDepositTX(rootchain, accounts[2], depositAmount);
+        let txPos = [blockNum, 0, 0];
+        let priority = 1000000000 * blockNum;
+        await rootchainHelpers.startExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, txBytes);
+        let state = (await rootchain.getExit.call(priority))[4];
+        assert(state == 1, "Exit not in the pending state");
+
+        await rootchainHelpers.fastForward();
+        await rootchain.finalizeExits();
+        state = (await rootchain.getExit.call(priority))[4];
+        assert(state == 3, "Exit not in the finalized state");
+
+        let [err] = await catchError(rootchainHelpers.startExit(rootchain, accounts[2], depositAmount, minExitBond, blockNum, txPos, txBytes));
+        if (!err)
+            assert.fail("Reopened a finalized exit");
     });
 });

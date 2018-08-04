@@ -148,8 +148,6 @@ contract RootChain is Ownable {
 
         // check that the UTXO has not been previously exited
         require(exits[priority].state == 0);
-        require(exits[priority].owner == address(0));
-        require(exits[priority].amount == 0);
 
         // creating the correct merkle leaf
         bytes32 txHash = keccak256(txBytes);
