@@ -120,15 +120,6 @@ let successfulFinalizeExit = async function(rootchain, sender, authority, blockN
   // exit prority
   let priority = 1000000000 * blockNum;
 
-  exit = await rootchain.getExit.call(priority);
-  if (success) {
-    // check that the exit is successfully removed from the PQ
-    assert.equal(exit[0], 0, "Exit was not deleted after finalizing");
-  } else {
-    // check that the exit hasn't been removed from the PQ
-    assert.notEqual(exit[0], 0, "Exit should not have been was processed");
-  }
-
   let balance = (await rootchain.getBalance.call({from: sender})).toNumber();
   if (success) {
     // check that the correct amount has been deposited into the account's balance

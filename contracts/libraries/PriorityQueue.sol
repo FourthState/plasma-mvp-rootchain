@@ -1,5 +1,6 @@
 pragma solidity ^0.4.24;
 
+// external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
