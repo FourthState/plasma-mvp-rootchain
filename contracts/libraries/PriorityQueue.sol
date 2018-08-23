@@ -100,5 +100,4 @@ contract PriorityQueue is Ownable {
         }
         if (i != j) heapList[i] = newVal;
     }
-
 }

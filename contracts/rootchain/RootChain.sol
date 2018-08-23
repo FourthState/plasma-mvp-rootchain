@@ -6,6 +6,7 @@ import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "solidity-rlp/contracts/RLPReader.sol";
 
 import "../libraries/Validator.sol";
+import "../libraries/ByteUtils.sol";
 import "../libraries/PriorityQueue.sol";
 
 contract RootChain is Ownable {
@@ -17,6 +18,7 @@ contract RootChain is Ownable {
     /*
      * Events
      */
+
     event AddedToBalances(address owner, uint256 amount);
     event BlockSubmitted(bytes32 root, uint256 position);
     event ChallengedExit(uint priority, address owner, uint256 amount, uint256[3] utxoPos);
@@ -26,34 +28,35 @@ contract RootChain is Ownable {
     /*
      *  Storage
      */
+
+    // child chain
+    uint256 public currentChildBlock;
+    uint256 public currentDepositBlock;
+    uint256 public childBlockInterval;
+    uint256 public lastParentBlock;
     mapping(uint256 => childBlock) public childChain;
-    mapping(address => uint256) public balances;
+    struct childBlock {
+        bytes32 root;
+        uint256 created_at;
+    }
 
-    uint256 public totalWithdrawBalance;
-
-    // startExit mechanism
-    PriorityQueue exitsQueue;
+    // exits
     uint256 minExitBond;
+    PriorityQueue exitsQueue;
     mapping(uint256 => exit) public exits;
-
-    // exit.state flags: 0 -> does not exist; 1 -> started/pending; 2 -> challenged; 3 -> finalized
     struct exit {
         uint256 amount;
         uint256 created_at;
         uint256[3] utxoPos;
         address owner;
+        // Possible states:
+        // 0 -> does not exist; 1 -> pending; 2 -> challenged; 3 -> finalized
         uint8 state;
     }
 
-    // child chain
-    uint256 public childBlockInterval;
-    uint256 public currentChildBlock;
-    uint256 public currentDepositBlock;
-    uint256 public lastParentBlock;
-    struct childBlock {
-        bytes32 root;
-        uint256 created_at;
-    }
+    // funds
+    mapping(address => uint256) public balances;
+    uint256 public totalWithdrawBalance;
 
     constructor() public
     {
@@ -65,7 +68,7 @@ contract RootChain is Ownable {
         currentDepositBlock = 1;
         lastParentBlock = block.number;
 
-        minExitBond = 10000; // minimum bond needed to exit.
+        minExitBond = 10000;
     }
 
     /// @param root 32 byte merkleRoot of ChildChain block

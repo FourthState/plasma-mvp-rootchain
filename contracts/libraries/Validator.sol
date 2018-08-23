@@ -1,18 +1,14 @@
 pragma solidity ^0.4.24;
 
-import "./ByteUtils.sol";
-
-/*
-* All validation requirements.
-* All functions act on the bytes32 data type.
-*/
 library Validator {
     function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
         internal
         pure
         returns (bool)
     {
-        require(proof.length == 512);
+        // depth 16 merkle tree
+        require(proof.length == 512, "Incorrect proof length");
+
         bytes32 proofElement;
         bytes32 computedHash = leaf;
 

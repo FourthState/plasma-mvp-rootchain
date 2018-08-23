@@ -1,19 +1,16 @@
 pragma solidity ^0.4.24;
 
-
 /**
  * @title Bytes operations
  *
  * @dev Based on https://github.com/GNSPS/solidity-bytes-utils/blob/master/contracts/BytesLib.sol
  */
-
 library ByteUtils {
     function slice(bytes _bytes, uint _start, uint _length)
         internal
         pure
         returns (bytes)
     {
-        
         bytes memory tempBytes;
         
         assembly {
@@ -35,8 +32,8 @@ library ByteUtils {
             
             mstore(tempBytes, _length)
             
-            //update free-memory pointer
-            //allocating the array padded to 32 bytes like the compiler does now
+            // update free-memory pointer.
+            // allocating the array padded to 32 bytes like the compiler does now
             mstore(0x40, and(add(mc, 31), not(31)))
         }
         
