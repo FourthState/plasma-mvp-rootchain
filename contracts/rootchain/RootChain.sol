@@ -22,9 +22,11 @@ contract RootChain is Ownable {
     event AddedToBalances(address owner, uint256 amount);
     event BlockSubmitted(bytes32 root, uint256 position);
     event ChallengedExit(uint priority, address owner, uint256 amount, uint256[3] utxoPos);
+    event ChallengedDepositExit(uint nonce, address owner, uint256 amount);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce);
     event FinalizedExit(uint priority, address owner, uint256 amount);
     event ExitStarted(uint priority, address owner, uint256 amount);
+    event DepositExitStarted(uint nonce, address owner, uint256 amount);
 
     /*
      *  Storage
@@ -115,7 +117,7 @@ contract RootChain is Ownable {
         payable
     {
         require(deposits[nonce].owner == msg.sender, "mismatch in owner");
-        require(exits[nonce].state == 0, "exit for this deposit already exists");
+        require(depositExits[nonce].state == 0, "exit for this deposit already exists");
         require(msg.value >= minExitBond, "insufficient exit bond");
         if (msg.value > minExitBond) {
             uint256 excess = msg.value - minExitBond;
@@ -133,7 +135,7 @@ contract RootChain is Ownable {
             state: 1
         });
 
-        emit ExitStarted(nonce, owner, amount);
+        emit DepositExitStarted(nonce, owner, amount);
     }
 
 
@@ -160,7 +162,7 @@ contract RootChain is Ownable {
             totalWithdrawBalance = totalWithdrawBalance.add(excess);
         }
 
-        // check proof ang signatures
+        // check proof and signatures
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
         require(txHash.checkSigs(childChain[txPos[0]].root, txList[0].toUint(), txList[5].toUint(), sigs), "validation error");
@@ -185,17 +187,17 @@ contract RootChain is Ownable {
         emit ExitStarted(priority, msg.sender, amount);
     }
 
-    /// For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
-    /// been previously exited. If UTXO's inputs are in the exit queue, those inputs'
-    /// exits are deleted from the exit queue and the current UTXO's exit remains valid.
+    // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
+    // been previously exited. If UTXO's inputs are in the exit queue, those inputs'
+    // exits are deleted from the exit queue and the current UTXO's exit remains valid.
     function validateExitInputs(RLPReader.RLPItem[] memory txList)
         private
         view
     {
         for (uint256 i = 0; i < 2; i++) {
-            uint256 txInputBlkNum = txList[5*i + 0].toUint();
-            uint256 txInputIndex = txList[5*i + 1].toUint();
-            uint256 txInputOutIndex = txList[5*i + 2].toUint();
+            uint256 txInputBlkNum = txList[7*i + 0].toUint();
+            uint256 txInputIndex = txList[7*i + 1].toUint();
+            uint256 txInputOutIndex = txList[7*i + 2].toUint();
             uint256 txInputPriority = blockIndexFactor*txInputBlkNum + txInputIndex*txInputIndex + txInputOutIndex;
 
             // this UTXO's inputs must have been challenged or not exited
@@ -204,9 +206,13 @@ contract RootChain is Ownable {
         }
     }
 
-    // @param txPos    position of the invalid exiting transaction [blkNum, txIndex, outputIndex]
-    // @param newTxPos position of the challenging transaction [blkNum, txIndex, outputIndex]
-    function challengeExit(uint256[3] txPos, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignature)
+    // @param txPos            position of the invalid exiting transaction [blkNum, txIndex, outputIndex]
+    // @param newTxPos         position of the challenging transaction [blkNum, txIndex, outputIndex]
+    // @param txBytes          raw transaction bytes
+    // @param sigs             signatures of the inputs for this transaction
+    // @param proof            proof of inclusion for this merkle hash
+    // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
+    function challengeExit(uint256[3] txPos, uint256[3] newTxPos, bytes txBytes, bytes sigs, bytes proof, bytes confirmSignature)
         public
     {
         RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
@@ -214,26 +220,21 @@ contract RootChain is Ownable {
 
         // invalid transcation should have a pending exit
         uint256 priority = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        require(exits[priority].state == 1, "no pending exit to challenge");
+        exit memory exit_ = exits[priority];
+        require(exit_.state == 1, "no pending exit to challenge");
 
-        // ensure matching inputs into the challenging transaction
+        // ensure matching inputs
         uint256[3] memory utxoPos = exits[priority].utxoPos;
-        require(utxoPos[0] == txList[0 + 6 * newTxPos[2]].toUint(), "incorrect blocknum");
-        require(utxoPos[1] == txList[1 + 6 * newTxPos[2]].toUint(), "incorrect tx index");
-        require(utxoPos[2] == txList[2 + 6 * newTxPos[2]].toUint(), "incorrect output index");
-
-        /*
-        * Confirm Signature:
-        *   - (txHash, sigs, block header)
-        */
+        require(utxoPos[0] == txList[0 + 7 * newTxPos[2]].toUint(), "incorrect blocknum");
+        require(utxoPos[1] == txList[1 + 7 * newTxPos[2]].toUint(), "incorrect tx index");
+        require(utxoPos[2] == txList[2 + 7 * newTxPos[2]].toUint(), "incorrect output index");
 
         // challenge
         bytes32 root = childChain[newTxPos[0]].root;
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
-        bytes32 confirmationHash = keccak256(abi.encodePacked(txHash, sigs, root));
-        require(exits[priority].owner == confirmationHash.recover(confirmSignature),
-                "mismatch exit owner and confirm signature");
+        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
+        require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
         require(merkleHash.checkMembership(newTxPos[1], root, proof), "incorrect merkle proof");
 
         // exit successfully challenged. Award the sender with the bond
@@ -243,16 +244,42 @@ contract RootChain is Ownable {
 
         // reflect challenged state
         exits[priority].state = 2;
-        emit ChallengedExit(priority, exits[priority].owner, exits[priority].amount, exits[priority].utxoPos);
+        emit ChallengedExit(priority, exit_.owner, exit_.amount, exit_.utxoPos);
     }
 
-    // @param depositNonce the nonce of the deposit trying to exit
-    // @param newTxPos     position of the transaction with this deposit as an input [blkNum, txIndex, outputIndex]
-    // @param txBytes      bytes of this transcation
-    // @param proof        merkle proof of inclusion
-    function challengeDepositExit(uint256 nonce, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes sigs)
+    // @param depositNonce     the nonce of the deposit trying to exit
+    // @param newTxPos         position of the transaction with this deposit as an input [blkNum, txIndex, outputIndex]
+    // @param txBytes          bytes of this transcation
+    // @param sigs             signatures of the inputs for this transaction
+    // @param proof            merkle proof of inclusion
+    // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
+    function challengeDepositExit(uint256 nonce, uint256[3] newTxPos, bytes txBytes, bytes sigs, bytes proof, bytes confirmSignature)
         public
     {
+        RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
+        require(txList.length == 17, "incorrect tx list");
+        
+        // ensure matching inputs
+        uint nonce0 = txList[3].toUint();
+        uint nonce1 = txList[9].toUint();
+        require(nonce == nonce0 || nonce == nonce1, "deposit is not an input to the new transaction");
+
+        exit memory exit_ = depositExits[nonce];
+        require(exit_.state == 1, "no pending exit to challenge");
+
+        bytes32 root = childChain[newTxPos[0]].root;
+        bytes32 txHash = keccak256(txBytes);
+        bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
+        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
+        require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
+        require(merkleHash.checkMembership(newTxPos[1], root, proof), "incorrect merkle proof");
+
+        // exit successfully challenged
+        balances[msg.sender] = balances[msg.sender].add(minExitBond);
+        totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
+        
+        depositExits[nonce].state = 2;
+        emit ChallengedDepositExit(nonce, exit_.owner, exit_.amount);
     }
 
     function finalizeDepositExits() public { finalize(depositQueue); }

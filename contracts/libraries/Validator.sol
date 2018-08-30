@@ -62,7 +62,7 @@ library Validator {
         return check1 && check2;
     }
 
-     function recover(bytes32 hash, bytes sig)
+    function recover(bytes32 hash, bytes sig)
         internal
         pure
         returns (address)
