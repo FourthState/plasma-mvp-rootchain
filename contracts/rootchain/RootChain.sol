@@ -359,6 +359,16 @@ contract RootChain is Ownable {
         view
         returns (address, uint256, uint256[3], uint256, uint8)
     {
-        return (exits[priority].owner, exits[priority].amount, exits[priority].utxoPos, exits[priority].created_at, exits[priority].state);
+        exit memory exit_ = exits[priority];
+        return (exit_.owner, exit_.amount, exit_.utxoPos, exit_.created_at, exit_.state);
+    }
+
+    function getDeposit(uint256 nonce)
+        public
+        view
+        returns(address, uint256, uint256)
+    {
+        depositStruct memory deposit_ = deposits[nonce];
+        return (deposit_.owner, deposit_.amount, deposit_.created_at);
     }
 }
