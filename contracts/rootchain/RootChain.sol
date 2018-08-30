@@ -371,7 +371,7 @@ contract RootChain is Ownable {
         return balances[_address];
     }
 
-    function getChildChain(uint256 blockNumber)
+    function getChildBlock(uint256 blockNumber)
         public
         view
         returns (bytes32, uint256)
