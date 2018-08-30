@@ -260,9 +260,7 @@ contract RootChain is Ownable {
         require(txList.length == 17, "incorrect tx list");
         
         // ensure matching inputs
-        uint nonce0 = txList[3].toUint();
-        uint nonce1 = txList[9].toUint();
-        require(nonce == nonce0 || nonce == nonce1, "deposit is not an input to the new transaction");
+        require(nonce == txList[3].toUint() || nonce == txList[9].toUint(), "deposit is not an input to the new transaction");
 
         exit memory exit_ = depositExits[nonce];
         require(exit_.state == 1, "no pending exit to challenge");
