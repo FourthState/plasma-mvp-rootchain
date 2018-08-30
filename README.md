@@ -19,25 +19,31 @@ The root contract of a Plasma child chain represents an intermediary who can res
 A transaction is encoded in the following form:
 
 ```
-[Blknum1, TxIndex1, Oindex1, DepositNonce1, Amount1, ConfirmSig1  
+[Blknum1, TxIndex1, Oindex1, DepositNonce1, Amount1, ConfirmSig1
 
-Blknum2, TxIndex2, Oindex2, DepositNonce2, Amount2, ConfirmSig2  
+Blknum2, TxIndex2, Oindex2, DepositNonce2, Amount2, ConfirmSig2
 
 NewOwner, Denom1, NewOwner, Denom2, Fee]
 ```
 
 
-``submitBlock``: Validator(s) submits merkle root of the current block
+``submitBlock``: Validator(s) submits the merkle root of the current block
 
-``deposit``: Users will deposit onto the child chain by calling ``deposit()``. Deposits are stored into a priority queue and processed upon the next call of ``submitBlock()``. **Note**: If a validator decides to never call submitBlock again, users with pending deposits will still be able to withdraw their deposit
+``deposit``: Entry point into the plasma chain. Deposits are not included in blocks on the plasma chain. They are represented entirely in the smart contract and kept track of with a nonce. Deposits fire events which Validators use to keep a collection of spendable deposits.
 
-``startExit``: When a user decides to exit for any reason, they will call ``startExit()`` and their pending exit will be added to a priority queue that has a 1 week challenge period. This function requires a bond.
+``startExit``: When a user decides to exit a utxo, their pending exit will be added to a priority queue that has a 1 week challenge period. This function requires a bond and the priority is dependent on the transaction location on the plasma chain.
+
+``startDepositExit``: For a deposit not spent on the child chain, this used to exit deposits. These exits are inserted into a seperate priority queue with a 1 week challenge period. The priority for deposit exits is it's nonce.
 
 ``challengeExit``: If any users notice an invalid withdrawal attempt, they may challenge this exit by providing the relevant information. If their challenge is successful, they will be awarded the bond associated with the exit attempt.
 
-``finalizeExits``: This function will finalize any pending exits that have been in the priority queue for longer than a week. If the exit attempt has not been invalidated by a successful challenge then it will be eligible for withdrawal.
+``challengeDepositExit``: If a deposit has been spent on the child chain, a transcation that has this bad deposit as an input can be used to challegne within the challenge period for the exit.
 
-``withdraw``: Allows users to withdraw any balance that avaliable after the successful processing of an exit.
+``finalizeExits``: Finalizes pending exits that have been in the priority queue for longer than a week. If the exit attempt has not been invalidated by a successful challenge then it will be eligible for withdrawal.
+
+``finalizeDepositExits``: Finalized pending deposit exits in the deposit queue with the same conditions as above.
+
+``withdraw``: Allows users to withdraw their balance that avaliable after the successful processing of an exit.
 
 ### Documentation
 
