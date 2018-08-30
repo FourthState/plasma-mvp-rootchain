@@ -39,7 +39,7 @@ library Validator {
     // @param sigs        transaction signatures
     function checkSigs(bytes32 txHash, bytes32 rootHash,  uint256 blknum1, uint256 blknum2, bytes sigs)
         internal
-        view
+        pure
         returns (bool)
     {
         require(sigs.length % 65 == 0 && sigs.length == 260);
