@@ -33,7 +33,7 @@ function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
 Exit procedure for exiting a utxo on the child chain(not deposits). The `txPos` locates the transaction on the child chain. The leaf, hash(hash(`txBytes`), `sigs`) is checked against the block header using the `proof`.
 
 A valid exit satisfies the following properties:
-  - Exit has not previously been finalized or challenge
+  - Exit has not previously been finalized or challenged
   - The creator of this exit posted a sufficient bond. Excess funds are refunded the the senders rootchain balance and are immediately withdrawable.
 
 <br />
@@ -41,7 +41,7 @@ A valid exit satisfies the following properties:
 ```solidity
 function startDepositExit(uint256 nonce)
 ```
-Exit procdure for deposits that have not been spent. Deposits are purely identified by their `nonce` which is all that is needed to start an exit. The caller's address must match the owner of the deposit.
+Exit procdure for deposits that have not been spent. Deposits are purely identified by their `nonce`. The caller's address must match the owner of the deposit.
 A valid exit must satisfy the same constraints listed above for normal utxo exits. Deposits exits are also collected into their own seperate queue from normal transcations. This is because of the differing
 priority calculation. The priority of a deposit is purely it's nonce while the priority of a utxo is calculated from it's location in the child chain.
 
@@ -50,7 +50,7 @@ priority calculation. The priority of a deposit is purely it's nonce while the p
 ```solidity
 function challengeExit(uint256[3] txPos, uint256[2] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignature)
 ```
-`txPos` and `newTxPos` follows the convention - `[blockNumber, transcationIndex, outputIndex]`
+`txPos` and `newTxPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`
 
 A uxto that has starting an exit phase but was already spent on the child chain can be challenged using this function call. A successfull challenge awards the caller with the exit bond.
 The `txPos` locates the malicious utxo and is used to calculate the priority. `newTxPos` locates the transaction that is the parent (offending transaction is an input into this tx).
@@ -59,7 +59,7 @@ in the parents `txBytes` acknowledges the inclusion of it's parent in the plasma
 
 <br />
 
-```solidty
+```solidity
 function challengeDepositExit(uint256 nonce, uint256[3] newTxPos, bytes txBytes, bytes sigs, bytes proof, bytes confirmSignature)
 ```
 A deposit that has been spent in the child chain is challenged here. The `txBytes` of the the parent transaction must include the nonce as one if it's input. The `txBytes`, `sigs` and `proof` is
@@ -107,6 +107,13 @@ Getter for the block header and when the block was submitted
 function getExit(uint256 priority) returns (address owner, uint256 amount, uint256[3] utxoPos, uint256 created_at, uint8 state)
 ```
 Getter for all information about an exit
+
+<br />
+
+```solidity
+function getDeposit(uint256 nonce) returns (address owner, uint256 amount, uint256 created_at)
+```
+Getter for all information about a deposit
 
 <br />
 
