@@ -28,6 +28,7 @@ struct depositStruct {
 ```solidity
 function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
 ```
+`txPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`  
 Exit procedure for exiting a utxo on the child chain(not deposits). The `txPos` locates the transaction on the child chain. The leaf, hash(hash(`txBytes`), `sigs`) is checked against the block header using the `proof`.
 
 A valid exit satisfies the following properties:
@@ -37,21 +38,22 @@ A valid exit satisfies the following properties:
 <br />
 
 ```solidity
-function startDepositExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
+function startDepositExit(uint256 nonce)
 ```
-Exit pr
+Exit procdure for deposits that have not been spent. Deposits are purely identified by their `nonce` which is all that is needed to start an exit. The caller's address must match the owner of the deposit.  
+A valid exit must satisfy the same constraints listed above for normal utxo exits.
+
+<br />
 
 ```solidity
-function challengeExit(uint256[3] txPos, uint256[2] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
+function challengeExit(uint256[3] txPos, uint256[2] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignature)
 ```
-Challenge an exit that's currently in the priority queue. A successful challenge results in the sender receiving the exit bond as a reward.  
-`@param uint256 txPos [0]`: plasma block number in which the challenger's transaction occured  
-`@param uint256 txPos [1]`: transaction index within the block  
-`@param uint256 txPos [2]`: output index within the transaction (either 0 or 1)  
-`@param uint256 newTxPos`: same as the above but the pos of the uxto created by the spend transaction  
-`@param bytes proof`: merkle proof of transaction's existence in the child chain block; should be 512-bytes long (the concatenation of 16 hashes, each 32 bytes long)  
-`@param bytes sigs`: bytes 0-65 is the signature over the first input; bytes 65-130 is the signature over the second input; bytes 130-195 is the first confirmation signature; bytes 195-260 is the second confirmation signature  
-`@param bytes confirmationSig`: the confirm sig confirming that the sender acknowledges the spend of the utxo  
+`txPos` and `newTxPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`  
+A uxto that has starting an exit phase but was already spent on the child chain can be challenged using this function call. A successfull challenge awards the caller with the exit bond.  
+The `txPos` locates the malicious utxo and is used to calculate the priority. `newTxPos` locates the transaction that is the parent (offending transaction is an input into this tx). The `proof`, `txBytes` and `sigs` is sufficient for a proof of inclusion in the child chain of
+the parent transaction. The `confirmSignature`, signed by the owner of the malicious transaction, acknowledges the inclusion of it's parent in the plasma chain and allows anyone with this confirm signature to challenge a malicious exit of the child.
+
+<br />
 
 **function** `finalizeExits()`  
 Process all "finalized" exits in the priority queue. "Finalized" exits are those that have been in the priority queue for at least one week and have not been proven to be faulty through a challengeExit. The function will also halt once the child chain balance is too low.  
