@@ -28,7 +28,8 @@ struct depositStruct {
 ```solidity
 function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
 ```
-`txPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`  
+`txPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`
+
 Exit procedure for exiting a utxo on the child chain(not deposits). The `txPos` locates the transaction on the child chain. The leaf, hash(hash(`txBytes`), `sigs`) is checked against the block header using the `proof`.
 
 A valid exit satisfies the following properties:
@@ -48,7 +49,8 @@ A valid exit must satisfy the same constraints listed above for normal utxo exit
 ```solidity
 function challengeExit(uint256[3] txPos, uint256[2] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignature)
 ```
-`txPos` and `newTxPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`  
+`txPos` and `newTxPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`
+
 A uxto that has starting an exit phase but was already spent on the child chain can be challenged using this function call. A successfull challenge awards the caller with the exit bond.  
 The `txPos` locates the malicious utxo and is used to calculate the priority. `newTxPos` locates the transaction that is the parent (offending transaction is an input into this tx). The `proof`, `txBytes` and `sigs` is sufficient for a proof of inclusion in the child chain of
 the parent transaction. The `confirmSignature`, signed by the owner of the malicious transaction, acknowledges the inclusion of it's parent in the plasma chain and allows anyone with this confirm signature to challenge a malicious exit of the child.
