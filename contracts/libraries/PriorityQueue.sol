@@ -21,23 +21,6 @@ library PriorityQueue {
         }
     }
 
-    function minChild(uint256[] storage heapList, uint256 i)
-        public
-        view
-        returns (uint256)
-    {
-        uint currentSize = heapList.length - 1;
-        if (i.mul(2).add(1) > currentSize) {
-            return i.mul(2);
-        } else {
-            if (heapList[i.mul(2)] < heapList[i.mul(2).add(1)]) {
-                return i.mul(2);
-            } else {
-                return i.mul(2).add(1);
-            }
-        }
-    }
-
     function getMin(uint256[] storage heapList)
         public
         view
@@ -63,6 +46,23 @@ library PriorityQueue {
         }
 
         return retVal;
+    }
+
+    function minChild(uint256[] storage heapList, uint256 i)
+        private
+        view
+        returns (uint256)
+    {
+        uint currentSize = heapList.length - 1;
+        if (i.mul(2).add(1) > currentSize) {
+            return i.mul(2);
+        } else {
+            if (heapList[i.mul(2)] < heapList[i.mul(2).add(1)]) {
+                return i.mul(2);
+            } else {
+                return i.mul(2).add(1);
+            }
+        }
     }
 
     function percUp(uint256[] storage heapList, uint256 i)
@@ -94,6 +94,7 @@ library PriorityQueue {
 
     function currentSize(uint256[] storage heapList)
         internal
+        view
         returns (uint256)
     {
         return heapList.length - 1;
