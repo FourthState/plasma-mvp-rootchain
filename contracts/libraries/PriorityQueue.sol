@@ -2,43 +2,31 @@ pragma solidity ^0.4.24;
 
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
 /**
  * @title PriorityQueue
  * @dev A priority queue implementation
  */
 
-contract PriorityQueue is Ownable {
+library PriorityQueue {
     using SafeMath for uint256;
 
-    /*
-     *  Storage
-     */
-    uint256[] heapList;
-    uint256 public currentSize;
-
-    constructor()
+    function insert(uint256[] storage heapList, uint256 k)
         public
-    {
-        heapList = [0];
-        currentSize = 0;
-    }
-
-    function insert(uint256 k)
-        public
-        onlyOwner
     {
         heapList.push(k);
-        currentSize = currentSize.add(1);
-        percUp(currentSize);
+        heapList.length = heapList.length + 1;
+        if (currentSize(heapList) > 1) {
+            percUp(heapList, heapList.length - 1);
+        }
     }
 
-    function minChild(uint256 i)
+    function minChild(uint256[] storage heapList, uint256 i)
         public
         view
         returns (uint256)
     {
+        uint currentSize = heapList.length - 1;
         if (i.mul(2).add(1) > currentSize) {
             return i.mul(2);
         } else {
@@ -50,7 +38,7 @@ contract PriorityQueue is Ownable {
         }
     }
 
-    function getMin()
+    function getMin(uint256[] storage heapList)
         public
         view
         returns (uint256)
@@ -58,24 +46,26 @@ contract PriorityQueue is Ownable {
         return heapList[1];
     }
 
-    function delMin()
+    function delMin(uint256[] storage heapList)
         public
-        onlyOwner
         returns (uint256)
     {
+        uint currentSize = heapList.length - 1;
         require(currentSize > 0);
+
         uint256 retVal = heapList[1];
         heapList[1] = heapList[currentSize];
         delete heapList[currentSize];
-        currentSize = currentSize.sub(1);
-        if (currentSize > 1) {
-            percDown(1);
+        heapList.length = currentSize - 1;
+
+        if (heapList.length > 1) {
+            percDown(heapList, 1);
         }
-        heapList.length = heapList.length.sub(1);
+
         return retVal;
     }
 
-    function percUp(uint256 i)
+    function percUp(uint256[] storage heapList, uint256 i)
         private
     {
         uint256 j = i;
@@ -87,17 +77,25 @@ contract PriorityQueue is Ownable {
         if (i != j) heapList[i] = newVal;
     }
 
-    function percDown(uint256 i)
+    function percDown(uint256[] storage heapList, uint256 i)
         private
     {
         uint256 j = i;
         uint256 newVal = heapList[i];
-        uint256 mc = minChild(i);
+        uint256 mc = minChild(heapList, i);
+        uint256 currentSize = heapList.length - 1;
         while (mc <= currentSize && newVal > heapList[mc]) {
             heapList[i] = heapList[mc];
             i = mc;
-            mc = minChild(i);
+            mc = minChild(heapList, i);
         }
         if (i != j) heapList[i] = newVal;
+    }
+
+    function currentSize(uint256[] storage heapList)
+        internal
+        returns (uint256)
+    {
+        return heapList.length - 1;
     }
 }

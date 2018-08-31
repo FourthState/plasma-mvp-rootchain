@@ -10,10 +10,11 @@ import "../libraries/Validator.sol";
 import "../libraries/PriorityQueue.sol";
 
 contract RootChain is Ownable {
-    using SafeMath for uint256;
-    using Validator for bytes32;
+    using PriorityQueue for uint256[];
     using RLPReader for bytes;
     using RLPReader for RLPReader.RLPItem;
+    using SafeMath for uint256;
+    using Validator for bytes32;
 
     /*
      * Events
@@ -50,8 +51,8 @@ contract RootChain is Ownable {
 
     // exits
     uint256 minExitBond;
-    PriorityQueue exitsQueue;
-    PriorityQueue depositQueue;
+    uint256[] exitsQueue = [0];
+    uint256[] depositQueue = [0];
     mapping(uint256 => exit) public exits;
     mapping(uint256 => exit) public depositExits;
     struct exit {
@@ -74,11 +75,6 @@ contract RootChain is Ownable {
 
     constructor() public
     {
-        exitsQueue = new PriorityQueue();
-        depositQueue = new PriorityQueue();
-        require(exitsQueue.owner() == address(this), "incorrect PriorityQueue owner");
-        require(depositQueue.owner() == address(this), "incorrect PriorityQueue owner");
-
         currentChildBlock = 1;
         depositNonce = 1;
         lastParentBlock = block.number;
@@ -283,7 +279,7 @@ contract RootChain is Ownable {
     function finalizeDepositExits() public { finalize(depositQueue); }
     function finalizeExits() public { finalize(exitsQueue); }
 
-    function finalize(PriorityQueue queue)
+    function finalize(uint256[] storage queue)
         private
     {
         // getMin will fail if nothing is in the queue
