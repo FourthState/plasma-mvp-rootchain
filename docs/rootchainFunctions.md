@@ -1,27 +1,43 @@
 # PLASMA MVP Rootchain Documentation
 ## RootChain.sol
-**function** `RootChain()`  
-Contract constructor that sets the validator of the child chain.  
 
-**function** `submitBlock(bytes32 root)`  
+```solidity
+function submitBlock(bytes32 root)
+```
 The validator submits the merkle root of a child chain block.  
-`@param bytes32 root`: merkle root of the child chain  
 
-**function** `deposit(uint blocknum, bytes txBytes)`  
-Sender can deposit Eth into the smart contract, which will become redeemable on the child chain.  
-`@param uint blocknum`: the current child chain block number  
-`@param bytes txBytes`: the transaction bytes of the deposit, which is an RLP-encoded list of 15 elements
+```solidity
+function deposit(address owner)
+```
+Entry point into the child chain. The user has the option to create a spendable utxo owned by the address, `owner`. Once created, the private keys of the `owner` address has complete control of the new utxo.
 
-**function** `startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)`  
-Begins the exit procedure for exiting a utxo on the child chain. The function checks that the inputs are valid, that this exit hasn't been finalized or challenged before, and that the sender has bonded funds to this exit. Then, it adds the exit to the priority queue.  
-`@param uint256 txPos[0]`: plasma block number in which the transaction occured  
-`@param uint256 txPos[1]`: transaction Index within the block  
-`@param uint256 txPos[2]`: output Index within the transaction (either 0 or 1)  
-`@param bytes txBytes`: transaction bytes of the utxo  
-`@param bytes proof`: merkle proof of transaction's existence in the child chain block; should be 512-bytes long (the concatenation of 16 hashes, each 32 bytes long)  
-`@param bytes sigs`: bytes 0-65 is the signature over the first input; bytes 65-130 is the signature over the second input; bytes 130-195 is the first confirmation signature; bytes 195-260 is the second confirmation signature  
+Deposits are not recorded in the child chain blocks and are entirely represented on the rootchain. Each deposit is identified with an incremental nonce. Validators catch deposits through event handlers and maintain a collection of spendable deposits.
+```solidity
+mapping(uint256 => depositStruct) deposits; // The key is the incrementing nonce
+struct depositStruct {
+    address owner;
+    uint256 amount;
+    uint256 created_at;
+}
+```
 
-**function** `challengeExit(uint256[3] txPos, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)`  
+```solidity
+function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
+```
+Exit procedure for exiting a utxo on the child chain(not deposits). The `txPos` locates the transaction on the child chain. The leaf, hash(hash(`txBytes`), `sigs`) is checked against the block header using the `proof`.
+
+A valid exit satisfies the following properties:
+  - Exit has not previously been finalized or challenge
+  - The creator of this exit posted a sufficient bond. Excess funds are refunded the the senders rootchain balance and are immediately withdrawable.
+
+```solidity
+function startDepositExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
+```
+Exit pr
+
+```solidity
+function challengeExit(uint256[3] txPos, uint256[2] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmationSig)
+```
 Challenge an exit that's currently in the priority queue. A successful challenge results in the sender receiving the exit bond as a reward.  
 `@param uint256 txPos [0]`: plasma block number in which the challenger's transaction occured  
 `@param uint256 txPos [1]`: transaction index within the block  
