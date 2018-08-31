@@ -4,7 +4,9 @@
 ```solidity
 function submitBlock(bytes32 root)
 ```
-The validator submits the merkle root of a child chain block.  
+The validator submits the block header, `root` of each child chain block.  
+
+<br >
 
 ```solidity
 function deposit(address owner)
@@ -21,6 +23,8 @@ struct depositStruct {
 }
 ```
 
+<br />
+
 ```solidity
 function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
 ```
@@ -29,6 +33,8 @@ Exit procedure for exiting a utxo on the child chain(not deposits). The `txPos` 
 A valid exit satisfies the following properties:
   - Exit has not previously been finalized or challenge
   - The creator of this exit posted a sufficient bond. Excess funds are refunded the the senders rootchain balance and are immediately withdrawable.
+
+<br />
 
 ```solidity
 function startDepositExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
