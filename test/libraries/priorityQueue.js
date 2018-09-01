@@ -1,12 +1,12 @@
 let assert = require('chai').assert;
 
-let PriorityQueue = artifacts.require("PriorityQueue");
+let PriorityQueue_Test = artifacts.require("PriorityQueue_Test");
 let { catchError } = require('../utilities.js');
 
 contract('PriorityQueue', async (accounts) => {
     let instance;
     before (async () => {
-        instance = await PriorityQueue.new({from: accounts[0]});
+        instance = await PriorityQueue_Test.new({from: accounts[0]});
     });
 
     it("Add then remove", async () => {
