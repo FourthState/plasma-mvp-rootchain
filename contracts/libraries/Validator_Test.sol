@@ -21,7 +21,7 @@ contract Validator_Test {
       public
       returns (bool)
   {
-      return txHash.checkSigs(bytes32 rootHash,  uint256 blknum1, uint256 blknum2, bytes sigs);
+      return txHash.checkSigs(rootHash, blknum1, blknum2, sigs);
   }
 
   function recover(bytes32 hash, bytes sig)
@@ -35,6 +35,6 @@ contract Validator_Test {
       public
       returns (bytes)
   {
-      return _bytes.slice(start, len);
+      return Validator.slice(_bytes, start, len);
   }
 }
