@@ -10,9 +10,14 @@ library PriorityQueue {
         public
     {
         heapList.push(k);
+<<<<<<< HEAD
         uint size = currentSize(heapList);
         if (size > 1) {
             percUp(heapList, size);
+=======
+        if (currentSize(heapList) > 1) {
+            percUp(heapList, heapList.length.sub(1));
+>>>>>>> linked priority queue test contract + fixed bugs
         }
     }
 
@@ -29,10 +34,20 @@ library PriorityQueue {
         public
         returns (uint256)
     {
+<<<<<<< HEAD
         uint size = currentSize(heapList);
         require(size > 0, "empty queue");
 
         uint256 retVal = heapList[1];
+=======
+        uint currentSize = heapList.length.sub(1);
+        require(currentSize > 0);
+
+        uint256 retVal = heapList[1];
+        heapList[1] = heapList[currentSize];
+        delete heapList[currentSize];
+        heapList.length = heapList.length.sub(1);
+>>>>>>> linked priority queue test contract + fixed bugs
 
         heapList[1] = heapList[size];
         delete heapList[size];
@@ -81,8 +96,13 @@ library PriorityQueue {
         uint256 j = i;
         uint256 newVal = heapList[i];
         uint256 mc = minChild(heapList, i);
+<<<<<<< HEAD
         uint256 size = currentSize(heapList);
         while (mc <= size && newVal > heapList[mc]) {
+=======
+        uint256 currentSize = heapList.length.sub(1);
+        while (mc <= currentSize && newVal > heapList[mc]) {
+>>>>>>> linked priority queue test contract + fixed bugs
             heapList[i] = heapList[mc];
             i = mc;
             mc = minChild(heapList, i);

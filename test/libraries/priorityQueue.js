@@ -5,8 +5,13 @@ let { catchError } = require('../utilities.js');
 
 contract('PriorityQueue', async (accounts) => {
     let instance;
+<<<<<<< HEAD
     before(async () => {
         instance = await PriorityQueue_Test.new();
+=======
+    before (async () => {
+        instance = await PriorityQueue_Test.new({from: accounts[0]});
+>>>>>>> linked priority queue test contract + fixed bugs
     });
 
     it("Add then remove", async () => {
@@ -24,7 +29,11 @@ contract('PriorityQueue', async (accounts) => {
 
         await instance.delMin()
         assert.equal((await instance.currentSize.call()).toNumber(), 0, "Size is not zero")
+<<<<<<< HEAD
     });
+=======
+    })
+>>>>>>> linked priority queue test contract + fixed bugs
 
     it("Ascending insert", async () => {
         let currSize = (await instance.currentSize.call()).toNumber();
