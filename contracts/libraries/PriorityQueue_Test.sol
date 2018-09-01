@@ -7,9 +7,9 @@ contract PriorityQueue_Test {
     using PriorityQueue for uint256[];
 
     uint256[] heapList = [0];
-    
+
     function insert(uint256 k) public { heapList.insert(k); }
-    function getMin() public view returns (uint256) { heapList.getMin(); }
+    function getMin() public view returns (uint256) { return heapList.getMin(); }
     function delMin() public { heapList.delMin(); }
-    function currentSize() public view returns (uint256) { heapList.currentSize(); }
+    function currentSize() public view returns (uint256) { return heapList.currentSize(); }
 }

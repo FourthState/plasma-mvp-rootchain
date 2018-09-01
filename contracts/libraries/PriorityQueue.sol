@@ -15,9 +15,8 @@ library PriorityQueue {
         public
     {
         heapList.push(k);
-        heapList.length = heapList.length + 1;
         if (currentSize(heapList) > 1) {
-            percUp(heapList, heapList.length - 1);
+            percUp(heapList, heapList.length.sub(1));
         }
     }
 
@@ -33,13 +32,13 @@ library PriorityQueue {
         public
         returns (uint256)
     {
-        uint currentSize = heapList.length - 1;
+        uint currentSize = heapList.length.sub(1);
         require(currentSize > 0);
 
         uint256 retVal = heapList[1];
         heapList[1] = heapList[currentSize];
         delete heapList[currentSize];
-        heapList.length = currentSize - 1;
+        heapList.length = heapList.length.sub(1);
 
         if (heapList.length > 1) {
             percDown(heapList, 1);
@@ -83,7 +82,7 @@ library PriorityQueue {
         uint256 j = i;
         uint256 newVal = heapList[i];
         uint256 mc = minChild(heapList, i);
-        uint256 currentSize = heapList.length - 1;
+        uint256 currentSize = heapList.length.sub(1);
         while (mc <= currentSize && newVal > heapList[mc]) {
             heapList[i] = heapList[mc];
             i = mc;
@@ -97,6 +96,6 @@ library PriorityQueue {
         view
         returns (uint256)
     {
-        return heapList.length - 1;
+        return heapList.length.sub(1);
     }
 }
