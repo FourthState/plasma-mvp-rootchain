@@ -6,7 +6,7 @@ let { catchError } = require('../utilities.js');
 contract('PriorityQueue', async (accounts) => {
     let instance;
     before (async () => {
-        instance = await PriorityQueue_Test.new({from: accounts[0]});
+        instance = await PriorityQueue_Test.deployed();
     });
 
     it("Add then remove", async () => {
@@ -23,8 +23,8 @@ contract('PriorityQueue', async (accounts) => {
         assert.equal((await instance.getMin.call()).toNumber(), 3, "Did not delete correct minimum")
 
         await instance.delMin()
-        assert(await instance.currentSize.call() == 0, "Size is not zero")
-    })
+        assert.equal((await instance.currentSize.call()).toNumber(), 0, "Size is not zero")
+    });
 
     it("Ascending insert", async () => {
         let currSize = (await instance.currentSize.call()).toNumber();
@@ -53,17 +53,6 @@ contract('PriorityQueue', async (accounts) => {
         }
         currSize = (await instance.currentSize.call()).toNumber();
         assert.equal(currSize, 0, "The priority queue has not been emptied");
-    });
-
-    it ("Insert from someone other than owner", async () => {
-        let err;
-        [err] = await catchError(instance.insert(3, {'from': accounts[1]}));
-        if (!err) {
-            assert(false, "Insert allowed for someone other than owner");
-        }
-
-        let currSize = (await instance.currentSize.call()).toNumber();
-        assert.equal(currSize, 0, "Insert allowed for someone other than owner");
     });
 
     it("Insert, delete min, insert again", async () => {
@@ -95,7 +84,7 @@ contract('PriorityQueue', async (accounts) => {
         assert.equal(currSize, 0, "The priority queue has not been emptied");
     });
 
-    it ("Insert same priorities", async () => {
+    it("Insert same priorities", async () => {
         let currentSize = (await instance.currentSize.call()).toNumber();
         assert.equal(currentSize, 0, "The size is not 0");
 

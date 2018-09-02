@@ -3,11 +3,6 @@ pragma solidity ^0.4.24;
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
-/**
- * @title PriorityQueue
- * @dev A priority queue implementation
- */
-
 library PriorityQueue {
     using SafeMath for uint256;
 
@@ -15,9 +10,9 @@ library PriorityQueue {
         public
     {
         heapList.push(k);
-        heapList.length = heapList.length + 1;
-        if (currentSize(heapList) > 1) {
-            percUp(heapList, heapList.length - 1);
+        uint size = currentSize(heapList);
+        if (size > 1) {
+            percUp(heapList, size);
         }
     }
 
@@ -26,6 +21,7 @@ library PriorityQueue {
         view
         returns (uint256)
     {
+        require(currentSize(heapList) > 0, "empty queue");
         return heapList[1];
     }
 
@@ -33,15 +29,17 @@ library PriorityQueue {
         public
         returns (uint256)
     {
-        uint currentSize = heapList.length - 1;
-        require(currentSize > 0);
+        uint size = currentSize(heapList);
+        require(size > 0, "empty queue");
 
         uint256 retVal = heapList[1];
-        heapList[1] = heapList[currentSize];
-        delete heapList[currentSize];
-        heapList.length = currentSize - 1;
 
-        if (heapList.length > 1) {
+        heapList[1] = heapList[size];
+        delete heapList[size];
+        heapList.length = size; // not `size - 1` due to the unused first element
+        size = size.sub(1);
+
+        if (size > 1) {
             percDown(heapList, 1);
         }
 
@@ -53,8 +51,8 @@ library PriorityQueue {
         view
         returns (uint256)
     {
-        uint currentSize = heapList.length - 1;
-        if (i.mul(2).add(1) > currentSize) {
+        uint size = currentSize(heapList);
+        if (i.mul(2).add(1) > size) {
             return i.mul(2);
         } else {
             if (heapList[i.mul(2)] < heapList[i.mul(2).add(1)]) {
@@ -83,8 +81,8 @@ library PriorityQueue {
         uint256 j = i;
         uint256 newVal = heapList[i];
         uint256 mc = minChild(heapList, i);
-        uint256 currentSize = heapList.length - 1;
-        while (mc <= currentSize && newVal > heapList[mc]) {
+        uint256 size = currentSize(heapList);
+        while (mc <= size && newVal > heapList[mc]) {
             heapList[i] = heapList[mc];
             i = mc;
             mc = minChild(heapList, i);
@@ -97,6 +95,6 @@ library PriorityQueue {
         view
         returns (uint256)
     {
-        return heapList.length - 1;
+        return heapList.length.sub(1);
     }
 }
