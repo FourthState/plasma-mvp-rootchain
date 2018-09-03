@@ -9,7 +9,12 @@ contract('Validator', async (accounts) => {
         instance = await Validator_Test.new({from: accounts[0]});
     });
 
-    it("Add then remove", async () => {
+    it("Test checkMembership", async () => {
+        let input_seed = "input_seed";
+        console.log(toHex(input_seed));
+    })
+
+    it("Test Slice", async () => {
         let input_seed = "input_seed";
         console.log(toHex(input_seed));
     })
