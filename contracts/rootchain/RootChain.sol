@@ -198,13 +198,17 @@ contract RootChain is Ownable {
         view
     {
         for (uint256 i = 0; i < 2; i++) {
-            uint256 txInputBlkNum = txList[6*i + 0].toUint();
-            uint256 txInputIndex = txList[6*i + 1].toUint();
-            uint256 txInputOutIndex = txList[6*i + 2].toUint();
-            uint256 txInputPriority = blockIndexFactor*txInputBlkNum + txInputIndex*txInputIndex + txInputOutIndex;
+            uint state;
+            uint depositNonce_ = txList[6*i + 3].toUint();
+            if (depositNonce == 0) { 
+                uint256 txInputBlkNum = txList[6*i + 0].toUint();
+                uint256 txInputIndex = txList[6*i + 1].toUint();
+                uint256 txInputOutIndex = txList[6*i + 2].toUint();
+                uint256 txInputPriority = blockIndexFactor*txInputBlkNum + txInputIndex*txInputIndex + txInputOutIndex;
+                state = txExits[txInputPriority].state;
+            } else
+                state = depositExits[depositNonce_].state;
 
-            // this UTXO's inputs must have been challenged or not exited
-            uint state = txExits[txInputPriority].state;
             require(state == 0 || state == 2, "inputs are being exited or have been finalized");
         }
     }

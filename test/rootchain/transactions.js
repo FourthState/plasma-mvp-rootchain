@@ -2,11 +2,12 @@ let RLP = require('rlp');
 let assert = require('chai').assert
 
 let RootChain = artifacts.require('RootChain');
-let { mineNBlocks, zeroHashes, proof } = require('./rootchain_helpers.js');
+let { fastForward, mineNBlocks, zeroHashes, proof } = require('./rootchain_helpers.js');
 let { toHex, catchError } = require('../utilities.js');
 
 contract('[RootChain] Transactions', async (accounts) => {
     let rootchain;
+    let one_week = 604800; // in seconds
     let authority = accounts[0];
     let minExitBond = 10000;
 
@@ -15,7 +16,7 @@ contract('[RootChain] Transactions', async (accounts) => {
     // includes a spend of that full deposit to account[1] (first input)
     let amount = 100;
     let txPos, txBytes;
-    let sigs, confirmSig;
+    let sigs, confirmSignatures;
     beforeEach(async () => {
         rootchain = await RootChain.new({from: authority});
         
@@ -43,7 +44,8 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         // create the confirm sig
         let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
-        confirmSig = await web3.eth.sign(accounts[0], confirmHash);
+        confirmSignatures = await web3.eth.sign(accounts[0], confirmHash);
+        confirmSignatures += Buffer.alloc(65).toString('hex'); // empty second confirmsig
 
         txPos = [blockNum, 0, 0];
     });
@@ -56,8 +58,24 @@ contract('[RootChain] Transactions', async (accounts) => {
             assert.fail("exit start from someone other than the utxo owner");
     });
 
-    it("Refunds excess funds for overpayed bond", async () => {
-        let confirmSignatures = confirmSig + Buffer.alloc(65).toString('hex');
+    it("Catches StartedTransactionExit event", async () => {
+        let tx = await rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond});
+
+        let priority = 1000000*txPos[0];
+        assert.equal(tx.logs[0].args.priority.toNumber(), priority, "StartedTransactionExit event emits incorrect priority");
+        assert.equal(tx.logs[0].args.owner, accounts[1], "StartedTransactionExit event emits incorrect owner");
+        assert.equal(tx.logs[0].args.amount.toNumber(), amount, "StartedTransactionExit event emits incorrect amount");
+    });
+
+    it("Requires sufficient bond and refunds excess if overpayed", async () => {
+        let err;
+        [err] = await catchError(rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond - 100}));
+        if (!err)
+            assert.fail("started exit with insufficient bond");
 
         await rootchain.startTransactionExit(txPos,
             toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
@@ -68,5 +86,26 @@ contract('[RootChain] Transactions', async (accounts) => {
     });
 
     it("Only allows exiting a utxo once", async () => {
+        await rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond});
+
+        let err;
+        [err] = await catchError(rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond}));
+
+        if (!err)
+            assert.fail("reopened the same exit while already a pending one existed");
+
+        fastForward(one_week + 100);
+
+        [err] = await catchError(rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond}));
+
+        if (!err)
+            assert.fail("reopened the same exit after already finalized");
+
     });
 });

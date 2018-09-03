@@ -16,7 +16,7 @@ contract('[RootChain] Deposits', async (accounts) => {
         rootchain = await RootChain.new({from: authority});
     });
 
-    it("Allows deposit of funds", async () => {
+    it("Catches Deposit event", async () => {
         let nonce = (await rootchain.depositNonce.call()).toNumber();
         let tx = await rootchain.deposit(accounts[1], {from: accounts[1], value: 100});
         // check Deposit event
@@ -55,20 +55,25 @@ contract('[RootChain] Deposits', async (accounts) => {
             assert.fail("Started an exit for the same deposit twice.");
     });
 
-    it("Requires minimum bond to start a depoist exit", async () => {
+    it("Catches StartedDepositExit event", async () => {
         let nonce = (await rootchain.depositNonce.call()).toNumber();
         await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
         let tx = await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
 
-        // DepositExitStarted event
-        assert.equal(tx.logs[0].args.nonce.toNumber(), nonce, "DepositExitStarted event emits incorrect nonce");
-        assert.equal(tx.logs[0].args.owner, accounts[2], "DepositExitStarted event emits incorrect owner");
-        assert.equal(tx.logs[0].args.amount.toNumber(), 100, "DepositExitStarted event emits incorrect amount");
+        assert.equal(tx.logs[0].args.nonce.toNumber(), nonce, "StartedDepositExit event emits incorrect nonce");
+        assert.equal(tx.logs[0].args.owner, accounts[2], "StartedDepositExit event emits incorrect owner");
+        assert.equal(tx.logs[0].args.amount.toNumber(), 100, "StartedDepositExit event emits incorrect amount");
     });
 
-    it("Refunds excess funds for overpayed bond", async () => {
+    it("Requires sufficient bond and refunds excess if overpayed", async () => {
         let nonce = (await rootchain.depositNonce.call()).toNumber();
         await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
+
+        let err;
+        [err] = await catchError(rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond-10}));
+        if (!err)
+            assert.fail("started exit with insufficient bond");
+
         await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond+10});
 
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
