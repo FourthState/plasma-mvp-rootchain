@@ -17,11 +17,11 @@ contract Validator_Test {
       return leaf.checkMembership(index, rootHash, proof);
   }
 
-  function checkSigs(bytes32 txHash, bytes32 rootHash,  uint256 blknum1, uint256 blknum2, bytes sigs)
+  function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input0, bool input1, bytes sigs, bytes confirmSignatures)
       public
       returns (bool)
   {
-      return txHash.checkSigs(rootHash, blknum1, blknum2, sigs);
+      return txHash.checkSigs(confirmationHash, input0, input1, sigs, confirmSignatures);
   }
 
   function recover(bytes32 hash, bytes sig)
@@ -31,10 +31,10 @@ contract Validator_Test {
       return hash.recover(sig);
   }
 
-  function slice(bytes _bytes, uint start, uint len)
+  /* function slice(bytes _bytes, uint start, uint len)
       public
       returns (bytes)
   {
       return Validator.slice(_bytes, start, len);
-  }
+  } */
 }

@@ -6,7 +6,7 @@ let { catchError, toHex } = require('../utilities.js');
 contract('Validator', async (accounts) => {
     let instance;
     before (async () => {
-        instance = await Validator_Test.new({from: accounts[0]});
+        instance = await Validator_Test.new();
     });
 
     it("Test checkMembership", async () => {
