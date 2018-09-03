@@ -34,32 +34,30 @@ library Validator {
 
     // @param txHash      transaction hash
     // @param rootHash    block header of the merkle tree
-    // @param blknum1     block number of the first input
-    // @param blknum2     block number of the sceond input
+    // @param input0      indicator for nonzero first input
+    // @param input1      indicator for nonzero second input
     // @param sigs        transaction signatures
-    function checkSigs(bytes32 txHash, bytes32 rootHash,  uint256 blknum1, uint256 blknum2, bytes sigs)
+    function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input0, bool input1, bytes sigs, bytes confirmSignatures)
         internal
         pure
         returns (bool)
     {
-        require(sigs.length % 65 == 0 && sigs.length == 260);
-        bytes memory sig1 = slice(sigs, 0, 65);
-        bytes memory sig2 = slice(sigs, 65, 65);
-        bytes memory confSig1 = slice(sigs, 130, 65);
-        bytes32 confirmationHash = keccak256(abi.encodePacked(txHash, sig1, sig2, rootHash));
+        require(sigs.length == 130, "two transaction signatures required");
+        require(confirmSignatures.length == 130, "two confirm signatures required");
+        bytes memory sig0 = slice(sigs, 0, 65);
+        bytes memory sig1 = slice(sigs, 65, 65);
+        bytes memory confSig0 = slice(confirmSignatures, 0, 65);
         
+        bool check0 = true;
         bool check1 = true;
-        bool check2 = true;
-        // existence of input 1
-        if (blknum1 > 0) {
-            check1 = recover(txHash, sig1) == recover(confirmationHash, confSig1);
+        if (input0) {
+            check0 = recover(txHash, sig0) == recover(confirmationHash, confSig0);
         } 
-        // existence of input 2
-        if (blknum2 > 0) {
-            bytes memory confSig2 = slice(sigs, 195, 65);
-            check2 = recover(txHash, sig2) == recover(confirmationHash, confSig2);
+        if (input1) {
+            bytes memory confSig1 = slice(confirmSignatures, 65, 65);
+            check1 = recover(txHash, sig1) == recover(confirmationHash, confSig1);
         }
-        return check1 && check2;
+        return check0 && check1;
     }
 
     function recover(bytes32 hash, bytes sig)

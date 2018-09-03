@@ -143,13 +143,13 @@ contract RootChain is Ownable {
     // @param txBytes raw transaction bytes
     // @param proof   merkle proof of inclusion in the child chain
     // @param sigs    signatures of transaction including confirm signatures
-    function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
+    function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures)
         public
         payable
     {
         RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 17, "incorrect tx length");
-        require(msg.sender == txList[12 + 2 * txPos[2]].toAddress(), "address mismatch");
+        require(msg.sender == txList[12 + 2 * txPos[2]].toAddress(), "caller must own this utxo");
         require(msg.value >= minExitBond, "insufficient exit bond");
         if (msg.value > minExitBond) {
             uint256 excess = msg.value.sub(minExitBond);
@@ -160,7 +160,11 @@ contract RootChain is Ownable {
         // check proof and signatures
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
-        require(txHash.checkSigs(childChain[txPos[0]].root, txList[0].toUint(), txList[5].toUint(), sigs),
+        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
+        require(txHash.checkSigs(confirmationHash,
+                                 txList[0].toUint() > 0 || txList[3].toUint() > 0, // existence of input0. Either a deposit or utxo
+                                 txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
+                                 sigs, confirmSignatures),
                 "mismatch in transaction and confirm sigatures");
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "invalid merkle proof");
 
@@ -168,12 +172,12 @@ contract RootChain is Ownable {
         validateTransactionExitInputs(txList);
 
         uint256 priority = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        require(txExits[priority].state == 0);
+        require(txExits[priority].state == 0, "this exit has already been started, challenged, or finalized");
 
         txExitQueue.insert(priority);
-        uint amount = txList[9 + 2 * txPos[2]].toUint();
+        uint amount = txList[13 + 2 * txPos[2]].toUint();
         txExits[priority] = exit({
-            owner: txList[8 + 2 * txPos[2]].toAddress(),
+            owner: txList[12 + 2 * txPos[2]].toAddress(),
             amount: amount,
             created_at: block.timestamp,
             state: 1
@@ -190,9 +194,9 @@ contract RootChain is Ownable {
         view
     {
         for (uint256 i = 0; i < 2; i++) {
-            uint256 txInputBlkNum = txList[7*i + 0].toUint();
-            uint256 txInputIndex = txList[7*i + 1].toUint();
-            uint256 txInputOutIndex = txList[7*i + 2].toUint();
+            uint256 txInputBlkNum = txList[6*i + 0].toUint();
+            uint256 txInputIndex = txList[6*i + 1].toUint();
+            uint256 txInputOutIndex = txList[6*i + 2].toUint();
             uint256 txInputPriority = blockIndexFactor*txInputBlkNum + txInputIndex*txInputIndex + txInputOutIndex;
 
             // this UTXO's inputs must have been challenged or not exited
