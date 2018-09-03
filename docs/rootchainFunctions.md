@@ -26,7 +26,7 @@ struct depositStruct {
 <br />
 
 ```solidity
-function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
+function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures)
 ```
 `txPos` follows the convention - `[blockNumber, transcationIndex, outputIndex]`
 
@@ -35,6 +35,7 @@ Exit procedure for exiting a utxo on the child chain(not deposits). The `txPos` 
 A valid exit satisfies the following properties:
   - Exit has not previously been finalized or challenged
   - The creator of this exit posted a sufficient bond. Excess funds are refunded the the senders rootchain balance and are immediately withdrawable.
+  - If present, the confirm signatures are correct and signed by the same address which signed the corresponding input signatures.
 
 <br />
 
@@ -42,8 +43,8 @@ A valid exit satisfies the following properties:
 function startDepositExit(uint256 nonce)
 ```
 Exit procdure for deposits that have not been spent. Deposits are purely identified by their `nonce`. The caller's address must match the owner of the deposit.
-A valid exit must satisfy the same constraints listed above for normal utxo exits. Deposits exits are also collected into their own seperate queue from normal transcations. This is because of the differing
-priority calculation. The priority of a deposit is purely it's nonce while the priority of a utxo is calculated from it's location in the child chain.
+A valid exit must satisfy the same constraints listed above for normal utxo exits except confirm signatures. Deposits exits are also collected into their own seperate queue from normal transcations.
+This is because of the differing priority calculation. The priority of a deposit is purely it's nonce while the priority of a utxo is calculated from it's location in the child chain.
 
 <br />
 

@@ -29,12 +29,13 @@ NewOwner, Denom1, NewOwner, Denom2, Fee]
 See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/docs/rootchainFunctions.md) for a more detailed description of the smart contract functions.
 
 ### Testing
-1. git clone https://github.com/fourthstate/plasma-mvp-rootchain
-2. cd plasma-mvp-rootchain
-3. npm install
-4. npm install -g truffle ganache-cli  // if not installed ready
-5. truffle test
+1. ``git clone https://github.com/fourthstate/plasma-mvp-rootchain``
+2. ``cd plasma-mvp-rootchain``
+3. ``npm install``
+4. ``npm install -g truffle ganache-cli``  // if not installed already
+5. ``ganache-cli`` // run as a background process
+5. ``truffle test``
 
 ### Contributing
 
-See our [contribution guidelines](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/CONTRIBUTING.md)
+See our [contribution guidelines](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/CONTRIBUTING.md). Join our [Discord Server](https://discord.gg/yxZ29kR).
