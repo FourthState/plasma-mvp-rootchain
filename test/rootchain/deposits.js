@@ -91,6 +91,9 @@ contract('[RootChain] Deposits', async (accounts) => {
 
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, 100 + minExitBond, "deposit exit not finalized after a week");
+
+        let exit = await rootchain.getDepositExit.call(nonce);
+        assert.equal(exit[3], 3, "exit's state not set to finalized");
     });
 
     it("Cannot reopen a finalized deposit exit", async () => {

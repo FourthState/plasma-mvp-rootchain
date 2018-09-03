@@ -104,7 +104,7 @@ Getter for the block header and when the block was submitted
 <br />
 
 ```solidity
-function getExit(uint256 priority) returns (address owner, uint256 amount, uint256[3] utxoPos, uint256 created_at, uint8 state)
+function getTransactionExit(uint256 priority) returns (address owner, uint256 amount, uint256[3] utxoPos, uint256 created_at, uint8 state)
 ```
 Getter for all information about an exit
 

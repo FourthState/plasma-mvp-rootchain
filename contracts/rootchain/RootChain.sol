@@ -403,7 +403,7 @@ contract RootChain is Ownable {
         return (childChain[blockNumber].root, childChain[blockNumber].created_at);
     }
 
-    function getExit(uint256 priority)
+    function getTransactionExit(uint256 priority)
         public
         view
         returns (address, uint256, uint256, uint8)
