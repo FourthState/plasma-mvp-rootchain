@@ -77,7 +77,7 @@ library Validator {
     // @param start  start of the slice relative to `_bytes`
     // @param len    length of the sliced byte array
     function slice(bytes _bytes, uint start, uint len)
-            internal
+            private
             pure
             returns (bytes)
         {
