@@ -26,7 +26,7 @@ struct depositStruct {
 <br />
 
 ```solidity
-function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
+function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
 ```
 `txPos` follows the convention - `[blockNumber, transcationIndex, outputIndex]`
 
@@ -48,7 +48,7 @@ priority calculation. The priority of a deposit is purely it's nonce while the p
 <br />
 
 ```solidity
-function challengeExit(uint256[3] txPos, uint256[2] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignature)
+function challengeTransactionExit(uint256[3] txPos, uint256[2] newTxPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignature)
 ```
 `txPos` and `newTxPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`
 
@@ -69,7 +69,7 @@ caller with the exit bond.
 <br />
 
 ```solidity
-function finalizeExits()
+function finalizeTransactionExits()
 ```
 Process all "finalized" exits in the priority queue. "Finalized" exits are those that have been in the priority queue for at least one week and have not been proven to be malicious through a challenge.
 

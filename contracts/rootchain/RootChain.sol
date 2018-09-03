@@ -22,12 +22,16 @@ contract RootChain is Ownable {
 
     event AddedToBalances(address owner, uint256 amount);
     event BlockSubmitted(bytes32 root, uint256 position);
-    event ChallengedExit(uint priority, address owner, uint256 amount);
-    event ChallengedDepositExit(uint nonce, address owner, uint256 amount);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce);
-    event FinalizedExit(uint priority, address owner, uint256 amount);
-    event ExitStarted(uint priority, address owner, uint256 amount);
-    event DepositExitStarted(uint nonce, address owner, uint256 amount);
+
+    event ChallengedTransactionExit(uint priority, address owner, uint256 amount);
+    event ChallengedDepositExit(uint nonce, address owner, uint256 amount);
+
+    event FinalizedTransactionExit(uint priority, address owner, uint256 amount);
+    event FinalizedDepositExit(uint priority, address owner, uint256 amount);
+
+    event StartedTransactionExit(uint priority, address owner, uint256 amount);
+    event StartedDepositExit(uint nonce, address owner, uint256 amount);
 
     /*
      *  Storage
@@ -70,7 +74,7 @@ contract RootChain is Ownable {
 
     // constants
     uint256 public constant txIndexFactor = 10;
-    uint256 public constant blockIndexFactor = 100000;
+    uint256 public constant blockIndexFactor = 1000000;
 
     constructor() public
     {
@@ -130,7 +134,7 @@ contract RootChain is Ownable {
             state: 1
         });
 
-        emit DepositExitStarted(nonce, owner, amount);
+        emit StartedDepositExit(nonce, owner, amount);
     }
 
     // Transaction encoding:
@@ -183,7 +187,7 @@ contract RootChain is Ownable {
             state: 1
         });
 
-        emit ExitStarted(priority, msg.sender, amount);
+        emit StartedTransactionExit(priority, msg.sender, amount);
     }
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
@@ -272,7 +276,7 @@ contract RootChain is Ownable {
 
         // reflect challenged state
         txExits[priority].state = 2;
-        emit ChallengedExit(priority, exit_.owner, exit_.amount);
+        emit ChallengedTransactionExit(priority, exit_.owner, exit_.amount);
     }
 
     function ensureMatchingInputs(uint256[3] txPos, RLPReader.RLPItem[] memory txList)
@@ -325,13 +329,15 @@ contract RootChain is Ownable {
                 balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
                 totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
 
-                if (isDeposits)
+                if (isDeposits) {
                     depositExits[priority].state = 3;
-                else
+                    emit FinalizedDepositExit(priority, currentExit.owner, amountToAdd);
+                } else {
                     txExits[priority].state = 3;
+                    emit FinalizedTransactionExit(priority, currentExit.owner, amountToAdd);
+                }
 
                 emit AddedToBalances(currentExit.owner, amountToAdd);
-                emit FinalizedExit(priority, currentExit.owner, amountToAdd);
 
                 // move onto the next oldest exit
                 queue.delMin();
