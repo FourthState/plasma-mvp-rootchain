@@ -15,17 +15,18 @@ contract('[RootChain] Transactions', async (accounts) => {
     // deposit from accounts[0] and mine the first block which
     // includes a spend of that full deposit to account[1] (first input)
     let amount = 100;
+    let depositNonce;
     let txPos, txBytes;
     let sigs, confirmSignatures;
     beforeEach(async () => {
         rootchain = await RootChain.new({from: authority});
         
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
+        depositNonce = (await rootchain.depositNonce.call()).toNumber();
         await rootchain.deposit(accounts[0], {from: accounts[0], value: amount});
 
         // deposit is the first input. spending entire deposit to accounts[1]
         txBytes = Array(17).fill(0);
-        txBytes[3] = nonce; txBytes[12] = accounts[1]; txBytes[13] = amount;
+        txBytes[3] = depositNonce; txBytes[12] = accounts[1]; txBytes[13] = amount;
         txBytes = RLP.encode(txBytes);
         let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
@@ -123,6 +124,79 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         if (!err)
             assert.fail("reopened the same exit after already finalized");
+    });
 
+    it("Cannot exit a utxo with a finalized deposit input", async () => {
+        await rootchain.startDepositExit(depositNonce, {from: accounts[0], value: minExitBond});
+
+        let err;
+        [err] = await catchError(rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond}));
+
+        if (!err)
+            assert.fail("started an exit with an input who has a pending exit state");
+    });
+
+    it("Can challenge a spend of this utxo", async () => {
+        // spend all funds to account[2] and mine the block
+        // deposit is the first input. spending entire deposit to accounts[1]
+        let newTxBytes = Array(17).fill(0);
+        newTxBytes[0] = txPos[0]; newTxBytes[1] = txPos[1]; newTxBytes[2] = txPos[2]; // first input
+        newTxBytes[12] = accounts[2]; newTxBytes[13] = amount; // first output
+        newTxBytes = RLP.encode(newTxBytes);
+        let txHash = web3.sha3(newTxBytes.toString('hex'), {encoding: 'hex'});
+
+        // create signature by deposit owner. Second signature should be zero
+        let newSigs = await web3.eth.sign(accounts[1], txHash);
+        newSigs += Buffer.alloc(65).toString('hex');
+
+        // include this transaction in the next block
+        let merkleHash = web3.sha3(txHash.slice(2) + newSigs.slice(2), {encoding: 'hex'});
+        let root = merkleHash;
+        for (let i = 0; i < 16; i++)
+            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2)
+        let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
+        mineNBlocks(5); // presumed finality before submitting the block
+        await rootchain.submitBlock(toHex(root), {from: authority});
+
+        // create the confirm sig
+        let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
+        let newConfirmSignatures = await web3.eth.sign(accounts[1], confirmHash);
+        let confirmsig = newConfirmSignatures;
+        newConfirmSignatures += Buffer.alloc(65).toString('hex'); // empty second confirmsig
+
+        // start an exit of the original utxo
+        await rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond});
+
+        // try to exit this new utxo and realize it cannot. child has a pending exit
+        let err;
+        [err] = await catchError(rootchain.startTransactionExit([blockNum, 0, 0],
+            toHex(newTxBytes), toHex(proof), toHex(newSigs), toHex(newConfirmSignatures),
+            {from: accounts[2], value: minExitBond}));
+        if (!err)
+            assert.fail("started exit when the child has a pending exit");
+
+        // matching input required
+        [err] = await catchError(rootchain.challengeTransactionExit([txPos[0], 0, 1], [blockNum, 0, 0],
+            toHex(newTxBytes), toHex(newSigs), toHex(proof), toHex(newConfirmSignatures.substring(0,65),
+            {from: accounts[2]})));
+        if (!err)
+            assert.fail("challenged with transaction that is not a direct child");
+
+        // challenge
+        await rootchain.challengeTransactionExit(txPos, [blockNum, 0, 0],
+            toHex(newTxBytes), toHex(newSigs), toHex(proof), toHex(confirmsig),
+            {from: accounts[2]});
+
+        let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
+        assert.equal(balance, minExitBond, "exit bond not rewarded to challenger");
+
+        // start an exit of the new utxo after successfully challenging
+        await rootchain.startTransactionExit([blockNum, 0, 0],
+            toHex(newTxBytes), toHex(proof), toHex(newSigs), toHex(newConfirmSignatures),
+            {from: accounts[2], value: minExitBond});
     });
 });

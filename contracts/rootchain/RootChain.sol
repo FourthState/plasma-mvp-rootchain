@@ -200,12 +200,12 @@ contract RootChain is Ownable {
         for (uint256 i = 0; i < 2; i++) {
             uint state;
             uint depositNonce_ = txList[6*i + 3].toUint();
-            if (depositNonce == 0) { 
-                uint256 txInputBlkNum = txList[6*i + 0].toUint();
-                uint256 txInputIndex = txList[6*i + 1].toUint();
-                uint256 txInputOutIndex = txList[6*i + 2].toUint();
-                uint256 txInputPriority = blockIndexFactor*txInputBlkNum + txInputIndex*txInputIndex + txInputOutIndex;
-                state = txExits[txInputPriority].state;
+            if (depositNonce_ == 0) { 
+                uint256 blkNum = txList[6*i + 0].toUint();
+                uint256 inputIndex = txList[6*i + 1].toUint();
+                uint256 outputIndex = txList[6*i + 2].toUint();
+                uint256 priority = blockIndexFactor*blkNum + txIndexFactor*inputIndex + outputIndex;
+                state = txExits[priority].state;
             } else
                 state = depositExits[depositNonce_].state;
 
@@ -232,8 +232,7 @@ contract RootChain is Ownable {
         require(exit_.state == 1, "no pending exit to challenge");
 
         bytes32 root = childChain[newTxPos[0]].root;
-        bytes32 txHash = keccak256(txBytes);
-        bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
+        bytes32 merkleHash = keccak256(abi.encodePacked(keccak256(txBytes), sigs));
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
         require(merkleHash.checkMembership(newTxPos[1], root, proof), "incorrect merkle proof");
@@ -285,7 +284,7 @@ contract RootChain is Ownable {
 
     function ensureMatchingInputs(uint256[3] txPos, RLPReader.RLPItem[] memory txList)
         private
-        view
+        pure
     {
         string memory errorMsg = "mismatch in the input and parent transaction";
 
