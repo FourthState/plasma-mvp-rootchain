@@ -133,7 +133,6 @@ contract RootChain is Ownable {
         emit DepositExitStarted(nonce, owner, amount);
     }
 
-
     // Transaction encoding:
     // [Blknum0, TxIndex0, Oindex0, depositNonce0, Amount0, ConfirmSig0
     //  Blknum1, TxIndex1, Oindex1, depositNonce1, Amount1, ConfirmSig1
@@ -143,6 +142,8 @@ contract RootChain is Ownable {
     // @param txBytes raw transaction bytes
     // @param proof   merkle proof of inclusion in the child chain
     // @param sigs    signatures of transaction including confirm signatures
+    // @param confirmSignatures confirm signatures sent by the owners of the inputs acknowledging the spend. 
+    // @notice `confirmSignatures` and `ConfirmSig0`/`ConfirmSig1` are unrelated to each other.
     function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures)
         public
         payable
@@ -164,8 +165,7 @@ contract RootChain is Ownable {
         require(txHash.checkSigs(confirmationHash,
                                  txList[0].toUint() > 0 || txList[3].toUint() > 0, // existence of input0. Either a deposit or utxo
                                  txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
-                                 sigs, confirmSignatures),
-                "mismatch in transaction and confirm sigatures");
+                                 sigs, confirmSignatures), "mismatch in transaction and confirm sigatures");
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "invalid merkle proof");
 
         // check that the UTXO's two direct inputs have not been previously exited
