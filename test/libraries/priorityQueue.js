@@ -5,8 +5,8 @@ let { catchError } = require('../utilities.js');
 
 contract('PriorityQueue', async (accounts) => {
     let instance;
-    before (async () => {
-        instance = await PriorityQueue_Test.deployed();
+    before(async () => {
+        instance = await PriorityQueue_Test.new();
     });
 
     it("Add then remove", async () => {
