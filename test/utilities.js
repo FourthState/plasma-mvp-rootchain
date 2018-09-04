@@ -17,8 +17,8 @@ let toHex = function(buffer) {
     return '0x' + buffer;
 };
 
-let generateMerkleRootAndProof = function(leaves, depth, txIndex) {
-    return generateMerkleRootAndProofHelper(leaves, depth, txIndex, 0);
+let generateMerkleRootAndProof = function(leaves, txIndex) {
+    return generateMerkleRootAndProofHelper(leaves, 16, txIndex, 0);
 };
 
 let generateMerkleRootAndProofHelper = function(leaves, depth, txIndex, zeroHashesIndex) {

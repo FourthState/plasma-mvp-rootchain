@@ -15,7 +15,7 @@ contract('Validator', async (accounts) => {
         let leafHash = web3.sha3("input_seed", {encoding: 'hex'});
 
         let root, proof;
-        [root, proof] = generateMerkleRootAndProof([leafHash], 16, 0);
+        [root, proof] = generateMerkleRootAndProof([leafHash], 0);
 
         assert.isTrue(await instance.checkMembership.call(toHex(leafHash), 0, toHex(root), toHex(proof)), "Didn't prove membership.");
     });
@@ -24,7 +24,7 @@ contract('Validator', async (accounts) => {
         let leafHash = web3.sha3("input_seed", {encoding: 'hex'});
 
         let root, proof;
-        [root, proof] = generateMerkleRootAndProof([leafHash], 16, 0);
+        [root, proof] = generateMerkleRootAndProof([leafHash], 0);
 
         let badLeafHash = web3.sha3("wrong_input_seed", {encoding: 'hex'});
         assert.isFalse(await instance.checkMembership.call(toHex(badLeafHash), 0, toHex(root), toHex(proof)), "Returned true on wrong leaf.");
@@ -44,13 +44,13 @@ contract('Validator', async (accounts) => {
         let leafHash3 = web3.sha3("input_seed_3", {encoding: 'hex'});
 
         let root, proof;
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 16, 0);
+        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 0);
         assert.isTrue(await instance.checkMembership.call(toHex(leafHash1), 0, toHex(root), toHex(proof)), "Didn't prove membership.");
 
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 16, 1);
+        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 1);
         assert.isTrue(await instance.checkMembership.call(toHex(leafHash2), 1, toHex(root), toHex(proof)), "Didn't prove membership.");
 
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 16, 2);
+        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 2);
         assert.isTrue(await instance.checkMembership.call(toHex(leafHash3), 2, toHex(root), toHex(proof)), "Didn't prove membership.");
     });
 
