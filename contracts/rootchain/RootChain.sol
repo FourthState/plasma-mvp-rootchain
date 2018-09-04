@@ -21,16 +21,16 @@ contract RootChain is Ownable {
      */
 
     event AddedToBalances(address owner, uint256 amount);
-    event BlockSubmitted(bytes32 root, uint256 position);
+    event BlockSubmitted(bytes32 root, uint256 blockNumber);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce);
 
-    event ChallengedTransactionExit(uint priority, address owner, uint256 amount);
+    event ChallengedTransactionExit(uint position, address owner, uint256 amount);
     event ChallengedDepositExit(uint nonce, address owner, uint256 amount);
 
-    event FinalizedTransactionExit(uint priority, address owner, uint256 amount);
+    event FinalizedTransactionExit(uint position, address owner, uint256 amount);
     event FinalizedDepositExit(uint priority, address owner, uint256 amount);
 
-    event StartedTransactionExit(uint priority, address owner, uint256 amount);
+    event StartedTransactionExit(uint position, address owner, uint256 amount);
     event StartedDepositExit(uint nonce, address owner, uint256 amount);
 
     /*
@@ -179,16 +179,22 @@ contract RootChain is Ownable {
         // check that the UTXO's two direct inputs have not been previously exited
         validateTransactionExitInputs(txList);
 
+        uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
+        uint256 exitable_at = Math.max(childChain[txPos[0]].created_at + 2 weeks, block.timestamp + 1 weeks);
+        uint256 priority = exitable_at << 128 | position;
+        
+        require(txExits[position].state == 0, "this exit has already been started, challenged, or finalized");
+
         txExitQueue.insert(priority);
         uint amount = txList[13 + 2 * txPos[2]].toUint();
-        txExits[priority] = exit({
+        txExits[position] = exit({
             owner: txList[12 + 2 * txPos[2]].toAddress(),
             amount: amount,
             created_at: block.timestamp,
             state: ExitState.Pending
         });
 
-        emit StartedTransactionExit(priority, msg.sender, amount);
+        emit StartedTransactionExit(position, msg.sender, amount);
     }
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
@@ -205,8 +211,8 @@ contract RootChain is Ownable {
                 uint256 blkNum = txList[6*i + 0].toUint();
                 uint256 inputIndex = txList[6*i + 1].toUint();
                 uint256 outputIndex = txList[6*i + 2].toUint();
-                uint256 priority = blockIndexFactor*blkNum + txIndexFactor*inputIndex + outputIndex;
-                state = txExits[priority].state;
+                uint256 position = blockIndexFactor*blkNum + txIndexFactor*inputIndex + outputIndex;
+                state = txExits[position].state;
             } else
                 state = depositExits[depositNonce_].state;
 
@@ -256,8 +262,8 @@ contract RootChain is Ownable {
         require(txList.length == 17, "incorrect tx list");
 
         // transaction to be challenged should have a pending exit
-        uint256 priority = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
-        exit memory exit_ = txExits[priority];
+        uint256 position = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
+        exit memory exit_ = txExits[position];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
         // confirm challenging transcations inclusion and challenge the exiting transaction
@@ -274,7 +280,7 @@ contract RootChain is Ownable {
 
         // reflect challenged state
         txExits[priority].state = ExitState.Challenged;
-        emit ChallengedTransactionExit(priority, exit_.owner, exit_.amount);
+        emit ChallengedTransactionExit(position, exit_.owner, exit_.amount);
     }
 
     function finalizeDepositExits() public { finalize(depositExitQueue, true); }
@@ -290,7 +296,17 @@ contract RootChain is Ownable {
 
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = queue.getMin();
-        exit memory currentExit = isDeposits ? depositExits[priority] : txExits[priority];
+        exit memeory currentExit;
+        uint256 position;
+        if (isDeposits) {
+            currentExit = depositExits[priority];
+        } else {
+            // retrieve the right 128 bits from the priority to obtain the position
+            assembly {
+   			    position := and(priority, div(not(0x0), exp(256, 16)))
+		    }
+            currentExit = txExits[position];
+        }
 
         /*
         * Conditions:
@@ -316,7 +332,7 @@ contract RootChain is Ownable {
                     emit FinalizedDepositExit(priority, currentExit.owner, amountToAdd);
                 } else {
                     txExits[priority].state = ExitState.Finalized;
-                    emit FinalizedTransactionExit(priority, currentExit.owner, amountToAdd);
+                    emit FinalizedTransactionExit(position, currentExit.owner, amountToAdd);
                 }
 
                 emit AddedToBalances(currentExit.owner, amountToAdd);
@@ -331,7 +347,15 @@ contract RootChain is Ownable {
 
             // move onto the next oldest exit
             priority = queue.getMin();
-            currentExit = isDeposits ? depositExits[priority] : txExits[priority];
+            if (isDeposits) {
+                currentExit = depositExits[priority];
+            } else {
+                // retrieve the right 128 bits from the priority to obtain the position
+                assembly {
+   			        position := and(priority, div(not(0x0), exp(256, 16)))
+		        }
+                currentExit = txExits[position];
+            }
         }
     }
 
@@ -381,12 +405,12 @@ contract RootChain is Ownable {
         return (childChain[blockNumber].root, childChain[blockNumber].created_at);
     }
 
-    function getTransactionExit(uint256 priority)
+    function getTransactionExit(uint256 position)
         public
         view
         returns (address, uint256, uint256, ExitState)
     {
-        exit memory exit_ = txExits[priority];
+        exit memory exit_ = txExits[position];
         return (exit_.owner, exit_.amount, exit_.created_at, exit_.state);
     }
 
