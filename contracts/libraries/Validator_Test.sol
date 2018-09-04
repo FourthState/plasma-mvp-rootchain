@@ -12,6 +12,7 @@ contract Validator_Test {
 
   function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
       public
+      pure
       returns (bool)
   {
       return leaf.checkMembership(index, rootHash, proof);
@@ -19,6 +20,7 @@ contract Validator_Test {
 
   function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input0, bool input1, bytes sigs, bytes confirmSignatures)
       public
+      pure
       returns (bool)
   {
       return txHash.checkSigs(confirmationHash, input0, input1, sigs, confirmSignatures);
@@ -26,6 +28,7 @@ contract Validator_Test {
 
   function recover(bytes32 hash, bytes sig)
       public
+      pure
       returns (address)
   {
       return hash.recover(sig);
