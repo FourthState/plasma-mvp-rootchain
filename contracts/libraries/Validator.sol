@@ -6,7 +6,7 @@ library Validator {
     // @param leaf     a leaf of the tree
     // @param index    position of this leaf in the tree that is zero indexed
     // @param rootHash block header of the merkle tree
-    // @param proof    sequence of hashes from the leaf to check against the root 
+    // @param proof    sequence of hashes from the leaf to check against the root
     function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
         internal
         pure
@@ -47,12 +47,12 @@ library Validator {
         bytes memory sig0 = slice(sigs, 0, 65);
         bytes memory sig1 = slice(sigs, 65, 65);
         bytes memory confSig0 = slice(confirmSignatures, 0, 65);
-        
+
         bool check0 = true;
         bool check1 = true;
         if (input0) {
             check0 = recover(txHash, sig0) == recover(confirmationHash, confSig0);
-        } 
+        }
         if (input1) {
             bytes memory confSig1 = slice(confirmSignatures, 65, 65);
             check1 = recover(txHash, sig1) == recover(confirmationHash, confSig1);
@@ -65,7 +65,7 @@ library Validator {
         pure
         returns (address)
     {
-        
+
         hash = ECRecovery.toEthSignedMessageHash(hash);
         return ECRecovery.recover(hash, sig);
     }
@@ -81,17 +81,17 @@ library Validator {
             pure
             returns (bytes)
         {
-            
+
             bytes memory tempBytes;
-            
+
             assembly {
                 tempBytes := mload(0x40)
-                
+
                 let lengthmod := and(len, 31)
-                
+
                 let mc := add(tempBytes, lengthmod)
                 let end := add(mc, len)
-                
+
                 for {
                     let cc := add(add(_bytes, lengthmod), start)
                 } lt(mc, end) {
@@ -100,14 +100,14 @@ library Validator {
                 } {
                     mstore(mc, mload(cc))
                 }
-                
+
                 mstore(tempBytes, len)
-                
+
                 //update free-memory pointer
                 //allocating the array padded to 32 bytes like the compiler does now
                 mstore(0x40, and(add(mc, 31), not(31)))
             }
-            
+
             return tempBytes;
     }
 }

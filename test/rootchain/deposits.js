@@ -125,11 +125,11 @@ contract('[RootChain] Deposits', async (accounts) => {
         sigs = sigs + Buffer.alloc(65).toString('hex');
 
         let merkleHash = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
-        
+
         // include this transaction in the next block
         let root = merkleHash;
         for (let i = 0; i < 16; i++)
-            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2)
+            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2);
         let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5); // presumed finality before submitting the block
         await rootchain.submitBlock(toHex(root), {from: authority});
@@ -174,7 +174,7 @@ contract('[RootChain] Deposits', async (accounts) => {
         sigs = sigs + (await web3.eth.sign(accounts[2], txHash)).slice(2);
 
         let merkleHash = web3.sha3(txHash.slice(2) + sigs, {encoding: 'hex'});
-        
+
         // include this transaction in the next block
         let root = merkleHash;
         for (let i = 0; i < 16; i++)

@@ -31,10 +31,10 @@ contract Validator_Test {
       return hash.recover(sig);
   }
 
-  /* function slice(bytes _bytes, uint start, uint len)
+  function slice(bytes _bytes, uint start, uint len)
       public
       returns (bytes)
   {
       return Validator.slice(_bytes, start, len);
-  } */
+  }
 }
