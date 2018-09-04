@@ -12,7 +12,7 @@ contract('Validator', async (accounts) => {
     });
 
     it("Check membership of merkle tree with one transaction", async () => {
-        let leafHash = web3.sha3("input_seed", {encoding: 'hex'});
+        let leafHash = web3.sha3("inputSeed1eed", {encoding: 'hex'});
 
         let root, proof;
         [root, proof] = generateMerkleRootAndProof([leafHash], 0);
@@ -21,17 +21,17 @@ contract('Validator', async (accounts) => {
     });
 
     it("Test check membership on bad inputs", async () => {
-        let leafHash = web3.sha3("input_seed", {encoding: 'hex'});
+        let leafHash = web3.sha3("inputSeed", {encoding: 'hex'});
 
         let root, proof;
         [root, proof] = generateMerkleRootAndProof([leafHash], 0);
 
-        let badLeafHash = web3.sha3("wrong_input_seed", {encoding: 'hex'});
+        let badLeafHash = web3.sha3("wrongInputSeed", {encoding: 'hex'});
         assert.isFalse(await instance.checkMembership.call(toHex(badLeafHash), 0, toHex(root), toHex(proof)), "Returned true on wrong leaf.");
 
         assert.isFalse(await instance.checkMembership.call(toHex(leafHash), 1, toHex(root), toHex(proof)), "Returned true on wrong index.");
 
-        let badRoot = web3.sha3("wrong_root", {encoding: 'hex'});
+        let badRoot = web3.sha3("wrongRoot", {encoding: 'hex'});
         assert.isFalse(await instance.checkMembership.call(toHex(leafHash), 0, toHex(badRoot), toHex(proof)), "Returned true on wrong root.");
 
         let badProof = "0".repeat(proof.length);
@@ -39,30 +39,56 @@ contract('Validator', async (accounts) => {
     });
 
     it("Check membership of merkle tree with multiple transactions", async () => {
-        let leafHash1 = web3.sha3("input_seed_1", {encoding: 'hex'});
-        let leafHash2 = web3.sha3("input_seed_2", {encoding: 'hex'});
-        let leafHash3 = web3.sha3("input_seed_3", {encoding: 'hex'});
+        let leafHash1 = web3.sha3("inputSeed1", {encoding: 'hex'});
+        let leafHash2 = web3.sha3("inputSeed2", {encoding: 'hex'});
+        let leafHash3 = web3.sha3("inputSeed3", {encoding: 'hex'});
+        let leafHash4 = web3.sha3("inputSeed4", {encoding: 'hex'});
+        let leafHash5 = toHex(zeroHashes[0]);
 
         let root, proof;
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 0);
+        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 0);
         assert.isTrue(await instance.checkMembership.call(toHex(leafHash1), 0, toHex(root), toHex(proof)), "Didn't prove membership.");
 
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 1);
+        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 1);
         assert.isTrue(await instance.checkMembership.call(toHex(leafHash2), 1, toHex(root), toHex(proof)), "Didn't prove membership.");
 
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3], 2);
+        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 2);
         assert.isTrue(await instance.checkMembership.call(toHex(leafHash3), 2, toHex(root), toHex(proof)), "Didn't prove membership.");
+
+        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 3);
+        assert.isTrue(await instance.checkMembership.call(toHex(leafHash4), 3, toHex(root), toHex(proof)), "Didn't prove membership.");
+
+        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 4);
+        assert.isTrue(await instance.checkMembership.call(toHex(leafHash5), 4, toHex(root), toHex(proof)), "Didn't prove membership.");
     });
 
     it("Test Slice", async () => {
-        let input_hash = web3.sha3("input_seed", {encoding: 'hex'});
+        let inputHash = web3.sha3("inputSeed", {encoding: 'hex'});
 
-        assert.equal((await instance.slice.call(toHex(input_hash), 0, 16)).toString(), toHex(input_hash.substring(2,34)), "Didn't git first half of the hash")
-        assert.equal((await instance.slice.call(toHex(input_hash), 16, 16)).toString(), toHex(input_hash.substring(34)), "Didn't git second half of the hash")
+        assert.equal((await instance.slice.call(toHex(inputHash), 0, 16)).toString(), toHex(inputHash.substring(2,34)), "Didn't git first half of the hash")
+        assert.equal((await instance.slice.call(toHex(inputHash), 16, 16)).toString(), toHex(inputHash.substring(34)), "Didn't git second half of the hash")
 
-        assert.equal((await instance.slice.call(toHex(input_hash), 0, 8)).toString(), toHex(input_hash.substring(2,18)), "Didn't git first quarter of the hash")
-        assert.equal((await instance.slice.call(toHex(input_hash), 8, 24)).toString(), toHex(input_hash.substring(18)), "Didn't git rest of the hash")
+        assert.equal((await instance.slice.call(toHex(inputHash), 0, 8)).toString(), toHex(inputHash.substring(2,18)), "Didn't git first quarter of the hash")
+        assert.equal((await instance.slice.call(toHex(inputHash), 8, 24)).toString(), toHex(inputHash.substring(18)), "Didn't git rest of the hash")
     })
+
+    it("Test recover", async () => {
+
+        // create tx hash
+        let txHash = web3.sha3("inputSeed", {encoding: 'hex'});
+
+        let signer1 = accounts[1];
+        // create tx sigs
+        let txSigs1 = await web3.eth.sign(signer1, txHash);
+
+        let signer2 = accounts[2];
+        // create tx sigs
+        let txSigs2 = await web3.eth.sign(signer2, txHash);
+
+        assert.equal((await instance.recover.call(txHash, txSigs1)).toString(), signer1, "Recovered incorrect address.");
+        assert.equal((await instance.recover.call(txHash, txSigs2)).toString(), signer2, "Recovered incorrect address.");
+        assert.notEqual((await instance.recover.call(txHash, txSigs1)).toString(), (await instance.recover.call(txHash, txSigs2)).toString(), "Recovered the same address.");
+    });
 
     it("Test checkSigs naive", async () => {
         let signer = accounts[5];
@@ -82,7 +108,7 @@ contract('Validator', async (accounts) => {
 
         let input0 = true;
         let input1 = false;
-        
+
         // assert valid confirmSignatures will pass checkSigs
         assert.isTrue(await instance.checkSigs.call(txHash, toHex(confirmationHash), input0, input1, toHex(sigs), toHex(confirmSignatures)), "checkSigs should pass.");
         // assert invalid confirmSignatures will not pass checkSigs
@@ -106,10 +132,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + sigOverTxHash.slice(2), {encoding: 'hex'});
-        let rootHash = merkleHash;
-        for (let i = 0; i < 16; i++) {
-            rootHash = web3.sha3(rootHash + zeroHashes[i], {encoding: 'hex'}).slice(2);
-        }
+        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
 
         // create confirmSignatures
@@ -137,10 +160,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + sigOverTxHash, {encoding: 'hex'});
-        let rootHash = merkleHash;
-        for (let i = 0; i < 16; i++) {
-            rootHash = web3.sha3(rootHash + zeroHashes[i], {encoding: 'hex'}).slice(2);
-        }
+        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
 
         // create confirmSignatures
@@ -174,10 +194,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + sigOverTxHash.slice(2), {encoding: 'hex'});
-        let rootHash = merkleHash;
-        for (let i = 0; i < 16; i++) {
-            rootHash = web3.sha3(rootHash + zeroHashes[i], {encoding: 'hex'}).slice(2);
-        }
+        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
         // create confirmSignatures
         let confirmSignatures = await web3.eth.sign(signer0, confirmationHash);
@@ -205,6 +222,7 @@ contract('Validator', async (accounts) => {
         let signer0 = accounts[4];
         let signer1 = accounts[5];
         let invalidSigner = accounts[6];
+        let invalidSigner2 = accounts[7];
 
         // second tx sig is invalid
         let sigs = await web3.eth.sign(signer0, txHash);
@@ -213,22 +231,22 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + validSigs.slice(2), {encoding: 'hex'});
-        let rootHash = merkleHash;
-        for (let i = 0; i < 16; i++) {
-            rootHash = web3.sha3(rootHash + zeroHashes[i], {encoding: 'hex'}).slice(2);
-        }
+        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
         // create confirmSignatures
         let confirmSignatures = await web3.eth.sign(signer0, confirmationHash);
         confirmSignatures += await web3.eth.sign(signer1, confirmationHash).slice(2);
+        // create invalid confirmSignatures
+        let invalidConfirmSignatures = await web3.eth.sign(invalidSigner, confirmationHash);
+        invalidConfirmSignatures += await web3.eth.sign(invalidSigner2, confirmationHash).slice(2);
 
         // create input0 and input1
         let input0 = true;
         let input1 = true;
 
         assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), input0, input1, toHex(invalidSigs), toHex(confirmSignatures)), "checkSigs should not pass given invalid transaction sigs.");
+        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), input0, input1, toHex(validSigs), toHex(invalidConfirmSignatures)), "checkSigs should not pass given invalid transaction sigs.");
 
         assert.isTrue(await instance.checkSigs.call(txHash, toHex(confirmationHash), input0, input1, toHex(validSigs), toHex(confirmSignatures)), "checkSigs should pass for valid transaction sigs.");
     });
 });
-
