@@ -63,8 +63,8 @@ contract('[RootChain] Transactions', async (accounts) => {
             toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
             {from: accounts[1], value: minExitBond});
 
-        let priority = 1000000*txPos[0];
-        assert.equal(tx.logs[0].args.priority.toNumber(), priority, "StartedTransactionExit event emits incorrect priority");
+        let position = 1000000*txPos[0];
+        assert.equal(tx.logs[0].args.position.toNumber(), position, "StartedTransactionExit event emits incorrect priority");
         assert.equal(tx.logs[0].args.owner, accounts[1], "StartedTransactionExit event emits incorrect owner");
         assert.equal(tx.logs[0].args.amount.toNumber(), amount, "StartedTransactionExit event emits incorrect amount");
     });
@@ -81,8 +81,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let balance = (await rootchain.balanceOf.call(accounts[1])).toNumber();
         assert.equal(balance, amount + minExitBond);
 
-        let priority = 1000000*txPos[0];
-        let exit = await rootchain.getTransactionExit.call(priority);
+        let position = 1000000*txPos[0];
+        let exit = await rootchain.getTransactionExit.call(position);
         assert.equal(exit[3], 3, "exit's state not set to finalized");
     });
 
