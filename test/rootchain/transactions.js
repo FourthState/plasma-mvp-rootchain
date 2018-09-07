@@ -46,7 +46,6 @@ contract('[RootChain] Transactions', async (accounts) => {
         // create the confirm sig
         let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
         confirmSignatures = await web3.eth.sign(accounts[0], confirmHash);
-        confirmSignatures += Buffer.alloc(65).toString('hex'); // empty second confirmsig
 
         txPos = [blockNum, 0, 0];
     });
@@ -138,7 +137,7 @@ contract('[RootChain] Transactions', async (accounts) => {
             assert.fail("started an exit with an input who has a pending exit state");
     });
 
-    it("Can challenge a spend of this utxo", async () => {
+    it("Can challenge a spend of a utxo", async () => {
         // spend all funds to account[2] and mine the block
         // deposit is the first input. spending entire deposit to accounts[1]
         let newTxBytes = Array(17).fill(0);
@@ -163,8 +162,6 @@ contract('[RootChain] Transactions', async (accounts) => {
         // create the confirm sig
         let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
         let newConfirmSignatures = await web3.eth.sign(accounts[1], confirmHash);
-        let confirmsig = newConfirmSignatures;
-        newConfirmSignatures += Buffer.alloc(65).toString('hex'); // empty second confirmsig
 
         // start an exit of the original utxo
         await rootchain.startTransactionExit(txPos,
@@ -188,7 +185,7 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         // challenge
         await rootchain.challengeTransactionExit(txPos, [blockNum, 0, 0],
-            toHex(newTxBytes), toHex(newSigs), toHex(proof), toHex(confirmsig),
+            toHex(newTxBytes), toHex(newSigs), toHex(proof), toHex(newConfirmSignatures),
             {from: accounts[2]});
 
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
