@@ -17,7 +17,7 @@ Otherwise:
 Install dependencies with:
 ``npm install``
 
-**Note**: requires Solidity 0.4.18 and Truffle 4.1.0
+**Note**: requires Solidity 0.4.24 and Truffle 4.1.13
 
 Make sure the tests pass:
 1. Start ganache-cli: ``ganache-cli -m=plasma_mvp``
