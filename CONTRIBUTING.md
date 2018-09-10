@@ -21,8 +21,7 @@ Install dependencies with:
 
 Make sure the tests pass:
 1. Start ganache-cli: ``ganache-cli -m=plasma_mvp``
-2. Deploy contract: ``truffle migrate``
-3. Run tests: ``truffle test``
+2. Run tests: ``truffle test``
 
 Create a branch that is named off the feature you are trying to implement. See these [guidelines](https://nvie.com/posts/a-successful-git-branching-model/)
 
