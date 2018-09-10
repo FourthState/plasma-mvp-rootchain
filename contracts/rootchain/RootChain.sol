@@ -2,6 +2,7 @@ pragma solidity ^0.4.24;
 
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/math/Math.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "openzeppelin-solidity/contracts/ECRecovery.sol";
 import "solidity-rlp/contracts/RLPReader.sol";
@@ -161,27 +162,14 @@ contract RootChain is Ownable {
             balances[msg.sender] = balances[msg.sender].add(excess);
             totalWithdrawBalance = totalWithdrawBalance.add(excess);
         }
-
-        // prevent double exiting
-        uint256 priority = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        require(txExits[priority].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
-
-        // check proof and signatures
-        bytes32 txHash = keccak256(txBytes);
-        bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
-        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
-        require(txHash.checkSigs(confirmationHash,
-                                 // we always assume the first input is always present in a transaction. The second input is optional
-                                 txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
-                                 sigs, confirmSignatures), "mismatch in transaction and confirm sigatures");
-        require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "invalid merkle proof");
+        // check that the signatures, confirmation signaturesm and merkle proof are all valid
+        validateProofAndSignatures(txPos, txBytes, proof, sigs, confirmSignatures, txList);
 
         // check that the UTXO's two direct inputs have not been previously exited
         validateTransactionExitInputs(txList);
 
         uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        uint256 exitable_at = Math.max(childChain[txPos[0]].created_at + 2 weeks, block.timestamp + 1 weeks);
-        uint256 priority = exitable_at << 128 | position;
+        uint256 priority =  Math.max256(childChain[txPos[0]].created_at + 2 weeks, block.timestamp + 1 weeks) << 128 | position;
         
         require(txExits[position].state == 0, "this exit has already been started, challenged, or finalized");
 
@@ -196,6 +184,22 @@ contract RootChain is Ownable {
 
         emit StartedTransactionExit(position, msg.sender, amount);
     }
+
+    function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures, RLPReader.RLPItem[] txList)
+        private 
+        view
+    {
+        bytes32 txHash = keccak256(txBytes);
+        bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
+        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
+        require(txHash.checkSigs(confirmationHash,
+                                 // we always assume the first input is always present in a transaction. The second input is optional
+                                 txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
+                                 sigs, confirmSignatures), "mismatch in transaction and confirm sigatures");
+        require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "invalid merkle proof");
+ 
+    }
+
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
     // been previously exited. If UTXO's inputs are in the exit queue, those inputs'
@@ -296,7 +300,7 @@ contract RootChain is Ownable {
 
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = queue.getMin();
-        exit memeory currentExit;
+        exit memory currentExit;
         uint256 position;
         if (isDeposits) {
             currentExit = depositExits[priority];

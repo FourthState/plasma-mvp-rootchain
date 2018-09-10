@@ -23,7 +23,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         let tx = await rootchain.submitBlock(web3.fromAscii(blockRoot), {from: authority});
         // BlockSubmitted event
         assert.equal(web3.toUtf8(tx.logs[0].args.root), blockRoot, "incorrect block root in BlockSubmitted event");
-        assert.equal(tx.logs[0].args.position.toNumber(), blkNum, "incorrect block number in BlockSubmitted event");
+        assert.equal(tx.logs[0].args.blockNumber.toNumber(), blkNum, "incorrect block number in BlockSubmitted event");
 
         let childBlock = (await rootchain.getChildBlock.call(blkNum));
         assert.equal(web3.toUtf8(childBlock[0]), blockRoot, 'Child block merkle root does not match submitted merkle root.');
@@ -50,7 +50,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         let tx = await rootchain.submitBlock(web3.fromAscii(root), {from: authority});
         // BlockSubmitted event
         assert.equal(web3.toUtf8(tx.logs[0].args.root), root, "incorrect block root in BlockSubmitted event");
-        assert.equal(tx.logs[0].args.position.toNumber(), blkNum, "incorrect block number in BlockSubmitted event");
+        assert.equal(tx.logs[0].args.blockNumber.toNumber(), blkNum, "incorrect block number in BlockSubmitted event");
 
         // Second submission does not wait and therfore fails.
         mineNBlocks(3);
