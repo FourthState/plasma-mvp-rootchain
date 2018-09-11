@@ -162,7 +162,8 @@ contract RootChain is Ownable {
             balances[msg.sender] = balances[msg.sender].add(excess);
             totalWithdrawBalance = totalWithdrawBalance.add(excess);
         }
-        // check that the signatures, confirmation signaturesm and merkle proof are all valid
+        
+        // check that the signatures, confirmation signatures and merkle proof are all valid
         validateProofAndSignatures(txPos, txBytes, proof, sigs, confirmSignatures, txList);
 
         // check that the UTXO's two direct inputs have not been previously exited
