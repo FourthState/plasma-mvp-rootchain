@@ -2,8 +2,8 @@ let RLP = require('rlp');
 let assert = require('chai').assert
 
 let RootChain = artifacts.require('RootChain');
-let { fastForward, mineNBlocks, zeroHashes, proof, sendSingleInputTx } = require('./rootchain_helpers.js');
-let { toHex, catchError } = require('../utilities.js');
+let { fastForward, mineNBlocks, zeroHashes, proof } = require('./rootchain_helpers.js');
+let { toHex, catchError, generateMerkleRootAndProof } = require('../utilities.js');
 
 contract('[RootChain] Transactions', async (accounts) => {
     let rootchain;
@@ -244,45 +244,59 @@ contract('[RootChain] Transactions', async (accounts) => {
         txBytes1[12] = accounts[1]; txBytes1[13] = amount / 2; // first output
         txBytes1[14] = accounts[1]; txBytes1[15] = amount / 2; // second output
         txBytes1 = RLP.encode(txBytes1);
-        let txHash1 = web3.sha3(newTxBytes.toString('hex'), {encoding: 'hex'});
 
-        // create signature by deposit owner. Second signature should be zero
+        let txHash1 = web3.sha3(txBytes1.toString('hex'), {encoding: 'hex'});
         let sigs1 = await web3.eth.sign(accounts[1], txHash1);
         sigs1 += Buffer.alloc(65).toString('hex');
-
-        // include this transaction in the next block
-        let merkleHash = web3.sha3(txHash1.slice(2) + sigs1.slice(2), {encoding: 'hex'});
-        let root = merkleHash;
-        for (let i = 0; i < 16; i++)
-            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2)
-        let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
         
-        mineNBlocks(5); // presumed finality before submitting the block
-        await rootchain.submitBlock(toHex(root), {from: authority});
+        let merkleHash1 = web3.sha3(txHash1.slice(2) + sigs1.slice(2), {encoding: 'hex'});
+        let root1, proof1;
+        [root1, proof1] = generateMerkleRootAndProof([merkleHash1], 0);
+        let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
+        mineNBlocks(5);
+        await rootchain.submitBlock(toHex(root1), {from: authority});
 
-        let confirmSigs1 = await web3.eth.sign(accounts[1], confirmHash);
-        confirmSigs1 += Buffer.alloc(65).toString('hex'); // empty second confirmsig
+        // create confirmation signature
+        let confirmationHash1 = web3.sha3(merkleHash1.slice(2) + root1, {encoding: 'hex'});
+        let confirmSigs1 = await web3.eth.sign(accounts[1], confirmationHash1);
+        confirmSigs1 += Buffer.alloc(65).toString('hex'); // empty second  confirmSig
 
         // accounts[1] spends (blockNum1, 0, 1) utxo sends 1 utxo to themself and the other to accounts[2]
         let txBytes2 = Array(17).fill(0);
         txBytes2[0] = blockNum1; txBytes2[2] = 1; // first input
         txBytes2[12] = accounts[1]; txBytes2[13] = amount / 4; // first output
-        txBytes2[14] = accounts[2]; txBytes2 = amount / 4; // second output
+        txBytes2[14] = accounts[2]; txBytes2[15] = amount / 4; // second output
         txBytes2 = RLP.encode(txBytes2);
         
+        let txHash2 = web3.sha3(txBytes2.toString('hex'), {encoding: 'hex'});
+        let sigs2 = await web3.eth.sign(accounts[1], txHash2);
+        sigs2 += Buffer.alloc(65).toString('hex');
+        
+        let merkleHash2 = web3.sha3(txHash2.slice(2) + sigs2.slice(2), {encoding: 'hex'});
+        let root2, proof2;
+        [root2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
+        let blockNum2 = (await rootchain.currentChildBlock.call()).toNumber();
+        mineNBlocks(5);
+        await rootchain.submitBlock(toHex(root2), {from: authority});
+
+        // create confirmation signature
+        let confirmationHash2 = web3.sha3(merkleHash2.slice(2) + root2, {encoding: 'hex'});
+        let confirmSigs2 = await web3.eth.sign(accounts[1], confirmationHash2);
+        confirmSigs2 += Buffer.alloc(65).toString('hex'); // empty second  confirmSig
+
         // make utxos > 1 week old
         fastForward(one_week + 100);
-
+        
         // start exit for accounts[2], last utxo to be created
         await rootchain.startTransactionExit([blockNum2, 0, 1],
-            toHex(txBytes2), toHex(proof), toHex(sigs2), toHex(confirmSigs2), {from: accounts[2], value: minExitBond});
+            toHex(txBytes2), toHex(proof2), toHex(sigs2), toHex(confirmSigs2), {from: accounts[2], value: minExitBond});
         
         // Increase time slight, so exit by accounts[1] has better priority
         fastForward(10);
 
         // Start Exit for accounts[1] utxo from blockNum2. Has better position than utxo for accounts[2]
         await rootchain.startTransactionExit([blockNum2, 0, 0], 
-            toHex(txBytes2), toHex(proof), toHex(sigs2), toHex(confirmSigs2), {from: accounts[1], value: minExitBond});
+            toHex(txBytes2), toHex(proof2), toHex(sigs2), toHex(confirmSigs2), {from: accounts[1], value: minExitBond});
         
         // Fast Forward ~5 days
         fastForward(432000);
@@ -293,8 +307,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         assert.ok((currExit[3].add(604800)) > (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp);
         
         // start exit for accounts[1], oldest utxo avaliable
-        await rootchain.startExit([newBlockNum2, 0, 1], 
-            toHex(txBytes1), toHex(proof), toHex(sigs1), toHex(confirmSigs1), {from: accounts[1], value: minExitBond});
+        await rootchain.startTransactionExit([newBlockNum2, 0, 1], 
+            toHex(txBytes1), toHex(proof1), toHex(sigs1), toHex(confirmSigs1), {from: accounts[1], value: minExitBond});
         
         // Fast Forward < 1 week
         fastForward(432000);
@@ -323,7 +337,6 @@ contract('[RootChain] Transactions', async (accounts) => {
         // Fast Forward rest of challenge period
         fastForward(432000);
         await rootchain.finalizeTransactionExits({from: authority});
-        
         // Check that last exit was processed
         finalizedExit = await rootchain.getTransactionExit.call(position);
         assert.equal(pendingExit[0], accounts[1], "Incorrect finalized exit owner");
