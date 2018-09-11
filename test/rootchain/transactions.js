@@ -234,17 +234,13 @@ contract('[RootChain] Transactions', async (accounts) => {
     });
 
     it("Attempt a withdrawal delay attack", async () => {
-        // clear any exits left in the queue
-        fastForward(one_week + 100);
-        await rootchain.finalizeTransactionExits({from: authority});
-
         // accounts[1] spends deposit and creates 2 new utxos for themself
         let txBytes1 = Array(17).fill(0);
         txBytes1[0] = txPos[0]; txBytes1[1] = txPos[1]; txBytes1[2] = txPos[2]; // first input
         txBytes1[12] = accounts[1]; txBytes1[13] = amount / 2; // first output
         txBytes1[14] = accounts[1]; txBytes1[15] = amount / 2; // second output
         txBytes1 = RLP.encode(txBytes1);
-
+        
         let txHash1 = web3.sha3(txBytes1.toString('hex'), {encoding: 'hex'});
         let sigs1 = await web3.eth.sign(accounts[1], txHash1);
         sigs1 += Buffer.alloc(65).toString('hex');
@@ -257,17 +253,17 @@ contract('[RootChain] Transactions', async (accounts) => {
         await rootchain.submitBlock(toHex(root1), {from: authority});
 
         // create confirmation signature
-        let confirmationHash1 = web3.sha3(merkleHash1.slice(2) + root1, {encoding: 'hex'});
+        let confirmationHash1 = web3.sha3(merkleHash1.slice(2) + root1.slice(2), {encoding: 'hex'});
         let confirmSigs1 = await web3.eth.sign(accounts[1], confirmationHash1);
         confirmSigs1 += Buffer.alloc(65).toString('hex'); // empty second  confirmSig
 
-        // accounts[1] spends (blockNum1, 0, 1) utxo sends 1 utxo to themself and the other to accounts[2]
+        // accounts[1] spends (blockNum1, 0, 1) utxo, sends 1 utxo to themself and the other to accounts[2]
         let txBytes2 = Array(17).fill(0);
         txBytes2[0] = blockNum1; txBytes2[2] = 1; // first input
         txBytes2[12] = accounts[1]; txBytes2[13] = amount / 4; // first output
         txBytes2[14] = accounts[2]; txBytes2[15] = amount / 4; // second output
         txBytes2 = RLP.encode(txBytes2);
-        
+
         let txHash2 = web3.sha3(txBytes2.toString('hex'), {encoding: 'hex'});
         let sigs2 = await web3.eth.sign(accounts[1], txHash2);
         sigs2 += Buffer.alloc(65).toString('hex');
@@ -280,7 +276,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         await rootchain.submitBlock(toHex(root2), {from: authority});
 
         // create confirmation signature
-        let confirmationHash2 = web3.sha3(merkleHash2.slice(2) + root2, {encoding: 'hex'});
+        let confirmationHash2 = web3.sha3(merkleHash2.slice(2) + root2.slice(2), {encoding: 'hex'});
         let confirmSigs2 = await web3.eth.sign(accounts[1], confirmationHash2);
         confirmSigs2 += Buffer.alloc(65).toString('hex'); // empty second  confirmSig
 
@@ -291,10 +287,10 @@ contract('[RootChain] Transactions', async (accounts) => {
         await rootchain.startTransactionExit([blockNum2, 0, 1],
             toHex(txBytes2), toHex(proof2), toHex(sigs2), toHex(confirmSigs2), {from: accounts[2], value: minExitBond});
         
-        // Increase time slight, so exit by accounts[1] has better priority
+        // increase time slightly, so exit by accounts[1] has better priority
         fastForward(10);
 
-        // Start Exit for accounts[1] utxo from blockNum2. Has better position than utxo for accounts[2]
+        // start exit for accounts[1] utxo
         await rootchain.startTransactionExit([blockNum2, 0, 0], 
             toHex(txBytes2), toHex(proof2), toHex(sigs2), toHex(confirmSigs2), {from: accounts[1], value: minExitBond});
         
@@ -302,12 +298,12 @@ contract('[RootChain] Transactions', async (accounts) => {
         fastForward(432000);
         
         // Check to make sure challenge period has not ended
-        let position = 1000000000 * blockNum2 + 1;
+        let position = 1000000 * blockNum2 + 1;
         let currExit = await rootchain.getTransactionExit.call(position);
-        assert.ok((currExit[3].add(604800)) > (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp);
+        assert.ok((currExit[2].add(604800)) > (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp);
         
         // start exit for accounts[1], oldest utxo avaliable
-        await rootchain.startTransactionExit([newBlockNum2, 0, 1], 
+        await rootchain.startTransactionExit([blockNum1, 0, 0], 
             toHex(txBytes1), toHex(proof1), toHex(sigs1), toHex(confirmSigs1), {from: accounts[1], value: minExitBond});
         
         // Fast Forward < 1 week
@@ -317,31 +313,31 @@ contract('[RootChain] Transactions', async (accounts) => {
         await rootchain.finalizeTransactionExits({from: authority});
         let finalizedExit = await rootchain.getTransactionExit.call(position);
         assert.equal(finalizedExit[0], accounts[2], "Incorrect finalized exit owner");
-        assert.equal(finalizedExit[1], 30000, "Incorrect finalized exit amount.");
-        assert.equal(finalizedExit[4], 3, "Incorrect finalized exit state.");
+        assert.equal(finalizedExit[1], 25, "Incorrect finalized exit amount.");
+        assert.equal(finalizedExit[3], 3, "Incorrect finalized exit state.");
         
         // Check other exits
-        position = 1000000000 * blockNum2 + 1;
+        position = 1000000 * blockNum2;
         finalizedExit = await rootchain.getTransactionExit.call(position);
         assert.equal(finalizedExit[0], accounts[1], "Incorrect finalized exit owner");
-        assert.equal(finalizedExit[1], 10000, "Incorrect finalized exit amount.");
-        assert.equal(finalizedExit[4], 3, "Incorrect finalized exit state.");
+        assert.equal(finalizedExit[1], 25, "Incorrect finalized exit amount.");
+        assert.equal(finalizedExit[3], 3, "Incorrect finalized exit state.");
 
         // Last exit should still be pending
-        position = 1000000000 * blockNum1;
+        position = 1000000 * blockNum1;
         let pendingExit = await rootchain.getTransactionExit.call(position);
         assert.equal(pendingExit[0], accounts[1], "Incorrect pending exit owner");
-        assert.equal(pendingExit[1], 10000, "Incorrect pending exit amount");
-        assert.equal(pendingExit[4], 1, "Incorrect pending exit state.");
+        assert.equal(pendingExit[1], 50, "Incorrect pending exit amount");
+        assert.equal(pendingExit[3], 1, "Incorrect pending exit state.");
 
         // Fast Forward rest of challenge period
-        fastForward(432000);
+        fastForward(one_week);
         await rootchain.finalizeTransactionExits({from: authority});
         // Check that last exit was processed
         finalizedExit = await rootchain.getTransactionExit.call(position);
-        assert.equal(pendingExit[0], accounts[1], "Incorrect finalized exit owner");
-        assert.equal(pendingExit[1], 10000, "Incorrect finalized exit amount");
-        assert.equal(pendingExit[4], 3, "Incorrect finalized exit state.");
+        assert.equal(finalizedExit[0], accounts[1], "Incorrect finalized exit owner");
+        assert.equal(finalizedExit[1], 50, "Incorrect finalized exit amount");
+        assert.equal(finalizedExit[3], 3, "Incorrect finalized exit state.");
      });
 
 });
