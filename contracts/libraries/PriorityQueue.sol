@@ -3,6 +3,9 @@ pragma solidity ^0.4.24;
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
+// This queue implementation expects the `heapList` to always have
+// a zero'th element. This is for indexing reasons.
+//      For example: An empty `heapList` can be the array, [0].
 library PriorityQueue {
     using SafeMath for uint256;
 
