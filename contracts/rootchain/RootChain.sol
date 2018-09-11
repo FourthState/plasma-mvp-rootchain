@@ -140,12 +140,13 @@ contract RootChain is Ownable {
     //  Blknum1, TxIndex1, Oindex1, depositNonce1, Amount1, ConfirmSig1
     //  NewOwner0, Denom0, NewOwner1, Denom1, Fee]
     //
-    // @param txPos   location of the transaction [blkNum, txIndex, outputIndex]
-    // @param txBytes raw transaction bytes
-    // @param proof   merkle proof of inclusion in the child chain
-    // @param sigs    signatures of transaction including confirm signatures
+    // @param txPos             location of the transaction [blkNum, txIndex, outputIndex]
+    // @param txBytes           raw transaction bytes
+    // @param proof             merkle proof of inclusion in the child chain
+    // @param sigs              signatures of transaction
     // @param confirmSignatures confirm signatures sent by the owners of the inputs acknowledging the spend. 
     // @notice `confirmSignatures` and `ConfirmSig0`/`ConfirmSig1` are unrelated to each other.
+    // @notice `confirmSignatures` is either 65 or 130 bytes in length dependent on if input2 is used.
     function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures)
         public
         payable
