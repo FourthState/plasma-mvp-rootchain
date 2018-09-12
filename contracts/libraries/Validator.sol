@@ -1,61 +1,20 @@
 pragma solidity ^0.4.24;
-import "./ByteUtils.sol";
+
 import "openzeppelin-solidity/contracts/ECRecovery.sol";
 
-
-/*
-* All validation requirements.
-* All functions act on the bytes32 data type.
-*/
 library Validator {
-    using ECRecovery for bytes32;
-
-    function recover(bytes32 hash, bytes sig)
-        internal
-        pure
-        returns (address)
-    {
-        hash = hash.toEthSignedMessageHash();
-        return hash.recover(sig);
-    }
-
-    function checkSigs(bytes32 txHash, bytes32 rootHash,  uint256 blknum1, uint256 blknum2, bytes sigs)
-        internal
-        view
-        returns (bool)
-    {
-        require(sigs.length % 65 == 0 && sigs.length <= 260);
-        bytes memory sig1 = ByteUtils.slice(sigs, 0, 65);
-        bytes memory sig2 = ByteUtils.slice(sigs, 65, 65);
-        bytes memory confSig1 = ByteUtils.slice(sigs, 130, 65);
-        bytes32 confirmationHash = keccak256(abi.encodePacked(txHash, sig1, sig2, rootHash));
-
-        // prefix the hashes correctly.
-        txHash = txHash.toEthSignedMessageHash();
-        confirmationHash = confirmationHash.toEthSignedMessageHash();
-        
-        if (blknum1 == 0 && blknum2 == 0) {
-            return msg.sender == confirmationHash.recover(confSig1);
-        }
-        bool check1 = true;
-        bool check2 = true;
-        
-        if (blknum1 > 0) {
-            check1 = txHash.recover(sig1) == confirmationHash.recover(confSig1);
-        } 
-        if (blknum2 > 0) {
-            bytes memory confSig2 = ByteUtils.slice(sigs, 195, 65);
-            check2 = txHash.recover(sig2) == confirmationHash.recover(confSig2);
-        }
-        return check1 && check2;
-    }
-
+    // @param leaf     a leaf of the tree
+    // @param index    position of this leaf in the tree that is zero indexed
+    // @param rootHash block header of the merkle tree
+    // @param proof    sequence of hashes from the leaf to check against the root 
     function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
         internal
         pure
         returns (bool)
     {
-        require(proof.length == 512);
+        // depth 16 merkle tree
+        require(proof.length == 512, "Incorrect proof length");
+
         bytes32 proofElement;
         bytes32 computedHash = leaf;
 
@@ -71,5 +30,86 @@ library Validator {
             index = index / 2;
         }
         return computedHash == rootHash;
+    }
+
+    // @param txHash      transaction hash
+    // @param rootHash    block header of the merkle tree
+    // @param input1      indicator for the second input
+    // @param sigs        transaction signatures
+    // @notice            when one input is present, we require it to be the first input by convention
+    function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sigs, bytes confirmSignatures)
+        internal
+        pure
+        returns (bool)
+    {
+        require(sigs.length == 130, "two transcation signatures, 65 bytes each, are required");
+        require(confirmSignatures.length % 65 == 0, "confirm signatures must be 65 bytes in length");
+        
+        bytes memory sig0 = slice(sigs, 0, 65);
+        if (input1) {
+            require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
+            bytes memory sig1 = slice(sigs, 65, 65);
+
+            // check both input signatures
+            return recover(txHash, sig0) == recover(confirmationHash, slice(confirmSignatures, 0, 65)) &&
+                recover(txHash, sig1) == recover(confirmationHash, slice(confirmSignatures, 65, 65));
+        }
+
+        // normal case when only one input is present
+        return recover(txHash, sig0) == recover(confirmationHash, confirmSignatures);
+    }
+
+    function recover(bytes32 hash, bytes sig)
+        internal
+        pure
+        returns (address)
+    {
+        
+        hash = ECRecovery.toEthSignedMessageHash(hash);
+        return ECRecovery.recover(hash, sig);
+    }
+
+    /* Helpers */
+
+    // TODO: Re-implement this
+    // @param _bytes raw bytes that needs to be slices
+    // @param start  start of the slice relative to `_bytes`
+    // @param len    length of the sliced byte array
+    function slice(bytes _bytes, uint start, uint len)
+            internal
+            pure
+            returns (bytes)
+        {
+            
+            if (_bytes.length == len)
+                return _bytes;
+
+            bytes memory tempBytes;
+            
+            assembly {
+                tempBytes := mload(0x40)
+                
+                let lengthmod := and(len, 31)
+                
+                let mc := add(tempBytes, lengthmod)
+                let end := add(mc, len)
+                
+                for {
+                    let cc := add(add(_bytes, lengthmod), start)
+                } lt(mc, end) {
+                    mc := add(mc, 0x20)
+                    cc := add(cc, 0x20)
+                } {
+                    mstore(mc, mload(cc))
+                }
+                
+                mstore(tempBytes, len)
+                
+                //update free-memory pointer
+                //allocating the array padded to 32 bytes like the compiler does now
+                mstore(0x40, and(add(mc, 31), not(31)))
+            }
+            
+            return tempBytes;
     }
 }
