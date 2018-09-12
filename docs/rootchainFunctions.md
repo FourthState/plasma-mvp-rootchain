@@ -31,6 +31,8 @@ function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, byte
 `txPos` follows the convention - `[blockNumber, transcationIndex, outputIndex]`
 
 Exit procedure for exiting a utxo on the child chain(not deposits). The `txPos` locates the transaction on the child chain. The leaf, hash(hash(`txBytes`), `sigs`) is checked against the block header using the `proof`.
+The `confirmSignatures` represent the acknowledgement of the inclusion by both inputs. If only one input was used to create this transactions, only one confirm signature should be passed in for the corresponding
+input. However, if there are two distinct inputs in the exiting transactions, both confirm signatures should be appended together in order for a total of 130 bytes.
 
 A valid exit satisfies the following properties:
   - Exit has not previously been finalized or challenged

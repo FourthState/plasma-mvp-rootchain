@@ -129,55 +129,6 @@ contract('[RootChain] Deposits', async (accounts) => {
         // include this transaction in the next block
         let root = merkleHash;
         for (let i = 0; i < 16; i++)
-            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2);
-        let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
-        mineNBlocks(5); // presumed finality before submitting the block
-        await rootchain.submitBlock(toHex(root), {from: authority});
-
-        // create the confirm sig
-        let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
-        let confirmSig = await web3.eth.sign(accounts[2], confirmHash);
-
-        // start the malicious exit
-        await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
-
-        // correctly challenge
-        await rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
-            toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]});
-
-        let balance = (await rootchain.balanceOf.call(accounts[3])).toNumber();
-        assert.equal(balance, minExitBond, "challenger not awarded exit bond");
-
-        let exit = await rootchain.getDepositExit.call(nonce);
-        assert.equal(exit[3], 2, "exit state not changed to challenged");
-
-        // Cannot challenge twice
-        let err;
-        [err] = await catchError(rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
-            toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
-        if (!err)
-            assert.fail("Allowed a challenge for an exit already challenged");
-    });
-
-    it("Correctly challenge with deposit as the second input", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
-
-        // construct transcation with first input as the deposit
-        let txBytes = Array(17).fill(0);
-        txBytes[9] = nonce; txBytes[14] = accounts[1]; txBytes[15] = 100;
-        txBytes = RLP.encode(txBytes);
-        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-
-        // create signature by deposit owner. Second signature should be zero
-        let sigs = Buffer.alloc(65).toString('hex');
-        sigs = sigs + (await web3.eth.sign(accounts[2], txHash)).slice(2);
-
-        let merkleHash = web3.sha3(txHash.slice(2) + sigs, {encoding: 'hex'});
-
-        // include this transaction in the next block
-        let root = merkleHash;
-        for (let i = 0; i < 16; i++)
             root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2)
         let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5); // presumed finality before submitting the block
@@ -191,7 +142,7 @@ contract('[RootChain] Deposits', async (accounts) => {
         await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
 
         // correctly challenge
-        await rootchain.challengeDepositExit(nonce, [blockNum, 0, 1],
+        await rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]});
 
         let balance = (await rootchain.balanceOf.call(accounts[3])).toNumber();

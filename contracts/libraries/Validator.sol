@@ -34,30 +34,29 @@ library Validator {
 
     // @param txHash      transaction hash
     // @param rootHash    block header of the merkle tree
-    // @param input0      indicator for nonzero first input
-    // @param input1      indicator for nonzero second input
+    // @param input1      indicator for the second input
     // @param sigs        transaction signatures
-    function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input0, bool input1, bytes sigs, bytes confirmSignatures)
+    // @notice            when one input is present, we require it to be the first input by convention
+    function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sigs, bytes confirmSignatures)
         internal
         pure
         returns (bool)
     {
-        require(sigs.length == 130, "two transaction signatures required");
-        require(confirmSignatures.length == 130, "two confirm signatures required");
-        bytes memory sig0 = slice(sigs, 0, 65);
-        bytes memory sig1 = slice(sigs, 65, 65);
-        bytes memory confSig0 = slice(confirmSignatures, 0, 65);
+        require(sigs.length == 130, "two transcation signatures, 65 bytes each, are required");
+        require(confirmSignatures.length % 65 == 0, "confirm signatures must be 65 bytes in length");
 
-        bool check0 = true;
-        bool check1 = true;
-        if (input0) {
-            check0 = recover(txHash, sig0) == recover(confirmationHash, confSig0);
-        }
+        bytes memory sig0 = slice(sigs, 0, 65);
         if (input1) {
-            bytes memory confSig1 = slice(confirmSignatures, 65, 65);
-            check1 = recover(txHash, sig1) == recover(confirmationHash, confSig1);
+            require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
+            bytes memory sig1 = slice(sigs, 65, 65);
+
+            // check both input signatures
+            return recover(txHash, sig0) == recover(confirmationHash, slice(confirmSignatures, 0, 65)) &&
+                recover(txHash, sig1) == recover(confirmationHash, slice(confirmSignatures, 65, 65));
         }
-        return check0 && check1;
+
+        // normal case when only one input is present
+        return recover(txHash, sig0) == recover(confirmationHash, confirmSignatures);
     }
 
     function recover(bytes32 hash, bytes sig)
@@ -81,6 +80,9 @@ library Validator {
             pure
             returns (bytes)
         {
+
+            if (_bytes.length == len)
+                return _bytes;
 
             bytes memory tempBytes;
 
