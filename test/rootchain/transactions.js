@@ -74,7 +74,7 @@ contract('[RootChain] Transactions', async (accounts) => {
             toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
             {from: accounts[1], value: minExitBond});
 
-        fastForward(one_week + 100);
+        fastForward(one_week + 1000);
 
         await rootchain.finalizeTransactionExits();
 
@@ -83,7 +83,7 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         let position = 1000000*txPos[0];
         let exit = await rootchain.getTransactionExit.call(position);
-        assert.equal(exit[3], 3, "exit's state not set to finalized");
+        assert.equal(exit[3].toNumber(), 3, "exit's state not set to finalized");
     });
 
     it("Requires sufficient bond and refunds excess if overpayed", async () => {
@@ -255,7 +255,6 @@ contract('[RootChain] Transactions', async (accounts) => {
         // create confirmation signature
         let confirmationHash1 = web3.sha3(merkleHash1.slice(2) + root1.slice(2), {encoding: 'hex'});
         let confirmSigs1 = await web3.eth.sign(accounts[1], confirmationHash1);
-        confirmSigs1 += Buffer.alloc(65).toString('hex'); // empty second  confirmSig
 
         // accounts[1] spends (blockNum1, 0, 1) utxo, sends 1 utxo to themself and the other to accounts[2]
         let txBytes2 = Array(17).fill(0);
@@ -278,8 +277,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         // create confirmation signature
         let confirmationHash2 = web3.sha3(merkleHash2.slice(2) + root2.slice(2), {encoding: 'hex'});
         let confirmSigs2 = await web3.eth.sign(accounts[1], confirmationHash2);
-        confirmSigs2 += Buffer.alloc(65).toString('hex'); // empty second  confirmSig
-
+        
         // make utxos > 1 week old
         fastForward(one_week + 100);
         
@@ -314,21 +312,21 @@ contract('[RootChain] Transactions', async (accounts) => {
         let finalizedExit = await rootchain.getTransactionExit.call(position);
         assert.equal(finalizedExit[0], accounts[2], "Incorrect finalized exit owner");
         assert.equal(finalizedExit[1], 25, "Incorrect finalized exit amount.");
-        assert.equal(finalizedExit[3], 3, "Incorrect finalized exit state.");
+        assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
         
         // Check other exits
         position = 1000000 * blockNum2;
         finalizedExit = await rootchain.getTransactionExit.call(position);
         assert.equal(finalizedExit[0], accounts[1], "Incorrect finalized exit owner");
         assert.equal(finalizedExit[1], 25, "Incorrect finalized exit amount.");
-        assert.equal(finalizedExit[3], 3, "Incorrect finalized exit state.");
+        assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
 
         // Last exit should still be pending
         position = 1000000 * blockNum1;
         let pendingExit = await rootchain.getTransactionExit.call(position);
         assert.equal(pendingExit[0], accounts[1], "Incorrect pending exit owner");
         assert.equal(pendingExit[1], 50, "Incorrect pending exit amount");
-        assert.equal(pendingExit[3], 1, "Incorrect pending exit state.");
+        assert.equal(pendingExit[3].toNumber(), 1, "Incorrect pending exit state.");
 
         // Fast Forward rest of challenge period
         fastForward(one_week);
@@ -337,7 +335,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         finalizedExit = await rootchain.getTransactionExit.call(position);
         assert.equal(finalizedExit[0], accounts[1], "Incorrect finalized exit owner");
         assert.equal(finalizedExit[1], 50, "Incorrect finalized exit amount");
-        assert.equal(finalizedExit[3], 3, "Incorrect finalized exit state.");
+        assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
      });
 
 });

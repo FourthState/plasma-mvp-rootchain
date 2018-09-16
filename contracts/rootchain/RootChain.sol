@@ -170,9 +170,10 @@ contract RootChain is Ownable {
         validateTransactionExitInputs(txList);
 
         uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        uint256 priority =  Math.max256(childChain[txPos[0]].created_at + 2 weeks, block.timestamp + 1 weeks) << 128 | position;
+        uint256 exitable = Math.max256(childChain[txPos[0]].created_at + 2 weeks, block.timestamp + 1 weeks); 
+        uint256 priority =  exitable << 128 | position;
         
-        require(txExits[position].state == 0, "this exit has already been started, challenged, or finalized");
+        require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
         txExitQueue.insert(priority);
         uint amount = txList[13 + 2 * txPos[2]].toUint();
@@ -284,7 +285,7 @@ contract RootChain is Ownable {
         emit AddedToBalances(msg.sender, minExitBond);
 
         // reflect challenged state
-        txExits[priority].state = ExitState.Challenged;
+        txExits[position].state = ExitState.Challenged;
         emit ChallengedTransactionExit(position, exit_.owner, exit_.amount);
     }
 
@@ -336,7 +337,7 @@ contract RootChain is Ownable {
                     depositExits[priority].state = ExitState.Finalized;
                     emit FinalizedDepositExit(priority, currentExit.owner, amountToAdd);
                 } else {
-                    txExits[priority].state = ExitState.Finalized;
+                    txExits[position].state = ExitState.Finalized;
                     emit FinalizedTransactionExit(position, currentExit.owner, amountToAdd);
                 }
 
