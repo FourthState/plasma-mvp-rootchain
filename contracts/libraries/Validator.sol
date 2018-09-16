@@ -51,12 +51,21 @@ library Validator {
             bytes memory sig1 = slice(sigs, 65, 65);
 
             // check both input signatures
-            return recover(txHash, sig0) == recover(confirmationHash, slice(confirmSignatures, 0, 65)) &&
-                recover(txHash, sig1) == recover(confirmationHash, slice(confirmSignatures, 65, 65));
+            address recoveredTx0 = recover(txHash, sig0);
+            address recoveredConfirmation0 = recover(confirmationHash, slice(confirmSignatures, 0, 65));
+
+            address recoveredTx1 = recover(txHash, sig1);
+            address recoveredConfirmation1 = recover(confirmationHash, slice(confirmSignatures, 65, 65));
+
+            return recoveredTx0 == recoveredConfirmation0 && recoveredTx1 == recoveredConfirmation1 &&
+                ((recoveredTx0 != address(0) && recoveredConfirmation0 != address(0)) ||
+                (recoveredTx1 != address(0) && recoveredConfirmation1 != address(0)));
         }
 
         // normal case when only one input is present
-        return recover(txHash, sig0) == recover(confirmationHash, confirmSignatures);
+        address recoveredTx = recover(txHash, sig0);
+        address recoveredConfirmation = recover(confirmationHash, confirmSignatures);
+        return recoveredTx == recoveredConfirmation && recoveredTx != address(0) && recoveredConfirmation != address(0);
     }
 
     function recover(bytes32 hash, bytes sig)
