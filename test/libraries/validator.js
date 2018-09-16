@@ -36,6 +36,11 @@ contract('Validator', async (accounts) => {
 
         let badProof = "0".repeat(proof.length);
         assert.isFalse(await instance.checkMembership.call(toHex(leafHash), 0, toHex(root), toHex(badProof)), "Returned true on wrong proof.");
+
+        let err;
+        [err] = await catchError(instance.checkMembership.call(toHex(leafHash), 0, toHex(root), toHex(proof + "0000")));
+        if (!err)
+            assert.fail("Didn't revert on an proof with the bad size");
     });
 
     it("Check membership of merkle tree with multiple transactions", async () => {
@@ -64,6 +69,8 @@ contract('Validator', async (accounts) => {
 
     it("Test Slice", async () => {
         let inputHash = web3.sha3("inputSeed", {encoding: 'hex'});
+
+        assert.equal((await instance.slice.call(toHex(inputHash), 0, 32)).toString(), inputHash, "Slice didn't get entire substring")
 
         assert.equal((await instance.slice.call(toHex(inputHash), 0, 16)).toString(), toHex(inputHash.substring(2,34)), "Didn't git first half of the hash")
         assert.equal((await instance.slice.call(toHex(inputHash), 16, 16)).toString(), toHex(inputHash.substring(34)), "Didn't git second half of the hash")
@@ -123,6 +130,23 @@ contract('Validator', async (accounts) => {
         assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), false, toHex(emptySigs), toHex(emptyConfirmSignatures)), "checkSigs should not pass given empty tx sigs and confirm signatures.");
 
         assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), true, toHex(emptySigs), toHex(emptyConfirmSignatures)), "checkSigs should not pass given empty tx sigs and confirm signatures.");
+    });
+
+    it("Test checkSigs with confirm sigs and tx sigs of the wrong size", async () => {
+        let confirmSignatures = Buffer.alloc(130).toString('hex');
+        let sigs = Buffer.alloc(130).toString('hex');
+
+        let txHash = web3.sha3(Buffer.alloc(65).toString('hex'), {encoding: 'hex'});
+        let confirmationHash = web3.sha3(Buffer.alloc(65).toString('hex'), {encoding: 'hex'});
+
+        let err;
+        [err] = await catchError(instance.checkSigs.call(txHash, toHex(confirmationHash), false, toHex(sigs + "0000"), toHex(confirmSignatures)));
+        if (!err)
+            assert.fail("Didn't revert on signature of wrong size.");
+
+        [err] = await catchError(instance.checkSigs.call(txHash, toHex(confirmationHash), false, toHex(sigs), toHex(confirmSignatures + "0000")));
+        if (!err)
+            assert.fail("Didn't revert on confirm signature of wrong size.");
     });
 
     it("Test checkSigs with first input", async () => {
