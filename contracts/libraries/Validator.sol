@@ -58,14 +58,13 @@ library Validator {
             address recoveredConfirmation1 = recover(confirmationHash, slice(confirmSignatures, 65, 65));
 
             return recoveredTx0 == recoveredConfirmation0 && recoveredTx1 == recoveredConfirmation1 &&
-                ((recoveredTx0 != address(0) && recoveredConfirmation0 != address(0)) ||
-                (recoveredTx1 != address(0) && recoveredConfirmation1 != address(0)));
+                (recoveredTx0 != address(0) || recoveredTx1 != address(0));
         }
 
         // normal case when only one input is present
         address recoveredTx = recover(txHash, sig0);
         address recoveredConfirmation = recover(confirmationHash, confirmSignatures);
-        return recoveredTx == recoveredConfirmation && recoveredTx != address(0) && recoveredConfirmation != address(0);
+        return recoveredTx == recoveredConfirmation && recoveredTx != address(0);
     }
 
     function recover(bytes32 hash, bytes sig)
