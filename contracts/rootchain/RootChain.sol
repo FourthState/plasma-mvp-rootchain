@@ -3,6 +3,7 @@ pragma solidity ^0.4.24;
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import "openzeppelin-solidity/contracts/ECRecovery.sol";
 import "solidity-rlp/contracts/RLPReader.sol";
 
 import "../libraries/Validator.sol";
@@ -144,7 +145,7 @@ contract RootChain is Ownable {
     // @param txBytes           raw transaction bytes
     // @param proof             merkle proof of inclusion in the child chain
     // @param sigs              signatures of transaction
-    // @param confirmSignatures confirm signatures sent by the owners of the inputs acknowledging the spend. 
+    // @param confirmSignatures confirm signatures sent by the owners of the inputs acknowledging the spend.
     // @notice `confirmSignatures` and `ConfirmSig0`/`ConfirmSig1` are unrelated to each other.
     // @notice `confirmSignatures` is either 65 or 130 bytes in length dependent on if input2 is used.
     function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures)
@@ -200,7 +201,7 @@ contract RootChain is Ownable {
         for (uint256 i = 0; i < 2; i++) {
             ExitState state;
             uint depositNonce_ = txList[6*i + 3].toUint();
-            if (depositNonce_ == 0) { 
+            if (depositNonce_ == 0) {
                 uint256 blkNum = txList[6*i + 0].toUint();
                 uint256 inputIndex = txList[6*i + 1].toUint();
                 uint256 outputIndex = txList[6*i + 2].toUint();
@@ -237,7 +238,7 @@ contract RootChain is Ownable {
         // exit successfully challenged
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
         totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
-        
+
         depositExits[nonce].state = ExitState.Challenged;
         emit ChallengedDepositExit(nonce, exit_.owner, exit_.amount);
     }
