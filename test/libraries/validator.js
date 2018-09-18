@@ -103,6 +103,7 @@ contract('Validator', async (accounts) => {
 
         let txHash = web3.sha3("tx bytes to be hashed");
         let sigs = await web3.eth.sign(signer, txHash);
+
         sigs += Buffer.alloc(65).toString('hex');
 
         let confirmationHash = web3.sha3("merkle leaf hash concat with root hash");
@@ -178,7 +179,7 @@ contract('Validator', async (accounts) => {
         assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), input1, toHex(sigOverTxHash), toHex(emptyConfirmSignatures)), "checkSigs should not pass given empty confirmSignatures.");
     });
 
-    it("Test checkSigs with only second input", async () => {
+    it("Test checkSigs fails if empty first input and non-empty second input", async () => {
         // create txHash
         let txBytes = Array(17).fill(0);
         txBytes[9] = 1; txBytes[12] = accounts[1]; txBytes[13] = 100;
@@ -202,7 +203,7 @@ contract('Validator', async (accounts) => {
         // create input0 and input1
         let input1 = true;
 
-        assert.isTrue(await instance.checkSigs.call(txHash, toHex(confirmationHash), input1, toHex(sigOverTxHash), toHex(confirmSignatures)), "checkSigs should pass.");
+        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), input1, toHex(sigOverTxHash), toHex(confirmSignatures)), "checkSigs should pass.");
 
         // assert empty confirmSignatures will not pass checkSigs
         let emptyConfirmSignatures = Buffer.alloc(130).toString('hex');
