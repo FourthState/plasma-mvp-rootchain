@@ -9,6 +9,17 @@ contract('PriorityQueue', async (accounts) => {
         instance = await PriorityQueue_Test.new();
     });
 
+    it("Test reverts on empty queue", async() => {
+      let err;
+      [err] = await catchError(instance.getMin.call());
+      if (!err)
+          assert.fail("Didn't revert on getting min of an empty queue.");
+
+      [err] = await catchError(instance.delMin());
+      if (!err)
+          assert.fail("Didn't revert on deleting min of an empty queue.");
+    });
+
     it("Add then remove", async () => {
         await instance.insert(2)
         await instance.insert(1)

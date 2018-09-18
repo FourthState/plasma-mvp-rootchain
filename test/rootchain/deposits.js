@@ -125,7 +125,7 @@ contract('[RootChain] Deposits', async (accounts) => {
         sigs = sigs + Buffer.alloc(65).toString('hex');
 
         let merkleHash = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
-        
+
         // include this transaction in the next block
         let root = merkleHash;
         for (let i = 0; i < 16; i++)

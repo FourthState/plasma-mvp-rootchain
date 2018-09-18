@@ -6,7 +6,7 @@ library Validator {
     // @param leaf     a leaf of the tree
     // @param index    position of this leaf in the tree that is zero indexed
     // @param rootHash block header of the merkle tree
-    // @param proof    sequence of hashes from the leaf to check against the root 
+    // @param proof    sequence of hashes from the leaf to check against the root
     function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
         internal
         pure
@@ -43,20 +43,28 @@ library Validator {
         returns (bool)
     {
         require(sigs.length == 130, "two transcation signatures, 65 bytes each, are required");
-        require(confirmSignatures.length % 65 == 0, "confirm signatures must be 65 bytes in length");
-        
+
         bytes memory sig0 = slice(sigs, 0, 65);
         if (input1) {
             require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
             bytes memory sig1 = slice(sigs, 65, 65);
 
             // check both input signatures
-            return recover(txHash, sig0) == recover(confirmationHash, slice(confirmSignatures, 0, 65)) &&
-                recover(txHash, sig1) == recover(confirmationHash, slice(confirmSignatures, 65, 65));
-        }
+            address recoveredTx0 = recover(txHash, sig0);
+            address recoveredConfirmation0 = recover(confirmationHash, slice(confirmSignatures, 0, 65));
 
-        // normal case when only one input is present
-        return recover(txHash, sig0) == recover(confirmationHash, confirmSignatures);
+            address recoveredTx1 = recover(txHash, sig1);
+            address recoveredConfirmation1 = recover(confirmationHash, slice(confirmSignatures, 65, 65));
+
+            return recoveredTx0 == recoveredConfirmation0 && recoveredTx1 == recoveredConfirmation1 &&
+                recoveredTx0 != address(0) && recoveredTx1 != address(0);
+        } else {
+            // normal case when only one input is present
+            require(confirmSignatures.length == 65, "one confirm signatures required with one input");
+            address recoveredTx = recover(txHash, sig0);
+            address recoveredConfirmation = recover(confirmationHash, confirmSignatures);
+            return recoveredTx == recoveredConfirmation && recoveredTx != address(0);
+        }
     }
 
     function recover(bytes32 hash, bytes sig)
@@ -64,7 +72,7 @@ library Validator {
         pure
         returns (address)
     {
-        
+
         hash = ECRecovery.toEthSignedMessageHash(hash);
         return ECRecovery.recover(hash, sig);
     }
@@ -80,20 +88,20 @@ library Validator {
             pure
             returns (bytes)
         {
-            
+
             if (_bytes.length == len)
                 return _bytes;
 
             bytes memory tempBytes;
-            
+
             assembly {
                 tempBytes := mload(0x40)
-                
+
                 let lengthmod := and(len, 31)
-                
+
                 let mc := add(tempBytes, lengthmod)
                 let end := add(mc, len)
-                
+
                 for {
                     let cc := add(add(_bytes, lengthmod), start)
                 } lt(mc, end) {
@@ -102,14 +110,14 @@ library Validator {
                 } {
                     mstore(mc, mload(cc))
                 }
-                
+
                 mstore(tempBytes, len)
-                
+
                 //update free-memory pointer
                 //allocating the array padded to 32 bytes like the compiler does now
                 mstore(0x40, and(add(mc, 31), not(31)))
             }
-            
+
             return tempBytes;
     }
 }
