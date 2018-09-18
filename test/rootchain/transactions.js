@@ -20,7 +20,7 @@ contract('[RootChain] Transactions', async (accounts) => {
     let sigs, confirmSignatures;
     beforeEach(async () => {
         rootchain = await RootChain.new({from: authority});
-        
+
         depositNonce = (await rootchain.depositNonce.call()).toNumber();
         await rootchain.deposit(accounts[0], {from: accounts[0], value: amount});
 
@@ -212,7 +212,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         sigs = sigs + (await web3.eth.sign(accounts[2], txHash)).slice(2);
 
         let merkleHash = web3.sha3(txHash.slice(2) + sigs, {encoding: 'hex'});
-        
+
         // include this transaction in the next block
         let root = merkleHash;
         for (let i = 0; i < 16; i++)
