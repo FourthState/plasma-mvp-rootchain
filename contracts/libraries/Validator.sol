@@ -43,9 +43,6 @@ library Validator {
         returns (bool)
     {
         require(sigs.length == 130, "two transcation signatures, 65 bytes each, are required");
-        require(confirmSignatures.length % 65 == 0, "confirm signatures must be 65 bytes in length");
-        /* require(confirmSignatures.length <= 130, "confirm signatures must be 65 bytes in length");
-        require(confirmSignatures.length > 0, "confirm signatures must be 65 bytes in length"); */
 
         bytes memory sig0 = slice(sigs, 0, 65);
         if (input1) {
@@ -63,6 +60,7 @@ library Validator {
                 recoveredTx0 != address(0) && recoveredTx1 != address(0);
         } else {
             // normal case when only one input is present
+            require(confirmSignatures.length == 65, "one confirm signatures required with one input");
             address recoveredTx = recover(txHash, sig0);
             address recoveredConfirmation = recover(confirmationHash, confirmSignatures);
             return recoveredTx == recoveredConfirmation && recoveredTx != address(0);

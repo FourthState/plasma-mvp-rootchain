@@ -111,30 +111,29 @@ contract('Validator', async (accounts) => {
         let confirmSignatures = await web3.eth.sign(signer, confirmationHash);
 
         let invalidConfirmSignatures = await web3.eth.sign(invalidSigner, confirmationHash);
-        invalidConfirmSignatures += Buffer.alloc(65).toString('hex');
-
-        let input1 = false;
 
         // assert valid confirmSignatures will pass checkSigs
-        assert.isTrue(await instance.checkSigs.call(txHash, toHex(confirmationHash), input1, toHex(sigs), toHex(confirmSignatures)), "checkSigs should pass.");
+        assert.isTrue(await instance.checkSigs.call(txHash, toHex(confirmationHash), false, toHex(sigs), toHex(confirmSignatures)), "checkSigs should pass.");
+
         // assert invalid confirmSignatures will not pass checkSigs
-        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), input1, toHex(sigs), toHex(invalidConfirmSignatures)), "checkSigs should not pass given invalid confirmSignatures.");
+        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), false, toHex(sigs), toHex(invalidConfirmSignatures)), "checkSigs should not pass given invalid confirmSignatures.");
     });
 
     it("Test checkSigs with empty confirm sigs and empty tx sigs", async () => {
-        let emptyConfirmSignatures = Buffer.alloc(130).toString('hex');
+        let singleEmptyConfirmSig = Buffer.alloc(65).toString('hex');
+        let doubleEmptyConfirmSigs = Buffer.alloc(130).toString('hex');
         let emptySigs = Buffer.alloc(130).toString('hex');
 
         let txHash = web3.sha3(Buffer.alloc(65).toString('hex'), {encoding: 'hex'});
         let confirmationHash = web3.sha3(Buffer.alloc(65).toString('hex'), {encoding: 'hex'});
 
-        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), false, toHex(emptySigs), toHex(emptyConfirmSignatures)), "checkSigs should not pass given empty tx sigs and confirm signatures.");
+        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), false, toHex(emptySigs), toHex(singleEmptyConfirmSig)), "checkSigs should not pass given empty tx sigs and confirm signatures.");
 
-        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), true, toHex(emptySigs), toHex(emptyConfirmSignatures)), "checkSigs should not pass given empty tx sigs and confirm signatures.");
+        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), true, toHex(emptySigs), toHex(doubleEmptyConfirmSigs)), "checkSigs should not pass given empty tx sigs and confirm signatures.");
     });
 
     it("Test checkSigs with confirm sigs and tx sigs of the wrong size", async () => {
-        let confirmSignatures = Buffer.alloc(130).toString('hex');
+        let confirmSignatures = Buffer.alloc(65).toString('hex');
         let sigs = Buffer.alloc(130).toString('hex');
 
         let txHash = web3.sha3(Buffer.alloc(65).toString('hex'), {encoding: 'hex'});
@@ -170,13 +169,7 @@ contract('Validator', async (accounts) => {
         // create confirmSignatures
         let confirmSignatures = await web3.eth.sign(signer, confirmationHash);
 
-        let input1 = false;
-
-        assert.isTrue(await instance.checkSigs.call(txHash, toHex(confirmationHash), input1, toHex(sigOverTxHash), toHex(confirmSignatures)), "checkSigs should pass.");
-
-        // assert empty confirmSignatures will not pass checkSigs
-        let emptyConfirmSignatures = Buffer.alloc(130).toString('hex');
-        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), input1, toHex(sigOverTxHash), toHex(emptyConfirmSignatures)), "checkSigs should not pass given empty confirmSignatures.");
+        assert.isTrue(await instance.checkSigs.call(txHash, toHex(confirmationHash), false, toHex(sigOverTxHash), toHex(confirmSignatures)), "checkSigs should pass.");
     });
 
     it("Test checkSigs fails if empty first input and non-empty second input", async () => {
@@ -200,14 +193,7 @@ contract('Validator', async (accounts) => {
         let confirmSignatures = Buffer.alloc(65).toString('hex');
         confirmSignatures += (await web3.eth.sign(signer, confirmationHash)).slice(2);
 
-        // create input0 and input1
-        let input1 = true;
-
-        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), input1, toHex(sigOverTxHash), toHex(confirmSignatures)), "checkSigs should pass.");
-
-        // assert empty confirmSignatures will not pass checkSigs
-        let emptyConfirmSignatures = Buffer.alloc(130).toString('hex');
-        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), true, toHex(sigOverTxHash), toHex(emptyConfirmSignatures)), "checkSigs should not pass given empty txSigs and confirmSignatures.");
+        assert.isFalse(await instance.checkSigs.call(txHash, toHex(confirmationHash), true, toHex(sigOverTxHash), toHex(confirmSignatures)), "checkSigs should not pass given an empty first confirmsig and non-empty second confirmsig");
     });
 
     it("Test checkSigs with invalid tx sigs", async () => {
