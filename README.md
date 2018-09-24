@@ -36,6 +36,12 @@ See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob
 5. ``ganache-cli`` // run as a background process
 6. ``npm test``
 
+
+### Running
+The first migration file `1_initial_migration` deploys the `PriorityQueue` library and links it to the `RootChain` contract, while the second one `2_deploy_rootchain` finally makes the deployment. Ethereum requires libraries to already be deployed prior to be used by other contracts.
+
+If you encounter problems, make sure your local test rpc (e.g. [ganache](https://github.com/trufflesuite/ganache-core)) has the same network id as the contract's json from the `build` folder.
+
 ### Contributing
 
 See our [contribution guidelines](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/CONTRIBUTING.md). Join our [Discord Server](https://discord.gg/yxZ29kR).
