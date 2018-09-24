@@ -177,7 +177,7 @@ contract RootChain is Ownable {
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "invalid merkle proof");
 
         // check that the UTXO's two direct inputs have not been previously exited
-        validateTransactionExitInputs(txList);
+        require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
 
         txExitQueue.insert(priority);
         uint amount = txList[13 + 2 * txPos[2]].toUint();
@@ -197,6 +197,7 @@ contract RootChain is Ownable {
     function validateTransactionExitInputs(RLPReader.RLPItem[] memory txList)
         private
         view
+        returns (bool)
     {
         for (uint256 i = 0; i < 2; i++) {
             ExitState state;
@@ -210,8 +211,11 @@ contract RootChain is Ownable {
             } else
                 state = depositExits[depositNonce_].state;
 
-            require(state == ExitState.NonExistent || state == ExitState.Challenged, "inputs are being exited or have been finalized");
+            if (state != ExitState.NonExistent && state != ExitState.Challenged)
+                return false;
         }
+
+        return true;
     }
 
     // @param depositNonce     the nonce of the deposit trying to exit
@@ -229,6 +233,12 @@ contract RootChain is Ownable {
         exit memory exit_ = depositExits[nonce];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
+        // ensure that the txBytes is a direct spend of the deposit or a grand child transaction which includes the confirm signature
+        bytes32 confSigHash = keccak256(confirmSignature);
+        require(nonce == txList[3].toUint() || nonce == txList[9].toUint() || confSigHash == keccak256(txList[5].toBytes()) ||
+                confSigHash == keccak256(txList[11].toBytes()), "challenging transaction does not spend the deposit or is a grand child transaction");
+
+        // check for inclusion in the side chain
         bytes32 root = childChain[newTxPos[0]].root;
         bytes32 merkleHash = keccak256(abi.encodePacked(keccak256(txBytes), sigs));
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
@@ -260,7 +270,12 @@ contract RootChain is Ownable {
         exit memory exit_ = txExits[priority];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
-        // confirm challenging transcations inclusion and challenge the exiting transaction
+        // must be a direct spend if the confirm signature is not included in the transaction bytes
+        bytes32 confSigHash = keccak256(confirmSignature);
+        require(confSigHash != keccak256(txList[5].toBytes()) || confSigHash != keccak256(txList[11].toBytes()) ||
+                ensureMatchingInputs(exitingTxPos, txList), "challenging transaction does not spend the deposit or is a grand child transaction");
+
+        // confirm challenging transcation's inclusion and confirm signature
         bytes32 root = childChain[challengingTxPos[0]].root;
         bytes32 merkleHash = keccak256(abi.encodePacked(keccak256(txBytes), sigs));
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
@@ -275,6 +290,24 @@ contract RootChain is Ownable {
         // reflect challenged state
         txExits[priority].state = ExitState.Challenged;
         emit ChallengedTransactionExit(priority, exit_.owner, exit_.amount);
+    }
+
+    // When challenging an exiting transcation located at `exitingTxPos`, we must make sure that the challenging 
+    // transcation posted is either a direct spend of the exit if the confirm signature was not included in the txBytes of
+    // the exiting transaction
+    function ensureMatchingInputs(uint256[3] exitingTxPos, RLPReader.RLPItem[] memory challengingTxList)
+        private
+        pure
+        returns (bool)
+    {
+        // indicator for which input to check int the challenging transaction
+        uint i = exitingTxPos[0] == challengingTxList[0].toUint() ? 0 : 1;
+
+        if (exitingTxPos[1] == challengingTxList[1 + 6*i].toUint()
+            && exitingTxPos[2] == challengingTxList[2 + 6*i].toUint())
+            return true;
+
+        return false;
     }
 
     function finalizeDepositExits() public { finalize(depositExitQueue, true); }
