@@ -171,7 +171,7 @@ contract RootChain is Ownable {
         bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
         require(txHash.checkSigs(confirmationHash,
-                                 // we always assume the first input is always present in a transaction. The second input is optional
+                                 // By construction, the first input is always present in a transaction. The second input is optional
                                  txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
                                  sigs, confirmSignatures), "mismatch in transaction and confirm sigatures");
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "invalid merkle proof");
@@ -192,8 +192,7 @@ contract RootChain is Ownable {
     }
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
-    // been previously exited. If UTXO's inputs are in the exit queue, those inputs'
-    // exits are deleted from the exit queue and the current UTXO's exit remains valid.
+    // been previously exited or are currently pending an exit.
     function validateTransactionExitInputs(RLPReader.RLPItem[] memory txList)
         private
         view
