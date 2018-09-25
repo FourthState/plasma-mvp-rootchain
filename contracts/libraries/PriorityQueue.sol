@@ -3,20 +3,14 @@ pragma solidity ^0.4.24;
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
-// This queue implementation expects the `heapList` to always have
-// a zero'th element. This is for indexing reasons.
-//      For example: An empty `heapList` can be the array, [0].
 library PriorityQueue {
-    using SafeMath for uint256;
-
     function insert(uint256[] storage heapList, uint256 k)
         public
     {
         heapList.push(k);
-        uint size = currentSize(heapList);
-        if (size > 1) {
-            percUp(heapList, size);
-        }
+        uint size = heapList.length;
+        if (size > 1)
+            precUp(heapList(size - 1);
     }
 
     function getMin(uint256[] storage heapList)
@@ -24,29 +18,29 @@ library PriorityQueue {
         view
         returns (uint256)
     {
-        require(currentSize(heapList) > 0, "empty queue");
-        return heapList[1];
+        require(heapList.length > 0, "empty queue");
+
+        return heapList[0];
     }
 
     function delMin(uint256[] storage heapList)
         public
         returns (uint256)
     {
-        uint size = currentSize(heapList);
-        require(size > 0, "empty queue");
+        require(heapList.length > 0, "empty queue");
 
-        uint256 retVal = heapList[1];
+        uint256 min = heapList[0];
+        if (heapList.length > 1) { // the minimum can be the only element in the heap
+            // move the largest element in the heap to the top and percDown
+            heapList[0] = heapList[heapList.length - 1];
+            delete heapList[size];
+            heapList.length = heapList.length - 1;
 
-        heapList[1] = heapList[size];
-        delete heapList[size];
-        heapList.length = size; // not `size - 1` due to the unused first element
-        size = size.sub(1);
-
-        if (size > 1) {
-            percDown(heapList, 1);
+            if (heapList.length > 1)
+                percDown(heapList, 0);
         }
 
-        return retVal;
+        return min;
     }
 
     function minChild(uint256[] storage heapList, uint256 i)

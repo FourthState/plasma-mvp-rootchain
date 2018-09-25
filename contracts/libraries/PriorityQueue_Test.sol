@@ -6,7 +6,7 @@ import "./PriorityQueue.sol";
 contract PriorityQueue_Test {
     using PriorityQueue for uint256[];
 
-    uint256[] heapList = [0];
+    uint256[] heapList = [];
 
     function insert(uint256 k) public { heapList.insert(k); }
     function getMin() public view returns (uint256) { return heapList.getMin(); }
