@@ -49,8 +49,8 @@ library PriorityQueue {
         view
         returns (uint256)
     {
-        uint lChild = i*2 + 1;
-        uint rChild = i*2 + 2;
+        uint lChild = i.mul(2).add(1);
+        uint rChild = i.mul(2).add(2);
 
         if (rChild > heapList.length.sub(1) || heapList[lChild] < heapList[rChild])
             return lChild;
