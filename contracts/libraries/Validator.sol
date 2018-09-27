@@ -3,6 +3,8 @@ pragma solidity ^0.4.24;
 import "openzeppelin-solidity/contracts/ECRecovery.sol";
 
 library Validator {
+    uint8 constant WORD_SIZE = 32;
+
     // @param leaf     a leaf of the tree
     // @param index    position of this leaf in the tree that is zero indexed
     // @param rootHash block header of the merkle tree
@@ -79,7 +81,6 @@ library Validator {
 
     /* Helpers */
 
-    // TODO: Re-implement this
     // @param _bytes raw bytes that needs to be slices
     // @param start  start of the slice relative to `_bytes`
     // @param len    length of the sliced byte array
@@ -88,36 +89,43 @@ library Validator {
             pure
             returns (bytes)
         {
+            require(_bytes.length - start >= len, "slice out of bounds");
 
             if (_bytes.length == len)
                 return _bytes;
 
-            bytes memory tempBytes;
-
+            bytes memory result;
+            uint src;
+            uint dest;
             assembly {
-                tempBytes := mload(0x40)
+                // memory & free memory pointer
+                result := mload(0x40)
+                mstore(result, len) // store the size in the prefix
+                mstore(0x40, add(result, and(add(add(0x20, len), 0x1f), not(0x1f)))) // padding
 
-                let lengthmod := and(len, 31)
-
-                let mc := add(tempBytes, lengthmod)
-                let end := add(mc, len)
-
-                for {
-                    let cc := add(add(_bytes, lengthmod), start)
-                } lt(mc, end) {
-                    mc := add(mc, 0x20)
-                    cc := add(cc, 0x20)
-                } {
-                    mstore(mc, mload(cc))
-                }
-
-                mstore(tempBytes, len)
-
-                //update free-memory pointer
-                //allocating the array padded to 32 bytes like the compiler does now
-                mstore(0x40, and(add(mc, 31), not(31)))
+                // pointers
+                src := add(start, add(0x20, _bytes))
+                dest := add(0x20, result)
             }
 
-            return tempBytes;
+            // copy as many word sizes as possible
+            for(; len >= WORD_SIZE; len -= WORD_SIZE) {
+                assembly {
+                    mstore(dest, mload(src))
+                }
+
+                src += WORD_SIZE;
+                dest += WORD_SIZE;
+            }
+
+            // copy remaining bytes
+            uint mask = 256 ** (WORD_SIZE - len) - 1;
+            assembly {
+                let srcpart := and(mload(src), not(mask)) // zero out src
+                let destpart := and(mload(dest), mask) // retrieve the bytes
+                mstore(dest, or(destpart, srcpart))
+            }
+
+            return result;
     }
 }

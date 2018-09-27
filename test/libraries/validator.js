@@ -7,12 +7,12 @@ let {zeroHashes} = require('../rootchain/rootchain_helpers.js');
 
 contract('Validator', async (accounts) => {
     let instance;
-    before (async () => {
+    beforeEach (async () => {
         instance = await Validator_Test.new();
     });
 
     it("Verifies the membership in a merkle tree with only one transaction", async () => {
-        let leafHash = web3.sha3("inputSeed1eed", {encoding: 'hex'});
+        let leafHash = web3.sha3("inputSeed");
 
         let root, proof;
         [root, proof] = generateMerkleRootAndProof([leafHash], 0);
@@ -44,10 +44,10 @@ contract('Validator', async (accounts) => {
     });
 
     it("Verifies membership in a merkle tree with multiple transactions", async () => {
-        let leafHash1 = web3.sha3("inputSeed1", {encoding: 'hex'});
-        let leafHash2 = web3.sha3("inputSeed2", {encoding: 'hex'});
-        let leafHash3 = web3.sha3("inputSeed3", {encoding: 'hex'});
-        let leafHash4 = web3.sha3("inputSeed4", {encoding: 'hex'});
+        let leafHash1 = web3.sha3("inputSeed1");
+        let leafHash2 = web3.sha3("inputSeed2");
+        let leafHash3 = web3.sha3("inputSeed3");
+        let leafHash4 = web3.sha3("inputSeed4");
         let leafHash5 = toHex(zeroHashes[0]);
 
         let root, proof;
@@ -68,7 +68,7 @@ contract('Validator', async (accounts) => {
     });
 
     it("Slices bytes correctly", async () => {
-        let inputHash = web3.sha3("inputSeed", {encoding: 'hex'});
+        let inputHash = web3.sha3("inputSeed");
 
         assert.equal((await instance.slice.call(toHex(inputHash), 0, 32)).toString(), inputHash, "Slice didn't get entire substring");
 
@@ -77,11 +77,30 @@ contract('Validator', async (accounts) => {
 
         assert.equal((await instance.slice.call(toHex(inputHash), 0, 8)).toString(), toHex(inputHash.substring(2,18)), "Didn't get first quarter of the hash");
         assert.equal((await instance.slice.call(toHex(inputHash), 8, 24)).toString(), toHex(inputHash.substring(18)), "Didn't get rest of the hash");
-    })
+    });
+
+    it("Reverts if trying to slice out of range", async () => {
+        let inputHash = web3.sha3("inputSeed");
+
+        // sha3 maps input to a 32 byte hash (64 charac 
+        let err;
+        [err] = await catchError(instance.slice.call(toHex(inputHash), 1, 32));
+        if (!err)
+            assert.fail("slice did not revert when inputs produce an out of bounds error");
+    });
+
+    it("Can slice bytes larger than a evm word size", async () => {
+        let input = "0x";
+        for (let i = 0; i < 100; i++) { // 50 bytes
+            input += Math.floor(Math.random()*10) // include a random hex digit from 0-9
+        }
+
+        assert.equal((await instance.slice.call(toHex(input), 1, 40)).toString(), toHex(input.substring(4, 84)), "Didn't copy over a whole word size then left over bytes");
+    });
 
     it("Correctly recovers the signee of a signature", async () => {
         // create tx hash
-        let txHash = web3.sha3("inputSeed", {encoding: 'hex'});
+        let txHash = web3.sha3("inputSeed");
 
         let signer1 = accounts[1];
         // create tx sigs
