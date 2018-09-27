@@ -5,11 +5,11 @@ let { catchError } = require('../utilities.js');
 
 contract('PriorityQueue', async (accounts) => {
     let instance;
-    before(async () => {
+    beforeEach(async () => {
         instance = await PriorityQueue_Test.new();
     });
 
-    it("Test reverts on empty queue", async() => {
+    it("Reverts when deleting on an empty queue", async() => {
       let err;
       [err] = await catchError(instance.getMin.call());
       if (!err)
@@ -20,7 +20,7 @@ contract('PriorityQueue', async (accounts) => {
           assert.fail("Didn't revert on deleting min of an empty queue.");
     });
 
-    it("Add then remove", async () => {
+    it("Correctly adds then remove elements", async () => {
         await instance.insert(2)
         await instance.insert(1)
         await instance.insert(3)
@@ -37,7 +37,7 @@ contract('PriorityQueue', async (accounts) => {
         assert.equal((await instance.currentSize.call()).toNumber(), 0, "Size is not zero")
     });
 
-    it("Ascending insert", async () => {
+    it("Handles ascending inserts", async () => {
         let currSize = (await instance.currentSize.call()).toNumber();
         for (i = 1; i < 6; i++) {
             await instance.insert(i);
@@ -66,7 +66,7 @@ contract('PriorityQueue', async (accounts) => {
         assert.equal(currSize, 0, "The priority queue has not been emptied");
     });
 
-    it("Insert, delete min, insert again", async () => {
+    it("Can insert, delete min, then insert again", async () => {
         for (i = 1; i < 6; i++) {
             await instance.insert(i);
             let min = (await instance.getMin.call()).toNumber();
@@ -95,7 +95,7 @@ contract('PriorityQueue', async (accounts) => {
         assert.equal(currSize, 0, "The priority queue has not been emptied");
     });
 
-    it("Insert same priorities", async () => {
+    it("Handles duplicate entries", async () => {
         let currentSize = (await instance.currentSize.call()).toNumber();
         assert.equal(currentSize, 0, "The size is not 0");
 
