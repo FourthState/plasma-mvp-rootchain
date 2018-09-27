@@ -170,8 +170,7 @@ contract RootChain is Ownable {
         validateTransactionExitInputs(txList);
 
         uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        uint256 exitable = Math.max256(childChain[txPos[0]].created_at + 2 weeks, block.timestamp + 1 weeks); 
-        uint256 priority =  exitable << 128 | position;
+        uint256 priority = Math.max256(childChain[txPos[0]].created_at + 1 weeks, block.timestamp) << 128 | position;
         
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
