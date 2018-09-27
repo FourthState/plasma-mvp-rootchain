@@ -21,20 +21,20 @@ contract('PriorityQueue', async (accounts) => {
     });
 
     it("Correctly adds then remove elements", async () => {
-        await instance.insert(2)
-        await instance.insert(1)
-        await instance.insert(3)
+        await instance.insert(2);
+        await instance.insert(1);
+        await instance.insert(3);
 
-        assert.equal((await instance.getMin.call()).toNumber(), 1, "Did not delete correct minimum")
+        assert.equal((await instance.getMin.call()).toNumber(), 1, "Did not delete correct minimum");
 
-        await instance.delMin()
-        assert.equal((await instance.getMin.call()).toNumber(), 2, "Did not delete correct minimum")
+        await instance.delMin();
+        assert.equal((await instance.getMin.call()).toNumber(), 2, "Did not delete correct minimum");
 
-        await instance.delMin()
-        assert.equal((await instance.getMin.call()).toNumber(), 3, "Did not delete correct minimum")
+        await instance.delMin();
+        assert.equal((await instance.getMin.call()).toNumber(), 3, "Did not delete correct minimum");
 
-        await instance.delMin()
-        assert.equal((await instance.currentSize.call()).toNumber(), 0, "Size is not zero")
+        await instance.delMin();
+        assert.equal((await instance.currentSize.call()).toNumber(), 0, "Size is not zero");
     });
 
     it("Handles ascending inserts", async () => {
@@ -127,6 +127,6 @@ contract('PriorityQueue', async (accounts) => {
         assert.equal(min, 10, "PriorityQueue did not delete duplicate correctly")
 
         await instance.delMin();
-        assert.equal(await instance.currentSize.call(), 0)
+        assert.equal(await instance.currentSize.call(), 0);
     });
 });
