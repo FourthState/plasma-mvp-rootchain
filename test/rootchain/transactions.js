@@ -231,7 +231,4 @@ contract('[RootChain] Transactions', async (accounts) => {
         if (!err)
             assert.fail("Allowed an transaction exit with only a second input present");
     });
-
-    it("Requires a direct spend or grandchild transaction to challenge", async () => {
-    });
 });

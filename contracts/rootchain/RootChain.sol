@@ -232,10 +232,10 @@ contract RootChain is Ownable {
         exit memory exit_ = depositExits[nonce];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
-        // ensure that the txBytes is a direct spend of the deposit or a grand child transaction which includes the confirm signature
+        // ensure that the txBytes is a direct spend of the deposit
         bytes32 confSigHash = keccak256(confirmSignature);
-        require(nonce == txList[3].toUint() || nonce == txList[9].toUint() || confSigHash == keccak256(txList[5].toBytes()) ||
-                confSigHash == keccak256(txList[11].toBytes()), "challenging transaction does not spend the deposit or is a grand child transaction");
+        require(nonce == txList[3].toUint() || nonce == txList[9].toUint(),
+                "challenging transaction does not spend the deposit or is a grand child transaction");
 
         // check for inclusion in the side chain
         bytes32 root = childChain[newTxPos[0]].root;
@@ -269,10 +269,8 @@ contract RootChain is Ownable {
         exit memory exit_ = txExits[priority];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
-        // must be a direct spend if the confirm signature is not included in the transaction bytes
-        bytes32 confSigHash = keccak256(confirmSignature);
-        require(confSigHash != keccak256(txList[5].toBytes()) || confSigHash != keccak256(txList[11].toBytes()) ||
-                ensureMatchingInputs(exitingTxPos, txList), "challenging transaction does not spend the deposit or is a grand child transaction");
+        // must be a direct spend
+        require(ensureMatchingInputs(exitingTxPos, txList), "challenging transaction does not spend the deposit or is a grand child transaction");
 
         // confirm challenging transcation's inclusion and confirm signature
         bytes32 root = childChain[challengingTxPos[0]].root;
