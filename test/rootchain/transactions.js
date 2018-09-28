@@ -285,7 +285,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         await rootchain.startTransactionExit([blockNum2, 0, 1],
             toHex(txBytes2), toHex(proof2), toHex(sigs2), toHex(confirmSigs2), {from: accounts[2], value: minExitBond});
         
-        // increase time slightly, so exit by accounts[1] has better priority
+        // increase time slightly, so exit by accounts[2] has better priority than accounts[1]
         fastForward(10);
 
         // start exit for accounts[1] utxo
@@ -308,17 +308,19 @@ contract('[RootChain] Transactions', async (accounts) => {
         fastForward(432000);
         
         // finalize exits should finalize accounts[2] then accounts[1]
-        await rootchain.finalizeTransactionExits({from: authority});
+        let finalizedExits = await rootchain.finalizeTransactionExits({from: authority});
         let finalizedExit = await rootchain.getTransactionExit.call(position);
-        assert.equal(finalizedExit[0], accounts[2], "Incorrect finalized exit owner");
-        assert.equal(finalizedExit[1], 25, "Incorrect finalized exit amount.");
+        assert.equal(finalizedExits.logs[0].args.position, position, "Incorrect position for finalized tx");
+        assert.equal(finalizedExits.logs[0].args.owner, accounts[2], "Incorrect finalized exit owner");
+        assert.equal(finalizedExits.logs[0].args.amount.toNumber(), 25 + minExitBond, "Incorrect finalized exit amount.");
         assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
         
         // Check other exits
         position = 1000000 * blockNum2;
         finalizedExit = await rootchain.getTransactionExit.call(position);
-        assert.equal(finalizedExit[0], accounts[1], "Incorrect finalized exit owner");
-        assert.equal(finalizedExit[1], 25, "Incorrect finalized exit amount.");
+        assert.equal(finalizedExits.logs[2].args.position, position, "Incorrect position for finalized tx");
+        assert.equal(finalizedExits.logs[2].args.owner, accounts[1], "Incorrect finalized exit owner");
+        assert.equal(finalizedExits.logs[2].args.amount.toNumber(), 25 + minExitBond, "Incorrect finalized exit amount.");
         assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
 
         // Last exit should still be pending
