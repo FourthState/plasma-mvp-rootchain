@@ -233,7 +233,6 @@ contract RootChain is Ownable {
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
         // ensure that the txBytes is a direct spend of the deposit
-        bytes32 confSigHash = keccak256(confirmSignature);
         require(nonce == txList[3].toUint() || nonce == txList[9].toUint(),
                 "challenging transaction does not spend the deposit or is a grand child transaction");
 

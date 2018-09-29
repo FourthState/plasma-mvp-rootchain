@@ -20,8 +20,7 @@ let fastForward = async function(time) {
     await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
     let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
 
-    let diff = (currTime - oldTime) - time;
-    assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week");
+    assert.isAtLeast(currTime - oldTime, time, `Block time was not fast forwarded by at least ${time} seconds`);
 }
 
 // start a new exit
