@@ -229,12 +229,11 @@ contract RootChain is Ownable {
         RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 17, "incorrect tx list");
 
+        // ensure that the txBytes is a direct spend of the deposit
+        require(nonce == txList[3].toUint() || nonce == txList[9].toUint(), "challenging transaction is not a direct spend");
+
         exit memory exit_ = depositExits[nonce];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
-
-        // ensure that the txBytes is a direct spend of the deposit
-        require(nonce == txList[3].toUint() || nonce == txList[9].toUint(),
-                "challenging transaction does not spend the deposit or is a grand child transaction");
 
         // check for inclusion in the side chain
         bytes32 root = childChain[newTxPos[0]].root;
@@ -263,13 +262,13 @@ contract RootChain is Ownable {
         RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 17, "incorrect tx list");
 
+        // must be a direct spend
+        require(ensureMatchingInputs(exitingTxPos, txList), "challenging transaction is not a direct spend");
+
         // transaction to be challenged should have a pending exit
         uint256 priority = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
         exit memory exit_ = txExits[priority];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
-
-        // must be a direct spend
-        require(ensureMatchingInputs(exitingTxPos, txList), "challenging transaction does not spend the deposit or is a grand child transaction");
 
         // confirm challenging transcation's inclusion and confirm signature
         bytes32 root = childChain[challengingTxPos[0]].root;

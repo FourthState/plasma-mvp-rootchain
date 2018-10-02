@@ -147,6 +147,13 @@ contract('[RootChain] Deposits', async (accounts) => {
         // start the malicious exit
         await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
 
+        // checks matching inputs
+        let err;
+        [err] = await catchError(rootchain.challengeDepositExit(nonce-1, [blockNum, 0, 0],
+            toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
+        if (!err)
+            assert.fail("did not check against matching inputs");
+
         // correctly challenge
         await rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]});
