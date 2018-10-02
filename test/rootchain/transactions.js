@@ -234,6 +234,7 @@ contract('[RootChain] Transactions', async (accounts) => {
     });
 
     it("Attempt a withdrawal delay attack", async () => {
+        let five_days = 432000 // in seconds
         // accounts[1] spends deposit and creates 2 new utxos for themself
         let txBytes1 = Array(17).fill(0);
         txBytes1[0] = txPos[0]; txBytes1[1] = txPos[1]; txBytes1[2] = txPos[2]; // first input
@@ -293,7 +294,7 @@ contract('[RootChain] Transactions', async (accounts) => {
             toHex(txBytes2), toHex(proof2), toHex(sigs2), toHex(confirmSigs2), {from: accounts[1], value: minExitBond});
         
         // Fast Forward ~5 days
-        fastForward(432000);
+        fastForward(five_days);
         
         // Check to make sure challenge period has not ended
         let position = 1000000 * blockNum2 + 1;
@@ -305,7 +306,7 @@ contract('[RootChain] Transactions', async (accounts) => {
             toHex(txBytes1), toHex(proof1), toHex(sigs1), toHex(confirmSigs1), {from: accounts[1], value: minExitBond});
         
         // Fast Forward < 1 week
-        fastForward(432000);
+        fastForward(five_days);
         
         // finalize exits should finalize accounts[2] then accounts[1]
         let finalizedExits = await rootchain.finalizeTransactionExits({from: authority});
