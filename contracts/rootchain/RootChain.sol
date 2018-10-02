@@ -55,8 +55,8 @@ contract RootChain is Ownable {
 
     // exits
     uint256 minExitBond;
-    uint256[] txExitQueue = [0];
-    uint256[] depositExitQueue = [0];
+    uint256[] txExitQueue;
+    uint256[] depositExitQueue;
     mapping(uint256 => exit) public txExits;
     mapping(uint256 => exit) public depositExits;
     enum ExitState { NonExistent, Pending, Challenged, Finalized }
