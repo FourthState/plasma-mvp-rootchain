@@ -165,7 +165,6 @@ contract('[RootChain] Deposits', async (accounts) => {
         assert.equal(exit[3], 2, "exit state not changed to challenged");
 
         // Cannot challenge twice
-        let err;
         [err] = await catchError(rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
