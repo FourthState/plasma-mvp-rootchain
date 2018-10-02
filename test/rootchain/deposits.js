@@ -28,10 +28,16 @@ contract('[RootChain] Deposits', async (accounts) => {
     it("Allows deposits of funds into a different address", async () => {
         let nonce = (await rootchain.depositNonce.call()).toNumber();
         let tx = await rootchain.deposit(accounts[2], {from: accounts[1], value: 100});
+
         // check Deposit event
         assert.equal(tx.logs[0].args.depositor, accounts[2], "incorrect deposit owner");
         assert.equal(tx.logs[0].args.amount.toNumber(), 100, "incorrect deposit amount");
         assert.equal(tx.logs[0].args.depositNonce, nonce, "incorrect deposit nonce");
+
+        // check rootchain deposit mapping
+        let deposit = await rootchain.getDeposit.call(nonce);
+        assert.equal(deposit[0], accounts[2], "incorrect deposit owner");
+        assert.equal(deposit[1], 100, "incorrect deposit amount");
     });
 
     it("Only allows deposit owner to start a deposit exit", async () => {
