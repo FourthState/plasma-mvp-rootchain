@@ -298,7 +298,8 @@ contract RootChain is Ownable {
         // indicator for which input to check int the challenging transaction
         uint i = exitingTxPos[0] == challengingTxList[0].toUint() ? 0 : 1;
 
-        if (exitingTxPos[1] == challengingTxList[1 + 6*i].toUint()
+        if (exitingTxPos[0] == challengingTxList[0 + 6*i].toUint()
+            && exitingTxPos[1] == challengingTxList[1 + 6*i].toUint()
             && exitingTxPos[2] == challengingTxList[2 + 6*i].toUint())
             return true;
 
