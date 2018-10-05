@@ -2,6 +2,7 @@ pragma solidity ^0.4.24;
 
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/math/Math.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "openzeppelin-solidity/contracts/ECRecovery.sol";
 import "solidity-rlp/contracts/RLPReader.sol";
@@ -21,16 +22,16 @@ contract RootChain is Ownable {
      */
 
     event AddedToBalances(address owner, uint256 amount);
-    event BlockSubmitted(bytes32 root, uint256 position);
+    event BlockSubmitted(bytes32 root, uint256 blockNumber);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce);
 
-    event ChallengedTransactionExit(uint priority, address owner, uint256 amount);
+    event ChallengedTransactionExit(uint position, address owner, uint256 amount);
     event ChallengedDepositExit(uint nonce, address owner, uint256 amount);
 
-    event FinalizedTransactionExit(uint priority, address owner, uint256 amount);
+    event FinalizedTransactionExit(uint position, address owner, uint256 amount);
     event FinalizedDepositExit(uint priority, address owner, uint256 amount);
 
-    event StartedTransactionExit(uint priority, address owner, uint256 amount);
+    event StartedTransactionExit(uint position, address owner, uint256 amount);
     event StartedDepositExit(uint nonce, address owner, uint256 amount);
 
     /*
@@ -161,12 +162,34 @@ contract RootChain is Ownable {
             balances[msg.sender] = balances[msg.sender].add(excess);
             totalWithdrawBalance = totalWithdrawBalance.add(excess);
         }
+        
+        // check that the signatures, confirmation signatures and merkle proof are all valid
+        validateProofAndSignatures(txPos, txBytes, proof, sigs, confirmSignatures, txList);
 
-        // prevent double exiting
-        uint256 priority = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        require(txExits[priority].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
+        // check that the UTXO's two direct inputs have not been previously exited
+        validateTransactionExitInputs(txList);
 
-        // check proof and signatures
+        uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
+        uint256 priority = Math.max256(childChain[txPos[0]].created_at + 1 weeks, block.timestamp) << 128 | position;
+        
+        require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
+
+        txExitQueue.insert(priority);
+        uint amount = txList[13 + 2 * txPos[2]].toUint();
+        txExits[position] = exit({
+            owner: txList[12 + 2 * txPos[2]].toAddress(),
+            amount: amount,
+            created_at: block.timestamp,
+            state: ExitState.Pending
+        });
+
+        emit StartedTransactionExit(position, msg.sender, amount);
+    }
+
+    function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures, RLPReader.RLPItem[] txList)
+        private 
+        view
+    {
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
@@ -175,21 +198,9 @@ contract RootChain is Ownable {
                                  txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
                                  sigs, confirmSignatures), "mismatch in transaction and confirm sigatures");
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "invalid merkle proof");
-
-        // check that the UTXO's two direct inputs have not been previously exited
-        validateTransactionExitInputs(txList);
-
-        txExitQueue.insert(priority);
-        uint amount = txList[13 + 2 * txPos[2]].toUint();
-        txExits[priority] = exit({
-            owner: txList[12 + 2 * txPos[2]].toAddress(),
-            amount: amount,
-            created_at: block.timestamp,
-            state: ExitState.Pending
-        });
-
-        emit StartedTransactionExit(priority, msg.sender, amount);
+ 
     }
+
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
     // been previously exited. If UTXO's inputs are in the exit queue, those inputs'
@@ -205,8 +216,8 @@ contract RootChain is Ownable {
                 uint256 blkNum = txList[6*i + 0].toUint();
                 uint256 inputIndex = txList[6*i + 1].toUint();
                 uint256 outputIndex = txList[6*i + 2].toUint();
-                uint256 priority = blockIndexFactor*blkNum + txIndexFactor*inputIndex + outputIndex;
-                state = txExits[priority].state;
+                uint256 position = blockIndexFactor*blkNum + txIndexFactor*inputIndex + outputIndex;
+                state = txExits[position].state;
             } else
                 state = depositExits[depositNonce_].state;
 
@@ -256,8 +267,8 @@ contract RootChain is Ownable {
         require(txList.length == 17, "incorrect tx list");
 
         // transaction to be challenged should have a pending exit
-        uint256 priority = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
-        exit memory exit_ = txExits[priority];
+        uint256 position = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
+        exit memory exit_ = txExits[position];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
         // confirm challenging transcations inclusion and challenge the exiting transaction
@@ -273,8 +284,8 @@ contract RootChain is Ownable {
         emit AddedToBalances(msg.sender, minExitBond);
 
         // reflect challenged state
-        txExits[priority].state = ExitState.Challenged;
-        emit ChallengedTransactionExit(priority, exit_.owner, exit_.amount);
+        txExits[position].state = ExitState.Challenged;
+        emit ChallengedTransactionExit(position, exit_.owner, exit_.amount);
     }
 
     function finalizeDepositExits() public { finalize(depositExitQueue, true); }
@@ -290,7 +301,17 @@ contract RootChain is Ownable {
 
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = queue.getMin();
-        exit memory currentExit = isDeposits ? depositExits[priority] : txExits[priority];
+        exit memory currentExit;
+        uint256 position;
+        if (isDeposits) {
+            currentExit = depositExits[priority];
+        } else {
+            // retrieve the right 128 bits from the priority to obtain the position
+            assembly {
+   			    position := and(priority, div(not(0x0), exp(256, 16)))
+		    }
+            currentExit = txExits[position];
+        }
 
         /*
         * Conditions:
@@ -315,8 +336,8 @@ contract RootChain is Ownable {
                     depositExits[priority].state = ExitState.Finalized;
                     emit FinalizedDepositExit(priority, currentExit.owner, amountToAdd);
                 } else {
-                    txExits[priority].state = ExitState.Finalized;
-                    emit FinalizedTransactionExit(priority, currentExit.owner, amountToAdd);
+                    txExits[position].state = ExitState.Finalized;
+                    emit FinalizedTransactionExit(position, currentExit.owner, amountToAdd);
                 }
 
                 emit AddedToBalances(currentExit.owner, amountToAdd);
@@ -331,7 +352,15 @@ contract RootChain is Ownable {
 
             // move onto the next oldest exit
             priority = queue.getMin();
-            currentExit = isDeposits ? depositExits[priority] : txExits[priority];
+            if (isDeposits) {
+                currentExit = depositExits[priority];
+            } else {
+                // retrieve the right 128 bits from the priority to obtain the position
+                assembly {
+   			        position := and(priority, div(not(0x0), exp(256, 16)))
+		        }
+                currentExit = txExits[position];
+            }
         }
     }
 
@@ -381,12 +410,12 @@ contract RootChain is Ownable {
         return (childChain[blockNumber].root, childChain[blockNumber].created_at);
     }
 
-    function getTransactionExit(uint256 priority)
+    function getTransactionExit(uint256 position)
         public
         view
         returns (address, uint256, uint256, ExitState)
     {
-        exit memory exit_ = txExits[priority];
+        exit memory exit_ = txExits[position];
         return (exit_.owner, exit_.amount, exit_.created_at, exit_.state);
     }
 
