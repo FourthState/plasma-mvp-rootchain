@@ -2,7 +2,8 @@ let RLP = require('rlp');
 let assert = require('chai').assert
 
 let RootChain = artifacts.require('RootChain');
-let { fastForward, mineNBlocks, zeroHashes, proof } = require('./rootchain_helpers.js');
+
+let { fastForward, mineNBlocks, zeroHashes, sendUTXO } = require('./rootchain_helpers.js');
 let { toHex, catchError, generateMerkleRootAndProof } = require('../utilities.js');
 
 contract('[RootChain] Transactions', async (accounts) => {
@@ -17,6 +18,7 @@ contract('[RootChain] Transactions', async (accounts) => {
     let amount = 100;
     let depositNonce;
     let txPos, txBytes;
+    let proof;
     let sigs, confirmSignatures;
     beforeEach(async () => {
         rootchain = await RootChain.new({from: authority});
@@ -24,29 +26,13 @@ contract('[RootChain] Transactions', async (accounts) => {
         depositNonce = (await rootchain.depositNonce.call()).toNumber();
         await rootchain.deposit(accounts[0], {from: accounts[0], value: amount});
 
-        // deposit is the first input. spending entire deposit to accounts[1]
+        // deposit is the first input. accounts[0] sends entire deposit to accounts[1]
         txBytes = Array(17).fill(0);
         txBytes[3] = depositNonce; txBytes[12] = accounts[1]; txBytes[13] = amount;
         txBytes = RLP.encode(txBytes);
-        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
-        // create signature by deposit owner. Second signature should be zero
-        sigs = await web3.eth.sign(accounts[0], txHash);
-        sigs = sigs + Buffer.alloc(65).toString('hex');
-
-        // include this transaction in the next block
-        let merkleHash = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
-        let root = merkleHash;
-        for (let i = 0; i < 16; i++)
-            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2)
-        let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
-        mineNBlocks(5); // presumed finality before submitting the block
-        await rootchain.submitBlock(toHex(root), {from: authority});
-
-        // create the confirm sig
-        let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
-        confirmSignatures = await web3.eth.sign(accounts[0], confirmHash);
-
+        let blockNum;
+        [sigs, confirmSignatures, blockNum, proof] = await sendUTXO(rootchain, authority, accounts[0], txBytes);
         txPos = [blockNum, 0, 0];
     });
 
@@ -124,6 +110,45 @@ contract('[RootChain] Transactions', async (accounts) => {
         if (!err)
             assert.fail("reopened the same exit after already finalized");
     });
+
+    it("Publishes confirm sigs to allow direct-descent exits to be challenged", async () => {
+        // If malicious user owns both accounts[1] and accounts[2] and sends a UTXO to herself,
+        // represented as A (owned by accounts[1]) -> B (owned by accounts[2]),
+        // then the confirm signature for this transaction will not be included in the block unless she spends B.
+        // Malicious user can then withdraw B before withdrawing A. In this case, we add an event in the root contract
+        // that broadcasts confirm signatures used to withdraw B that can be used to invalidate the withdrawal of A.
+
+        // accounts[1] sends its UTXO to accounts[2]
+        let txBytes1 = Array(17).fill(0);
+        txBytes1[0] = txPos[0]; // Blknum0
+        txBytes1[4] = amount; // Amount0
+        txBytes1[5] = confirmSignatures; // ConfirmSig0 signed by account[0] to accounts[1]
+        txBytes1[12] = accounts[2]; // NewOwner0
+        txBytes1[13] = amount; //Denom0
+        txBytes1 = RLP.encode(txBytes1);
+
+        let sigs1, confirmSignatures1, blockNum1, proof1;
+        [sigs1, confirmSignatures1, blockNum1, proof1] = await sendUTXO(rootchain, authority, accounts[1], txBytes1);
+        let txPos1 = [blockNum1, 0, 0];
+
+        // accounts[2] starts exit for B successfully
+        let tx1 = await rootchain.startTransactionExit(txPos1,
+            toHex(txBytes1), toHex(proof1), toHex(sigs1), toHex(confirmSignatures1),
+            {from: accounts[2], value: minExitBond});
+
+        // accounts[1] starts exit for A; nothing in the rootchain contract stops this, the exit must be challenged externally
+        let tx2 = await rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond});
+
+        // any other address/user can get confirm signatures used to start accounts[2]'s exit
+        // from the StartedTransactionExit event and challenge accounts[1]'s exit
+        let confirmSigFromEvent = tx1.logs[0].args.confirmSignatures;
+        await rootchain.challengeTransactionExit(txPos, txPos1,
+            toHex(txBytes1), toHex(sigs1), toHex(proof1), toHex(confirmSigFromEvent),
+            {from: accounts[3]});
+    });
+
 
     it("Cannot exit a utxo with a finalized deposit input", async () => {
         await rootchain.startDepositExit(depositNonce, {from: accounts[0], value: minExitBond});

@@ -1,6 +1,6 @@
 let RLP = require('rlp');
 
-let { catchError, toHex, generateMerkleRootAndProof } = require('../utilities.js');
+let utilities = require('../utilities.js');
 
 // Wait for n blocks to pass
 let mineNBlocks = async function(numBlocks) {
@@ -24,20 +24,31 @@ let fastForward = async function(time) {
     assert.isBelow(diff, 3, "Block time was not fast forwarded by 1 week");
 }
 
-// start a new exit
-// checks that it succeeds
-let startExit = async function(rootchain, sender, amount, minExitBond, blockNum, txPos, txBytes) {
-    let exitSigs = Buffer.alloc(130).toString('hex');
+// helper function to send a UTXO on childchain and submit blockheader to rootchain.
+let sendUTXO = async function(rootchain, authority, sender, txBytes) {
+    // sender sends a deposit UTXO to recipient
+    let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+    let sigs = await web3.eth.sign(sender, txHash);
+    sigs += Buffer.alloc(65).toString('hex');
 
-    await rootchain.startExit(txPos, toHex(txBytes),
-        toHex(proofForDepositBlock), toHex(exitSigs), {from: sender, value: minExitBond });
+    let merkleHash = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
 
-    let position = 1000000000 * blockNum;
-    let exit = await rootchain.getExit.call(position);
-    assert.equal(exit[0], sender, "Incorrect exit owner");
-    assert.equal(exit[1], amount, "Incorrect amount");
-    assert.equal(exit[2][0], blockNum, "Incorrect block number");
-};
+    // the transaction is included in a new block,
+    // the block header is submitted to rootchain
+    let merkleRoot, merkleProof;
+    [merkleRoot, merkleProof] = utilities.generateMerkleRootAndProof([merkleHash], 0);
+
+    let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
+    // presumed finality before submitting the block
+    mineNBlocks(5);
+    await rootchain.submitBlock(utilities.toHex(merkleRoot), {from: authority});
+
+    // sender signs confirmSig for the transaction
+    let confirmHash = web3.sha3(merkleHash.slice(2) + merkleRoot.slice(2), {encoding: 'hex'});
+    let confirmSignature = await web3.eth.sign(sender, confirmHash);
+
+    return [sigs, confirmSignature, blockNum, merkleProof];
+}
 
 
 // 512 bytes
@@ -63,7 +74,7 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
 module.exports = {
     fastForward,
     mineNBlocks,
-    startExit,
     proof,
-    zeroHashes
+    zeroHashes,
+    sendUTXO
 };

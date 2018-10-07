@@ -1,10 +1,9 @@
+let {zeroHashes} = require('./rootchain/rootchain_helpers.js');
+
 /*
  How to avoid using try/catch blocks with promises' that could fail using async/await
  - https://blog.grossman.io/how-to-write-async-await-without-try-catch-blocks-in-javascript/
  */
-
-let {zeroHashes} = require('./rootchain/rootchain_helpers.js');
-
 let catchError = function(promise) {
   return promise.then(result => [null, result])
       .catch(err => [err]);
@@ -88,8 +87,6 @@ let generateMerkleRootAndProofHelper = function(leaves, depth, txIndex, zeroHash
     }
 };
 
-module.exports = {
-    catchError,
-    toHex,
-    generateMerkleRootAndProof
-};
+module.exports.catchError = catchError;
+module.exports.toHex = toHex;
+module.exports.generateMerkleRootAndProof = generateMerkleRootAndProof;
