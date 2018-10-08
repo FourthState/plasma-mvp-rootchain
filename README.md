@@ -36,7 +36,6 @@ See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob
 5. ``ganache-cli`` // run as a background process
 6. ``npm test``
 
-
 ### Running
 The first migration file `1_initial_migration` deploys the `PriorityQueue` library and links it to the `RootChain` contract, while the second one `2_deploy_rootchain` finally makes the deployment. Ethereum requires libraries to already be deployed prior to be used by other contracts.
 
