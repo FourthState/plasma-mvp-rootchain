@@ -118,45 +118,6 @@ contract('[RootChain] Transactions', async (accounts) => {
             assert.fail("reopened the same exit after already finalized");
     });
 
-    it("Publishes confirm sigs to allow direct-descent exits to be challenged", async () => {
-        // If malicious user owns both accounts[1] and accounts[2] and sends a UTXO to herself,
-        // represented as A (owned by accounts[1]) -> B (owned by accounts[2]),
-        // then the confirm signature for this transaction will not be included in the block unless she spends B.
-        // Malicious user can then withdraw B before withdrawing A. In this case, we add an event in the root contract
-        // that broadcasts confirm signatures used to withdraw B that can be used to invalidate the withdrawal of A.
-
-        // accounts[1] sends its UTXO to accounts[2]
-        let txBytes1 = Array(17).fill(0);
-        txBytes1[0] = txPos[0]; // Blknum0
-        txBytes1[4] = amount; // Amount0
-        txBytes1[5] = confirmSignatures; // ConfirmSig0 signed by account[0] to accounts[1]
-        txBytes1[12] = accounts[2]; // NewOwner0
-        txBytes1[13] = amount; //Denom0
-        txBytes1 = RLP.encode(txBytes1);
-
-        let sigs1, confirmSignatures1, blockNum1, proof1;
-        [sigs1, confirmSignatures1, blockNum1, proof1] = await sendUTXO(rootchain, authority, accounts[1], txBytes1);
-        let txPos1 = [blockNum1, 0, 0];
-
-        // accounts[2] starts exit for B successfully
-        let tx1 = await rootchain.startTransactionExit(txPos1,
-            toHex(txBytes1), toHex(proof1), toHex(sigs1), toHex(confirmSignatures1),
-            {from: accounts[2], value: minExitBond});
-
-        // accounts[1] starts exit for A; nothing in the rootchain contract stops this, the exit must be challenged externally
-        let tx2 = await rootchain.startTransactionExit(txPos,
-            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
-            {from: accounts[1], value: minExitBond});
-
-        // any other address/user can get confirm signatures used to start accounts[2]'s exit
-        // from the StartedTransactionExit event and challenge accounts[1]'s exit
-        let confirmSigFromEvent = tx1.logs[0].args.confirmSignatures;
-        await rootchain.challengeTransactionExit(txPos, txPos1,
-            toHex(txBytes1), toHex(sigs1), toHex(proof1), toHex(confirmSigFromEvent),
-            {from: accounts[3]});
-    });
-
-
     it("Cannot exit a utxo with a finalized deposit input", async () => {
         await rootchain.startDepositExit(depositNonce, {from: accounts[0], value: minExitBond});
 
@@ -263,6 +224,64 @@ contract('[RootChain] Transactions', async (accounts) => {
             toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSig), {from: accounts[1], value: minExitBond}));
         if (!err)
             assert.fail("Allowed an transaction exit with only a second input present");
+    });
+
+    it("Cannot challenge with an incorrect transaction", async () => {
+        // account[1] spends deposit and creates two utxos for themselves
+        let txBytes1 = Array(17).fill(0);
+        txBytes1[0] = txPos[0]; txBytes1[1] = txPos[1]; txBytes1[2] = txPos[2]; // first input
+        txBytes1[12] = accounts[1]; txBytes1[13] = amount/2; // first utxo
+        txBytes1[14] = accounts[1]; txBytes1[15] = amount/2; // second utxo
+        txBytes1 = RLP.encode(txBytes1);
+
+        // include this tx the next block
+        let txHash1 = web3.sha3(txBytes1.toString('hex'), {encoding: 'hex'});
+        let sigs1 = await web3.eth.sign(accounts[1], txHash1);
+        sigs1 += Buffer.alloc(65).toString('hex'); // second signature is nil
+
+        let merkleHash1 = web3.sha3(txHash1.slice(2) + sigs1.slice(2), {encoding: 'hex'});
+        let root1, proof1;
+        [root1, proof1] = generateMerkleRootAndProof([merkleHash1], 0);
+        let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
+        mineNBlocks(5);
+        await rootchain.submitBlock(toHex(root1), {from: authority});
+
+        // create confirmation signature
+        let confirmationHash1 = web3.sha3(merkleHash1.slice(2) + root1.slice(2), {encoding: 'hex'});
+        let confirmSigs1 = await web3.eth.sign(accounts[1], confirmationHash1);
+
+        // accounts[1] spends the first output to accounts[2]
+        let txBytes2 = Array(17).fill(0);
+        txBytes2[0] = blockNum1;
+        txBytes2 = RLP.encode(txBytes2);
+
+        // include this tx the next block
+        let txHash2 = web3.sha3(txBytes2.toString('hex'), {encoding: 'hex'});
+        let sigs2 = await web3.eth.sign(accounts[1], txHash1);
+        sigs2 += Buffer.alloc(65).toString('hex'); // second signature is nil
+
+        let merkleHash2 = web3.sha3(txHash2.slice(2) + sigs2.slice(2), {encoding: 'hex'});
+        let root2, proof2;
+        [root2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
+        let blockNum2 = (await rootchain.currentChildBlock.call()).toNumber();
+        mineNBlocks(5);
+        await rootchain.submitBlock(toHex(root2), {from: authority});
+
+        // create confirmation signature
+        let confirmationHash2 = web3.sha3(merkleHash2.slice(2) + root2.slice(2), {encoding: 'hex'});
+        let confirmSigs2 = await web3.eth.sign(accounts[2], confirmationHash2);
+
+        // accounts[1] exits the second output
+        await rootchain.startTransactionExit([blockNum1, 0, 1], toHex(txBytes1),
+            toHex(proof1), toHex(sigs1), toHex(confirmSigs1), {from: accounts[1], value: minExitBond});
+
+        // try to challenge with the spend of the first output
+        let err;
+        [err] = await catchError(rootchain.challengeTransactionExit([blockNum1, 0, 1], [blockNum2, 0, 0],
+            toHex(txBytes2), toHex(sigs2), toHex(proof2), toHex(confirmSigs2)))
+
+        if (!err)
+            assert.fail("Challenged with incorrect transaction")
     });
 
     it("Attempt a withdrawal delay attack", async () => {
@@ -372,5 +391,4 @@ contract('[RootChain] Transactions', async (accounts) => {
         assert.equal(finalizedExit[1], 50, "Incorrect finalized exit amount");
         assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
      });
-
 });
