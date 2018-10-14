@@ -164,10 +164,10 @@ contract RootChain is Ownable {
         }
         
         // check that the signatures, confirmation signatures and merkle proof are all valid
-        validateProofAndSignatures(txPos, txBytes, proof, sigs, confirmSignatures, txList);
+        require(validateProofAndSignatures(txPos, txBytes, proof, sigs, confirmSignatures, txList), "invalid proof or signatures");
 
         // check that the UTXO's two direct inputs have not been previously exited
-        validateTransactionExitInputs(txList);
+        require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
 
         uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
         uint256 priority = Math.max256(childChain[txPos[0]].createdAt + 1 weeks, block.timestamp) << 128 | position;
@@ -189,25 +189,28 @@ contract RootChain is Ownable {
     function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures, RLPReader.RLPItem[] txList)
         private 
         view
+        returns (bool)
     {
         bytes32 txHash = keccak256(txBytes);
         bytes32 merkleHash = keccak256(abi.encodePacked(txHash, sigs));
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
-        require(txHash.checkSigs(confirmationHash,
+
+        bool check1 = txHash.checkSigs(confirmationHash,
                                  // we always assume the first input is always present in a transaction. The second input is optional
                                  txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
-                                 sigs, confirmSignatures), "mismatch in transaction and confirm sigatures");
-        require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof), "invalid merkle proof");
- 
+                                 sigs, confirmSignatures);
+        bool check2 = merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof);
+
+        return check1 && check2;
     }
 
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
-    // been previously exited. If UTXO's inputs are in the exit queue, those inputs'
-    // exits are deleted from the exit queue and the current UTXO's exit remains valid.
+    // been previously exited or are currently pending an exit.
     function validateTransactionExitInputs(RLPReader.RLPItem[] memory txList)
         private
         view
+        returns (bool)
     {
         for (uint256 i = 0; i < 2; i++) {
             ExitState state;
@@ -221,8 +224,11 @@ contract RootChain is Ownable {
             } else
                 state = depositExits[depositNonce_].state;
 
-            require(state == ExitState.NonExistent || state == ExitState.Challenged, "inputs are being exited or have been finalized");
+            if (state != ExitState.NonExistent && state != ExitState.Challenged)
+                return false;
         }
+
+        return true;
     }
 
     // @param depositNonce     the nonce of the deposit trying to exit
@@ -237,9 +243,13 @@ contract RootChain is Ownable {
         RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 17, "incorrect tx list");
 
+        // ensure that the txBytes is a direct spend of the deposit
+        require(nonce == txList[3].toUint() || nonce == txList[9].toUint(), "challenging transaction is not a direct spend");
+
         exit memory exit_ = depositExits[nonce];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
+        // check for inclusion in the side chain
         bytes32 root = childChain[newTxPos[0]].root;
         bytes32 merkleHash = keccak256(abi.encodePacked(keccak256(txBytes), sigs));
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
@@ -266,12 +276,15 @@ contract RootChain is Ownable {
         RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
         require(txList.length == 17, "incorrect tx list");
 
+        // must be a direct spend
+        require(ensureMatchingInputs(exitingTxPos, txList), "challenging transaction is not a direct spend");
+
         // transaction to be challenged should have a pending exit
         uint256 position = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
         exit memory exit_ = txExits[position];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
-        // confirm challenging transcations inclusion and challenge the exiting transaction
+        // confirm challenging transcation's inclusion and confirm signature
         bytes32 root = childChain[challengingTxPos[0]].root;
         bytes32 merkleHash = keccak256(abi.encodePacked(keccak256(txBytes), sigs));
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
@@ -286,6 +299,25 @@ contract RootChain is Ownable {
         // reflect challenged state
         txExits[position].state = ExitState.Challenged;
         emit ChallengedTransactionExit(position, exit_.owner, exit_.amount);
+    }
+
+    // When challenging an exiting transcation located at `exitingTxPos`, we must make sure that the challenging 
+    // transcation posted is either a direct spend of the exit if the confirm signature was not included in the txBytes of
+    // the exiting transaction
+    function ensureMatchingInputs(uint256[3] exitingTxPos, RLPReader.RLPItem[] memory challengingTxList)
+        private
+        pure
+        returns (bool)
+    {
+        // indicator for which input to check int the challenging transaction
+        uint i = exitingTxPos[0] == challengingTxList[0].toUint() ? 0 : 1;
+
+        if (exitingTxPos[0] == challengingTxList[0 + 6*i].toUint()
+            && exitingTxPos[1] == challengingTxList[1 + 6*i].toUint()
+            && exitingTxPos[2] == challengingTxList[2 + 6*i].toUint())
+            return true;
+
+        return false;
     }
 
     function finalizeDepositExits() public { finalize(depositExitQueue, true); }
