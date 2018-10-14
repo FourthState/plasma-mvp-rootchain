@@ -284,6 +284,39 @@ contract('[RootChain] Transactions', async (accounts) => {
             assert.fail("Challenged with incorrect transaction")
     });
 
+    it("Publishes confirm sigs to allow direct-descent exits to be challenged", async () => {
+        // If malicious user owns both accounts[1] and accounts[2] and sends a UTXO to herself,
+        // represented as A (owned by accounts[1]) -> B (owned by accounts[2]),
+        // then the confirm signature for this transaction will not be included in the block unless she spends B.
+        // Malicious user can then withdraw B before withdrawing A. In this case, we add an event in the root contract
+        // that broadcasts confirm signatures used to withdraw B that can be used to invalidate the withdrawal of A.
+        // accounts[1] sends its UTXO to accounts[2]
+        let txBytes1 = Array(17).fill(0);
+        txBytes1[0] = txPos[0]; // Blknum0
+        txBytes1[4] = amount; // Amount0
+        txBytes1[5] = confirmSignatures; // ConfirmSig0 signed by account[0] to accounts[1]
+        txBytes1[12] = accounts[2]; // NewOwner0
+        txBytes1[13] = amount; //Denom0
+        txBytes1 = RLP.encode(txBytes1);
+        let sigs1, confirmSignatures1, blockNum1, proof1;
+        [sigs1, confirmSignatures1, blockNum1, proof1] = await sendUTXO(rootchain, authority, accounts[1], txBytes1);
+        let txPos1 = [blockNum1, 0, 0];
+        // accounts[2] starts exit for B successfully
+        let tx1 = await rootchain.startTransactionExit(txPos1,
+            toHex(txBytes1), toHex(proof1), toHex(sigs1), toHex(confirmSignatures1),
+            {from: accounts[2], value: minExitBond});
+        // accounts[1] starts exit for A; nothing in the rootchain contract stops this, the exit must be challenged externally
+        let tx2 = await rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(sigs), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond});
+        // any other address/user can get confirm signatures used to start accounts[2]'s exit
+        // from the StartedTransactionExit event and challenge accounts[1]'s exit
+        let confirmSigFromEvent = tx1.logs[0].args.confirmSignatures;
+        await rootchain.challengeTransactionExit(txPos, txPos1,
+            toHex(txBytes1), toHex(sigs1), toHex(proof1), toHex(confirmSigFromEvent),
+            {from: accounts[3]});
+    });
+
     it("Attempt a withdrawal delay attack", async () => {
         let five_days = 432000 // in seconds
         // accounts[1] spends deposit and creates 2 new utxos for themself
