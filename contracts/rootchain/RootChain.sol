@@ -31,7 +31,7 @@ contract RootChain is Ownable {
     event FinalizedTransactionExit(uint position, address owner, uint256 amount);
     event FinalizedDepositExit(uint priority, address owner, uint256 amount);
 
-    event StartedTransactionExit(uint position, address owner, uint256 amount);
+    event StartedTransactionExit(uint position, address owner, uint256 amount, bytes confirmSignatures);
     event StartedDepositExit(uint nonce, address owner, uint256 amount);
 
     /*
@@ -46,12 +46,12 @@ contract RootChain is Ownable {
     mapping(uint256 => depositStruct) public deposits;
     struct childBlock {
         bytes32 root;
-        uint256 created_at;
+        uint256 createdAt;
     }
     struct depositStruct {
         address owner;
         uint256 amount;
-        uint256 created_at;
+        uint256 createdAt;
     }
 
     // exits
@@ -63,7 +63,7 @@ contract RootChain is Ownable {
     enum ExitState { NonExistent, Pending, Challenged, Finalized }
     struct exit {
         uint256 amount;
-        uint256 created_at;
+        uint256 createdAt;
         address owner;
         ExitState state; // default value is `NonExistent`
     }
@@ -130,7 +130,7 @@ contract RootChain is Ownable {
         depositExits[nonce] = exit({
             owner: owner,
             amount: amount,
-            created_at: block.timestamp,
+            createdAt: block.timestamp,
             state: ExitState.Pending
         });
 
@@ -170,7 +170,7 @@ contract RootChain is Ownable {
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
 
         uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        uint256 priority = Math.max256(childChain[txPos[0]].created_at + 1 weeks, block.timestamp) << 128 | position;
+        uint256 priority = Math.max256(childChain[txPos[0]].createdAt + 1 weeks, block.timestamp) << 128 | position;
         
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
@@ -179,11 +179,11 @@ contract RootChain is Ownable {
         txExits[position] = exit({
             owner: txList[12 + 2 * txPos[2]].toAddress(),
             amount: amount,
-            created_at: block.timestamp,
+            createdAt: block.timestamp,
             state: ExitState.Pending
         });
 
-        emit StartedTransactionExit(position, msg.sender, amount);
+        emit StartedTransactionExit(position, msg.sender, amount, confirmSignatures);
     }
 
     function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures, RLPReader.RLPItem[] txList)
@@ -264,8 +264,8 @@ contract RootChain is Ownable {
         emit ChallengedDepositExit(nonce, exit_.owner, exit_.amount);
     }
 
-    // @param txPos            position of the invalid exiting transaction [blkNum, txIndex, outputIndex]
-    // @param newTxPos         position of the challenging transaction [blkNum, txIndex, outputIndex]
+    // @param exitingTxPos     position of the invalid exiting transaction [blkNum, txIndex, outputIndex]
+    // @param challengingTxPos position of the challenging transaction [blkNum, txIndex, outputIndex]
     // @param txBytes          raw transaction bytes of the challenging transaction
     // @param sigs             signatures of the inputs for this transaction
     // @param proof            proof of inclusion for this merkle hash
@@ -353,7 +353,7 @@ contract RootChain is Ownable {
         */
         uint256 amountToAdd;
         while (queue.currentSize() > 0 &&
-               (block.timestamp - currentExit.created_at) > 1 weeks &&
+               (block.timestamp - currentExit.createdAt) > 1 weeks &&
                currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance) {
 
             // skip currentExit if it is not in 'started/pending' state.
@@ -439,7 +439,7 @@ contract RootChain is Ownable {
         view
         returns (bytes32, uint256)
     {
-        return (childChain[blockNumber].root, childChain[blockNumber].created_at);
+        return (childChain[blockNumber].root, childChain[blockNumber].createdAt);
     }
 
     function getTransactionExit(uint256 position)
@@ -448,7 +448,7 @@ contract RootChain is Ownable {
         returns (address, uint256, uint256, ExitState)
     {
         exit memory exit_ = txExits[position];
-        return (exit_.owner, exit_.amount, exit_.created_at, exit_.state);
+        return (exit_.owner, exit_.amount, exit_.createdAt, exit_.state);
     }
 
     function getDepositExit(uint256 priority)
@@ -457,7 +457,7 @@ contract RootChain is Ownable {
         returns (address, uint256, uint256, ExitState)
     {
         exit memory exit_ = depositExits[priority];
-        return (exit_.owner, exit_.amount, exit_.created_at, exit_.state);
+        return (exit_.owner, exit_.amount, exit_.createdAt, exit_.state);
     }
 
     function getDeposit(uint256 nonce)
@@ -466,6 +466,6 @@ contract RootChain is Ownable {
         returns(address, uint256, uint256)
     {
         depositStruct memory deposit_ = deposits[nonce];
-        return (deposit_.owner, deposit_.amount, deposit_.created_at);
+        return (deposit_.owner, deposit_.amount, deposit_.createdAt);
     }
 }

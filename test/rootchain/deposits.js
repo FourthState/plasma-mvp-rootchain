@@ -45,9 +45,13 @@ contract('[RootChain] Deposits', async (accounts) => {
         await rootchain.deposit(accounts[2], {from: accounts[1], value: 100});
         let err;
 
-        [err] = await catchError(rootchain.startDepositExit(nonce, {from: accounts[2]}));
+        // accounts[1] cannot start exit because it's not the owner
+        [err] = await catchError(rootchain.startDepositExit(nonce, {from: accounts[1], value: minExitBond}));
         if (!err)
             assert.fail("Non deposit owner allowed to start an exit");
+
+        //accounts[2] should be able to start exit
+        await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
     });
 
     it("Rejects exiting a deposit twice", async () => {

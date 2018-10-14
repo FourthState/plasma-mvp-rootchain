@@ -2,8 +2,8 @@ let assert = require('chai').assert;
 let RLP = require('rlp');
 
 let Validator_Test = artifacts.require("Validator_Test");
-let { catchError, toHex, generateMerkleRootAndProof } = require('../utilities.js');
-let {zeroHashes} = require('../rootchain/rootchain_helpers.js');
+let { catchError, toHex } = require('../utilities.js');
+let {zeroHashes, generateMerkleRootAndProof } = require('../rootchain/rootchain_helpers.js');
 
 contract('Validator', async (accounts) => {
     let instance;
