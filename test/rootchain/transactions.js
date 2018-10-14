@@ -3,8 +3,15 @@ let assert = require('chai').assert
 
 let RootChain = artifacts.require('RootChain');
 
-let { fastForward, mineNBlocks, zeroHashes, sendUTXO } = require('./rootchain_helpers.js');
-let { toHex, catchError, generateMerkleRootAndProof } = require('../utilities.js');
+let {
+    fastForward,
+    mineNBlocks,
+    zeroHashes,
+    sendUTXO,
+    generateMerkleRootAndProof
+} = require('./rootchain_helpers.js');
+
+let { toHex, catchError } = require('../utilities.js');
 
 contract('[RootChain] Transactions', async (accounts) => {
     let rootchain;
