@@ -137,6 +137,12 @@ contract RootChain is Ownable {
         emit StartedDepositExit(nonce, owner, amount);
     }
 
+    function printBytes(bytes txBytes) public returns (bytes) {
+        RLPReader.RLPItem[] memory txList = txBytes.toRlpItem().toList();
+        //emit Bytes(txList[0].toBytes());
+        return txList[0].toBytes();
+    }
+
     // Transaction encoding:
     // [[Blknum0, TxIndex0, Oindex0, depositNonce0, Amount0, ConfirmSig0
     //  Blknum1, TxIndex1, Oindex1, depositNonce1, Amount1, ConfirmSig1
