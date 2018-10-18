@@ -82,7 +82,7 @@ contract('Validator', async (accounts) => {
     it("Reverts if trying to slice out of range", async () => {
         let inputHash = web3.sha3("inputSeed");
 
-        // sha3 maps input to a 32 byte hash (64 charac 
+        // sha3 maps input to a 32 byte hash (64 charac
         let err;
         [err] = await catchError(instance.slice.call(toHex(inputHash), 1, 32));
         if (!err)
@@ -169,9 +169,7 @@ contract('Validator', async (accounts) => {
 
     it("Allows for only the first signature to be present", async () => {
         // create txHash
-        let txBytes = Array(17).fill(0);
-        txBytes[3] = 1; txBytes[12] = accounts[1]; txBytes[13] = 100;
-        txBytes = RLP.encode(txBytes);
+        let txBytes = web3.sha3("inputSeed");
         let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
         // create sigs
@@ -192,9 +190,7 @@ contract('Validator', async (accounts) => {
 
     it("Asserts that the first input cannot be empty", async () => {
         // create txHash
-        let txBytes = Array(17).fill(0);
-        txBytes[9] = 1; txBytes[12] = accounts[1]; txBytes[13] = 100;
-        txBytes = RLP.encode(txBytes);
+        let txBytes = web3.sha3("inputSeed");
         let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
         // create sigs
@@ -216,9 +212,7 @@ contract('Validator', async (accounts) => {
 
     it("Handles incorrect transaction signatures", async () => {
         // create txHash
-        let txBytes = Array(17).fill(0);
-        txBytes[3] = 1; txBytes[9] = 2; txBytes[12] = accounts[1]; txBytes[13] = 100;
-        txBytes = RLP.encode(txBytes);
+        let txBytes = web3.sha3("inputSeed");
         let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
         // create sigs

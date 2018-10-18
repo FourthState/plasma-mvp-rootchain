@@ -24,13 +24,15 @@ let fastForward = async function(time) {
 }
 
 // helper function to send a UTXO on childchain and submit blockheader to rootchain.
-let sendUTXO = async function(rootchain, authority, sender, txBytes) {
+let sendUTXO = async function(rootchain, authority, sender, txBytes, encodedMsg) {
     // sender sends a deposit UTXO to recipient
-    let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-    let sigs = await web3.eth.sign(sender, txHash);
+    let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex').slice(2), {encoding: 'hex'});
+    let sigs = await web3.eth.sign(sender, hashedEncodedMsg);
     sigs += Buffer.alloc(65).toString('hex');
 
-    let merkleHash = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
+    // console.log(encodedMsg.toString('hex'), hashedEncodedMsg);
+
+    let merkleHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
     // the transaction is included in a new block,
     // the block header is submitted to rootchain
