@@ -1,8 +1,11 @@
 pragma solidity ^0.4.24;
 
 import "openzeppelin-solidity/contracts/ECRecovery.sol";
+/* import "solidity-rlp/contracts/RLPReader.sol"; */
 
 library Validator {
+    /* using RLPReader for bytes; */
+
     uint8 constant WORD_SIZE = 32;
 
     // @param leaf     a leaf of the tree
@@ -46,27 +49,94 @@ library Validator {
     {
         require(sigs.length == 130, "two transcation signatures, 65 bytes each, are required");
 
+        bytes[] memory sigList;
+
         bytes memory sig0 = slice(sigs, 0, 65);
         if (input1) {
-            require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
             bytes memory sig1 = slice(sigs, 65, 65);
 
-            // check both input signatures
-            address recoveredTx0 = recover(txHash, sig0);
-            address recoveredConfirmation0 = recover(confirmationHash, slice(confirmSignatures, 0, 65));
+            sigList = new bytes[](2);
+            sigList[0] = sig0;
+            sigList[1] = sig1;
+        } else {
+            sigList = new bytes[](1);
+            sigList[0] = sig0;
+        }
+        /* return checkSigsHelper(txHash, confirmationHash, sigList, confirmSigList); */
+        return checkSigs2(txHash, confirmationHash, input1, sigList, confirmSignatures);
+    }
 
-            address recoveredTx1 = recover(txHash, sig1);
-            address recoveredConfirmation1 = recover(confirmationHash, slice(confirmSignatures, 65, 65));
+    // @param txHash      transaction hash
+    // @param rootHash    block header of the merkle tree
+    // @param input1      indicator for the second input
+    // @param sigs        transaction signatures
+    // @notice            when one input is present, we require it to be the first input by convention
+    function checkSigs2(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes[] sigs, bytes confirmSignatures)
+        internal
+        pure
+        returns (bool)
+    {
+        bytes[] memory confirmSigList;
 
-            return recoveredTx0 == recoveredConfirmation0 && recoveredTx1 == recoveredConfirmation1 &&
-                recoveredTx0 != address(0) && recoveredTx1 != address(0);
+        if (input1) {
+            require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
+
+            confirmSigList = new bytes[](2);
+            confirmSigList[0] = slice(confirmSignatures, 0, 65);
+            confirmSigList[1] = slice(confirmSignatures, 65, 65);
         } else {
             // normal case when only one input is present
             require(confirmSignatures.length == 65, "one confirm signatures required with one input");
-            address recoveredTx = recover(txHash, sig0);
-            address recoveredConfirmation = recover(confirmationHash, confirmSignatures);
-            return recoveredTx == recoveredConfirmation && recoveredTx != address(0);
+
+            confirmSigList = new bytes[](1);
+            confirmSigList[0] = confirmSignatures;
         }
+        return checkSigsHelper(txHash, confirmationHash, sigs, confirmSigList);
+    }
+
+    // @param txHash      transaction hash
+    // @param rootHash    block header of the merkle tree
+    // @param input1      indicator for the second input
+    // @param sigs        transaction signatures
+    // @notice            when one input is present, we require it to be the first input by convention
+    function checkSigsHelper(bytes32 txHash, bytes32 confirmationHash, bytes[] sigs, bytes[] confirmSignatures)
+        internal
+        pure
+        returns (bool)
+    {
+        require(sigs.length == 1 || sigs.length == 2, "must have 1 or 2 sigs");
+        require(sigs.length == confirmSignatures.length, "must have the same number of sigs and confirmSigs");
+
+        bytes memory sig0 = sigs[0];
+        bytes memory confirmSignature0 = confirmSignatures[0];
+
+        require(sig0.length == 65, "signature must have a length of 65");
+        require(confirmSignature0.length == 65, "confirm signature must have a length of 65");
+
+        if (sigs.length == 1) {
+            return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, confirmSignature0);
+        } else if (sigs.length == 2) {
+            bytes memory sig1 = sigs[1];
+            bytes memory confirmSignature1 = confirmSignatures[1];
+
+            require(sig1.length == 65, "signature must have a length of 65");
+            require(confirmSignature1.length == 65, "confirm signature must have a length of 65");
+
+            return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, confirmSignature0) &&
+                checkTxAndConfirmSigs(txHash, confirmationHash, sig1, confirmSignature1);
+        } else {
+            return false;
+        }
+    }
+
+    function checkTxAndConfirmSigs(bytes32 txHash, bytes32 confirmationHash, bytes sig, bytes confirmSignature)
+        private
+        pure
+        returns (bool)
+    {
+        address recoveredTx = recover(txHash, sig);
+        address recoveredConfirmation = recover(confirmationHash, confirmSignature);
+        return recoveredTx == recoveredConfirmation && recoveredTx != address(0);
     }
 
     function recover(bytes32 hash, bytes sig)

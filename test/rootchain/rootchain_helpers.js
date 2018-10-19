@@ -24,13 +24,22 @@ let fastForward = async function(time) {
 }
 
 // helper function to send a UTXO on childchain and submit blockheader to rootchain.
-let sendUTXO = async function(rootchain, authority, sender, txBytes, encodedMsg) {
+let sendUTXO = async function(rootchain, authority, sender, msg) {
     // sender sends a deposit UTXO to recipient
-    let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex').slice(2), {encoding: 'hex'});
-    let sigs = await web3.eth.sign(sender, hashedEncodedMsg);
-    sigs += Buffer.alloc(65).toString('hex');
+    let encodedMsg = RLP.encode(msg);
 
-    // console.log(encodedMsg.toString('hex'), hashedEncodedMsg);
+    let sigList = Array(1).fill(0);
+    let hashedEncodedMsg;
+    if (parseInt(encodedMsg.toString('hex').slice(0,2), 16) > parseInt("0xf7")) {
+      hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex').slice(4), {encoding: 'hex'});
+    } else {
+      hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex').slice(2), {encoding: 'hex'});
+    }
+    sigList[0] = await web3.eth.sign(sender, hashedEncodedMsg);
+
+    let txBytes = Array(2).fill(0);
+    txBytes[0] = msg; txBytes[1] = sigList;
+    txBytes = RLP.encode(txBytes);
 
     let merkleHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
@@ -48,7 +57,7 @@ let sendUTXO = async function(rootchain, authority, sender, txBytes, encodedMsg)
     let confirmHash = web3.sha3(merkleHash.slice(2) + merkleRoot.slice(2), {encoding: 'hex'});
     let confirmSignature = await web3.eth.sign(sender, confirmHash);
 
-    return [sigs, confirmSignature, blockNum, merkleProof];
+    return [txBytes, confirmSignature, blockNum, merkleProof];
 }
 
 // For a given list of leaves, this function generates a merkle root. It assumes

@@ -162,13 +162,13 @@ contract('[RootChain] Deposits', async (accounts) => {
         // checks matching inputs
         let err;
         [err] = await catchError(rootchain.challengeDepositExit(nonce-1, [blockNum, 0, 0],
-            toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
+            toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("did not check against matching inputs");
 
         // correctly challenge
         await rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
-            toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]});
+            toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[3]});
 
         let balance = (await rootchain.balanceOf.call(accounts[3])).toNumber();
         assert.equal(balance, minExitBond, "challenger not awarded exit bond");
@@ -178,7 +178,7 @@ contract('[RootChain] Deposits', async (accounts) => {
 
         // Cannot challenge twice
         [err] = await catchError(rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
-            toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
+            toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("Allowed a challenge for an exit already challenged");
     });

@@ -34,7 +34,7 @@ contract RootChain is Ownable {
     event StartedTransactionExit(uint position, address owner, uint256 amount, bytes confirmSignatures);
     event StartedDepositExit(uint nonce, address owner, uint256 amount);
 
-    event Debug(bytes data, bytes32 sig);
+    event Debug(bytes data, bytes sig);
 
     /*
      *  Storage
@@ -152,12 +152,12 @@ contract RootChain is Ownable {
     // @param confirmSignatures confirm signatures sent by the owners of the inputs acknowledging the spend.
     // @notice `confirmSignatures` and `ConfirmSig0`/`ConfirmSig1` are unrelated to each other.
     // @notice `confirmSignatures` is either 65 or 130 bytes in length dependent on if input2 is used.
-    function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs, bytes confirmSignatures)
+    function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes confirmSignatures)
         public
         payable
     {
         RLPReader.RLPItem[] memory txList;
-        RLPReader.RLPItem[] memory sigList;
+        bytes[] memory sigList;
         bytes memory encodedTxList;
         (txList, sigList, encodedTxList) = extractTxListAndSigs(txBytes);
 
@@ -170,7 +170,7 @@ contract RootChain is Ownable {
         }
 
         // check that the signatures, confirmation signatures and merkle proof are all valid
-        require(validateProofAndSignatures(txPos, txBytes, encodedTxList, proof, sigs, confirmSignatures, txList), "invalid proof or signatures");
+        require(validateProofAndSignatures(txPos, txBytes, encodedTxList, proof, sigList, confirmSignatures, txList), "invalid proof or signatures");
 
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
@@ -192,7 +192,7 @@ contract RootChain is Ownable {
         emit StartedTransactionExit(position, msg.sender, txList[13 + 2 * txPos[2]].toUint(), confirmSignatures);
     }
 
-    function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes encodedTxList, bytes proof, bytes sigs, bytes confirmSignatures, RLPReader.RLPItem[] txList)
+    function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes encodedTxList, bytes proof, bytes[] sigList, bytes confirmSignatures, RLPReader.RLPItem[] txList)
         private
         view
         returns (bool)
@@ -200,12 +200,12 @@ contract RootChain is Ownable {
         bytes32 merkleHash = keccak256(txBytes);
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
 
-        /* emit Debug(encodedTxList, keccak256(encodedTxList)); */
+        /* emit Debug(encodedTxList, sigs); */
 
-        bool check1 = keccak256(encodedTxList).checkSigs(confirmationHash,
+        bool check1 = keccak256(encodedTxList).checkSigs2(confirmationHash,
                                  // we always assume the first input is always present in a transaction. The second input is optional
                                  txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
-                                 sigs, confirmSignatures);
+                                 sigList, confirmSignatures);
         bool check2 = merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof);
 
         return check1 && check2;
@@ -215,7 +215,7 @@ contract RootChain is Ownable {
     function extractTxListAndSigs(bytes txBytes)
         private
         view
-        returns (RLPReader.RLPItem[], RLPReader.RLPItem[], bytes)
+        returns (RLPReader.RLPItem[], bytes[], bytes)
     {
         RLPReader.RLPItem[] memory baseTx = txBytes.toRlpItem().toList();
         require(baseTx.length == 2, "incorrect baseTx list");
@@ -224,11 +224,21 @@ contract RootChain is Ownable {
         require(txList.length == 17, "incorrect tx list");
 
         RLPReader.RLPItem[] memory sigList = baseTx[1].toList();
-        require(sigList.length == 2, "incorrect sig list");
+        require(sigList.length == 1 || sigList.length == 2, "incorrect sig list");
+
+        bytes[] memory sigs;
+        if (sigList.length == 1) {
+            sigs = new bytes[](1);
+            sigs[0] = sigList[0].toBytes();
+        } else {
+            sigs = new bytes[](2);
+            sigs[0] = sigList[0].toBytes();
+            sigs[1] = sigList[1].toBytes();
+        }
 
         bytes memory encodedTxList = baseTx[0].toBytes();
 
-        return (txList, sigList, encodedTxList);
+        return (txList, sigs, encodedTxList);
     }
 
 
@@ -264,11 +274,11 @@ contract RootChain is Ownable {
     // @param sigs             signatures of the inputs for this transaction
     // @param proof            merkle proof of inclusion
     // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
-    function challengeDepositExit(uint256 nonce, uint256[3] newTxPos, bytes txBytes, bytes sigs, bytes proof, bytes confirmSignature)
+    function challengeDepositExit(uint256 nonce, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
         public
     {
         RLPReader.RLPItem[] memory txList;
-        RLPReader.RLPItem[] memory sigList;
+        bytes[] memory sigList;
         bytes memory encodedTxList;
         (txList, sigList, encodedTxList) = extractTxListAndSigs(txBytes);
 
@@ -299,11 +309,11 @@ contract RootChain is Ownable {
     // @param sigs             signatures of the inputs for this transaction
     // @param proof            proof of inclusion for this merkle hash
     // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
-    function challengeTransactionExit(uint256[3] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes sigs, bytes proof, bytes confirmSignature)
+    function challengeTransactionExit(uint256[3] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
         public
     {
         RLPReader.RLPItem[] memory txList;
-        RLPReader.RLPItem[] memory sigList;
+        bytes[] memory sigList;
         bytes memory encodedTxList;
         (txList, sigList, encodedTxList) = extractTxListAndSigs(txBytes);
 
