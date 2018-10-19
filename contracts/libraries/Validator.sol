@@ -1,10 +1,8 @@
 pragma solidity ^0.4.24;
 
 import "openzeppelin-solidity/contracts/ECRecovery.sol";
-/* import "solidity-rlp/contracts/RLPReader.sol"; */
 
 library Validator {
-    /* using RLPReader for bytes; */
 
     uint8 constant WORD_SIZE = 32;
 

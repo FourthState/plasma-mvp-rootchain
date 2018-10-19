@@ -34,8 +34,6 @@ contract RootChain is Ownable {
     event StartedTransactionExit(uint position, address owner, uint256 amount, bytes confirmSignatures);
     event StartedDepositExit(uint nonce, address owner, uint256 amount);
 
-    event Debug(bytes data, bytes sig);
-
     /*
      *  Storage
      */
@@ -181,15 +179,15 @@ contract RootChain is Ownable {
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
         txExitQueue.insert(priority);
-        /* uint amount = txList[13 + 2 * txPos[2]].toUint(); */
+        uint amount = txList[13 + 2 * txPos[2]].toUint();
         txExits[position] = exit({
             owner: txList[12 + 2 * txPos[2]].toAddress(),
-            amount: txList[13 + 2 * txPos[2]].toUint(),
+            amount: amount,
             createdAt: block.timestamp,
             state: ExitState.Pending
         });
 
-        emit StartedTransactionExit(position, msg.sender, txList[13 + 2 * txPos[2]].toUint(), confirmSignatures);
+        emit StartedTransactionExit(position, msg.sender, amount, confirmSignatures);
     }
 
     function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes encodedTxList, bytes proof, bytes[] sigList, bytes confirmSignatures, RLPReader.RLPItem[] txList)
@@ -199,8 +197,6 @@ contract RootChain is Ownable {
     {
         bytes32 merkleHash = keccak256(txBytes);
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
-
-        /* emit Debug(encodedTxList, sigs); */
 
         bool check1 = keccak256(encodedTxList).checkSigs2(confirmationHash,
                                  // we always assume the first input is always present in a transaction. The second input is optional
@@ -214,7 +210,7 @@ contract RootChain is Ownable {
     // Decodes the RLP encoding and retrieves the transaction list and signature list.
     function extractTxListAndSigs(bytes txBytes)
         private
-        view
+        pure
         returns (RLPReader.RLPItem[], bytes[], bytes)
     {
         RLPReader.RLPItem[] memory baseTx = txBytes.toRlpItem().toList();
