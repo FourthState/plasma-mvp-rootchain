@@ -198,7 +198,7 @@ contract RootChain is Ownable {
         bytes32 merkleHash = keccak256(txBytes);
         bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
 
-        bool check1 = keccak256(encodedTxList).checkSigs2(confirmationHash,
+        bool check1 = keccak256(encodedTxList).checkSigs(confirmationHash,
                                  // we always assume the first input is always present in a transaction. The second input is optional
                                  txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
                                  sigList, confirmSignatures);

@@ -185,7 +185,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex').slice(2), {encoding: 'hex'});
 
         // create signature by deposit owner. Second signature should be zero
-        let sigList = Array(1).fill(0);
+        let sigList = Array(2).fill(0);
         sigList[0] = Buffer.alloc(65).toString('hex');
         sigList[1] = await web3.eth.sign(accounts[2], hashedEncodedMsg)
 

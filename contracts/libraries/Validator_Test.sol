@@ -23,7 +23,22 @@ contract Validator_Test {
       pure
       returns (bool)
   {
-      return txHash.checkSigs(confirmationHash, input1, sigs, confirmSignatures);
+      require(sigs.length == 130, "two transcation signatures, 65 bytes each, are required");
+
+      bytes[] memory sigList;
+
+      bytes memory sig0 = slice(sigs, 0, 65);
+      if (input1) {
+          bytes memory sig1 = slice(sigs, 65, 65);
+
+          sigList = new bytes[](2);
+          sigList[0] = sig0;
+          sigList[1] = sig1;
+      } else {
+          sigList = new bytes[](1);
+          sigList[0] = sig0;
+      }
+      return txHash.checkSigs(confirmationHash, input1, sigList, confirmSignatures);
   }
 
   function recover(bytes32 hash, bytes sig)
