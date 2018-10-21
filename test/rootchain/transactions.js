@@ -61,7 +61,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         assert.equal(tx.logs[0].args.amount.toNumber(), amount, "StartedTransactionExit event emits incorrect amount");
     });
 
-    it("Can start and finalize a transaction exit", async () => {
+    it("Can start and finalize a transaction exit, and withdraw the exit", async () => {
         await rootchain.startTransactionExit(txPos,
             toHex(txBytes), toHex(proof), toHex(confirmSignatures),
             {from: accounts[1], value: minExitBond});
@@ -76,6 +76,10 @@ contract('[RootChain] Transactions', async (accounts) => {
         let position = 1000000*txPos[0];
         let exit = await rootchain.getTransactionExit.call(position);
         assert.equal(exit[3].toNumber(), 3, "exit's state not set to finalized");
+
+        await rootchain.withdraw({from: accounts[1]});
+        balance = (await rootchain.balanceOf.call(accounts[1])).toNumber();
+        assert.equal(balance, 0);
     });
 
     it("Requires sufficient bond and refunds excess if overpayed", async () => {
