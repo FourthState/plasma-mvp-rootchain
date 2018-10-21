@@ -68,7 +68,6 @@ library Validator {
         bytes memory confirmSignature0 = confirmSigList[0];
 
         require(sig0.length == 65, "signature must have a length of 65");
-        require(confirmSignature0.length == 65, "confirm signature must have a length of 65");
 
         if (sigs.length == 1) {
             return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, confirmSignature0);
@@ -77,7 +76,6 @@ library Validator {
             bytes memory confirmSignature1 = confirmSigList[1];
 
             require(sig1.length == 65, "signature must have a length of 65");
-            require(confirmSignature1.length == 65, "confirm signature must have a length of 65");
 
             return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, confirmSignature0) &&
                 checkTxAndConfirmSigs(txHash, confirmationHash, sig1, confirmSignature1);

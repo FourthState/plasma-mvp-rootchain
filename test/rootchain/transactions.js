@@ -173,44 +173,42 @@ contract('[RootChain] Transactions', async (accounts) => {
             {from: accounts[2], value: minExitBond});
     });
 
-    // TODO: FIX with the wrong shit
     it("Rejects exiting a transaction whose sole input is the second", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
+        depositNonce1 = (await rootchain.depositNonce.call()).toNumber();
         await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
 
-        // construct transcation with second input as the deposit
-        let msg = Array(17).fill(0);
-        msg[9] = nonce; msg[12] = accounts[1]; msg[13] = 100;
-        let encodedMsg = RLP.encode(msg);
-        let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex').slice(2), {encoding: 'hex'});
+        // deposit is the first input. accounts[0] sends entire deposit to accounts[1]
+        let msg1 = Array(17).fill(0);
+        msg1[9] = depositNonce1; msg1[12] = accounts[1]; msg1[13] = 100;
+        let encodedMsg1 = RLP.encode(msg1);
 
-        // create signature by deposit owner. Second signature should be zero
-        let sigList = Array(2).fill(0);
-        sigList[0] = Buffer.alloc(65).toString('hex');
-        sigList[1] = await web3.eth.sign(accounts[2], hashedEncodedMsg)
+        let sigList1 = Array(1).fill(0);
+        let hashedEncodedMsg1 = web3.sha3(encodedMsg1.toString('hex').slice(2), {encoding: 'hex'});
+        sigList1[0] = toHex(Buffer.alloc(65).toString('hex'));
+        sigList1[1] = await web3.eth.sign(accounts[2], hashedEncodedMsg1);
 
-        let txBytes = Array(2).fill(0);
-        txBytes[0] = msg; txBytes[1] = sigList;
-        txBytes = RLP.encode(txBytes);
+        let txBytes1 = Array(2).fill(0);
+        txBytes1[0] = msg1; txBytes1[1] = sigList1;
+        txBytes1 = RLP.encode(txBytes1);
 
-        let merkleHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+        let merkleHash1 = web3.sha3(txBytes1.toString('hex'), {encoding: 'hex'});
 
-        // include this transaction in the next block
-        let root = merkleHash;
-        for (let i = 0; i < 16; i++)
-            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2)
-        let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
+        let merkleRoot1, merkleProof1;
+        [merkleRoot1, merkleProof1] = generateMerkleRootAndProof([merkleHash1], 0);
 
-        mineNBlocks(5); // presumed finality before submitting the block
-        await rootchain.submitBlock(toHex(root), {from: authority});
+        let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
+        // presumed finality before submitting the block
+        mineNBlocks(5);
+        await rootchain.submitBlock(toHex(merkleRoot1), {from: authority});
 
-        // create the confirm sig
-        let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
-        let confirmSig = await web3.eth.sign(accounts[2], confirmHash);
+        // sender signs confirmSig for the transaction
+        let confirmHash1 = web3.sha3(merkleHash1.slice(2) + merkleRoot1.slice(2), {encoding: 'hex'});
+        let confirmSignature1 = Buffer.alloc(65).toString('hex');
+        confirmSignature1 = confirmSignature1 + (await web3.eth.sign(accounts[2], confirmHash1)).slice(2);
 
         let err;
-        [err] = await catchError(rootchain.startTransactionExit([blockNum, 0, 0],
-            toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[1], value: minExitBond}));
+        [err] = await catchError(rootchain.startTransactionExit([blockNum1, 0, 0],
+            toHex(txBytes1), toHex(merkleProof1), toHex(confirmSignature1), {from: accounts[1], value: minExitBond}));
         if (!err)
             assert.fail("Allowed an transaction exit with only a second input present");
     });
