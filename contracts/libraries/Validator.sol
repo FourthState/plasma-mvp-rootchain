@@ -45,40 +45,27 @@ library Validator {
         pure
         returns (bool)
     {
+        bytes memory sig0 = sigs[0];
+        require(sig0.length == 65, "signature must have a length of 65");
+
         bytes[] memory confirmSigList;
 
         if (input1) {
             require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
+            require(sigs.length == 2, "must have 2 sigs");
 
-            confirmSigList = new bytes[](2);
-            confirmSigList[0] = slice(confirmSignatures, 0, 65);
-            confirmSigList[1] = slice(confirmSignatures, 65, 65);
+            bytes memory sig1 = sigs[1];
+            require(sig1.length == 65, "signature must have a length of 65");
+
+            return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, slice(confirmSignatures, 0, 65)) &&
+                checkTxAndConfirmSigs(txHash, confirmationHash, sig1, slice(confirmSignatures, 65, 65));
+
         } else {
             // normal case when only one input is present
             require(confirmSignatures.length == 65, "one confirm signatures required with one input");
+            require(sigs.length == 1, "must have 1 sigs");
 
-            confirmSigList = new bytes[](1);
-            confirmSigList[0] = confirmSignatures;
-        }
-
-        require(sigs.length == 1 || sigs.length == 2, "must have 1 or 2 sigs");
-        require(sigs.length == confirmSigList.length, "must have the same number of sigs and confirmSigs");
-
-        bytes memory sig0 = sigs[0];
-        bytes memory confirmSignature0 = confirmSigList[0];
-
-        require(sig0.length == 65, "signature must have a length of 65");
-
-        if (sigs.length == 1) {
-            return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, confirmSignature0);
-        } else {
-            bytes memory sig1 = sigs[1];
-            bytes memory confirmSignature1 = confirmSigList[1];
-
-            require(sig1.length == 65, "signature must have a length of 65");
-
-            return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, confirmSignature0) &&
-                checkTxAndConfirmSigs(txHash, confirmationHash, sig1, confirmSignature1);
+            return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, confirmSignatures);
         }
     }
 
