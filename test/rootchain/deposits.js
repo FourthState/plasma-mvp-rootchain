@@ -3,7 +3,7 @@ let assert = require('chai').assert;
 
 let RootChain = artifacts.require("RootChain");
 
-let { fastForward, mineNBlocks, proof, zeroHashes } = require('./rootchain_helpers.js');
+let { sendUTXO, fastForward, mineNBlocks, proof, zeroHashes } = require('./rootchain_helpers.js');
 let { catchError, toHex } = require('../utilities.js');
 
 contract('[RootChain] Deposits', async (accounts) => {
@@ -127,30 +127,9 @@ contract('[RootChain] Deposits', async (accounts) => {
         // construct transcation with first input as the deposit
         let msg = Array(17).fill(0);
         msg[3] = nonce; msg[12] = accounts[1]; msg[13] = 100;
-        let encodedMsg = RLP.encode(msg);
-        let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex'), {encoding: 'hex'});
 
-        // create signature by deposit owner. Second signature should be zero
-        let sigList = Array(2).fill(0);
-        sigList[0] = (await web3.eth.sign(accounts[2], hashedEncodedMsg));
-
-        let txBytes = Array(2).fill(0);
-        txBytes[0] = msg; txBytes[1] = sigList;
-        txBytes = RLP.encode(txBytes);
-
-        let merkleHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-
-        // include this transaction in the next block
-        let root = merkleHash;
-        for (let i = 0; i < 16; i++)
-            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2)
-        let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
-        mineNBlocks(5); // presumed finality before submitting the block
-        await rootchain.submitBlock(toHex(root), {from: authority});
-
-        // create the confirm sig
-        let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
-        let confirmSig = await web3.eth.sign(accounts[2], confirmHash);
+        let txBytes, confirmSig, blockNum, proof;
+        [txBytes, confirmSig, blockNum, proof] = await sendUTXO(rootchain, authority, accounts[2], msg);
 
         // start the malicious exit
         await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
