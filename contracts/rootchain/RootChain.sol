@@ -232,7 +232,7 @@ contract RootChain is Ownable {
             sigs[1] = sigList[1].toBytes();
         }
 
-        bytes memory encodedTxList = baseTx[0].toBytes();
+        bytes memory encodedTxList = baseTx[0].toRlpBytes();
 
         return (txList, sigs, encodedTxList);
     }

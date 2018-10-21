@@ -29,12 +29,7 @@ let sendUTXO = async function(rootchain, authority, sender, msg) {
     let encodedMsg = RLP.encode(msg);
 
     let sigList = Array(1).fill(0);
-    let hashedEncodedMsg;
-    if (parseInt(encodedMsg.toString('hex').slice(0,2), 16) > parseInt("0xf7")) {
-      hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex').slice(4), {encoding: 'hex'});
-    } else {
-      hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex').slice(2), {encoding: 'hex'});
-    }
+    let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex'), {encoding: 'hex'});
     sigList[0] = await web3.eth.sign(sender, hashedEncodedMsg);
 
     let txBytes = Array(2).fill(0);

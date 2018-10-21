@@ -138,10 +138,6 @@ contract('[RootChain] Deposits', async (accounts) => {
         txBytes[0] = msg; txBytes[1] = sigList;
         txBytes = RLP.encode(txBytes);
 
-        // create signature by deposit owner. Second signature should be zero
-        let sigs = (await web3.eth.sign(accounts[2], hashedEncodedMsg));
-        sigs = sigs + Buffer.alloc(65).toString('hex');
-
         let merkleHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
         // include this transaction in the next block

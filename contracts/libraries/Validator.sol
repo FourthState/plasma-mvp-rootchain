@@ -48,8 +48,6 @@ library Validator {
         bytes memory sig0 = sigs[0];
         require(sig0.length == 65, "signature must have a length of 65");
 
-        bytes[] memory confirmSigList;
-
         if (input1) {
             require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
             require(sigs.length == 2, "must have 2 sigs");

@@ -183,7 +183,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let encodedMsg1 = RLP.encode(msg1);
 
         let sigList1 = Array(1).fill(0);
-        let hashedEncodedMsg1 = web3.sha3(encodedMsg1.toString('hex').slice(2), {encoding: 'hex'});
+        let hashedEncodedMsg1 = web3.sha3(encodedMsg1.toString('hex'), {encoding: 'hex'});
         sigList1[0] = toHex(Buffer.alloc(65).toString('hex'));
         sigList1[1] = await web3.eth.sign(accounts[2], hashedEncodedMsg1);
 
