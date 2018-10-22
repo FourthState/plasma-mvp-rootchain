@@ -28,14 +28,17 @@ let sendUTXO = async function(rootchain, authority, sender, msg) {
     // sender sends a deposit UTXO to recipient
     let encodedMsg = RLP.encode(msg);
 
+    // sign the hashed RLP encoded message
     let sigList = Array(1).fill(0);
     let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex'), {encoding: 'hex'});
     sigList[0] = await web3.eth.sign(sender, hashedEncodedMsg);
 
+    // construct the base transaction [msg, sigs]
     let txBytes = Array(2).fill(0);
     txBytes[0] = msg; txBytes[1] = sigList;
     txBytes = RLP.encode(txBytes);
 
+    // merkle leaf hash of the base transaction
     let merkleHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
     // the transaction is included in a new block,

@@ -190,6 +190,8 @@ contract RootChain is Ownable {
         emit StartedTransactionExit(position, msg.sender, amount, confirmSignatures);
     }
 
+    // Validate the transaction/confirm signatures and check the transaction
+    // exists in the submitted block
     function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes encodedTxList, bytes proof, bytes[] sigList, bytes confirmSignatures, RLPReader.RLPItem[] txList)
         private
         view
@@ -207,7 +209,8 @@ contract RootChain is Ownable {
         return check1 && check2;
     }
 
-    // Decodes the RLP encoding and retrieves the transaction list and signature list.
+    // Decodes the RLP encoding and retrieves the transaction list, signature
+    // list, and the RLP encoded transaction list.
     function extractTxListAndSigs(bytes txBytes)
         private
         pure
