@@ -23,8 +23,10 @@ Blknum2, TxIndex2, Oindex2, DepositNonce2, Amount2, ConfirmSig2
 
 NewOwner, Denom1, NewOwner, Denom2, Fee],
 
-[signature1, ...]]
+[Signature1, Signature2]]
 ```
+
+***Note:*** The signature list will have one or two signatures depending on whether the transaction has one or two inputs respectively. 
 
 ### Documentation
 

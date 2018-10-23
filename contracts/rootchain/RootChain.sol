@@ -141,7 +141,7 @@ contract RootChain is Ownable {
     // [[Blknum0, TxIndex0, Oindex0, depositNonce0, Amount0, ConfirmSig0
     //  Blknum1, TxIndex1, Oindex1, depositNonce1, Amount1, ConfirmSig1
     //  NewOwner0, Denom0, NewOwner1, Denom1, Fee],
-    // [signature1, signature2]]
+    // [Signature1, Signature2]]
     //
     // @param txPos             location of the transaction [blkNum, txIndex, outputIndex]
     // @param txBytes           raw transaction bytes
@@ -154,21 +154,22 @@ contract RootChain is Ownable {
         public
         payable
     {
-        RLPReader.RLPItem[] memory txList;
-        bytes[] memory sigList;
-        bytes memory encodedTxList;
-        (txList, sigList, encodedTxList) = extractTxListAndSigs(txBytes);
+        RLPReader.RLPItem[] memory baseTx = txBytes.toRlpItem().toList();
+        require(baseTx.length == 2, "incorrect baseTx list");
+
+        RLPReader.RLPItem[] memory txList = baseTx[0].toList();
+        require(txList.length == 17, "incorrect tx list");
 
         require(msg.sender == txList[12 + 2 * txPos[2]].toAddress(), "caller must own this utxo");
         require(msg.value >= minExitBond, "insufficient exit bond");
         if (msg.value > minExitBond) {
-            /* uint256 excess = msg.value.sub(minExitBond); */
-            balances[msg.sender] = balances[msg.sender].add(msg.value.sub(minExitBond));
-            totalWithdrawBalance = totalWithdrawBalance.add(msg.value.sub(minExitBond));
+            uint256 excess = msg.value.sub(minExitBond);
+            balances[msg.sender] = balances[msg.sender].add(excess);
+            totalWithdrawBalance = totalWithdrawBalance.add(excess);
         }
 
         // check that the signatures, confirmation signatures and merkle proof are all valid
-        require(validateProofAndSignatures(txPos, txBytes, encodedTxList, proof, sigList, confirmSignatures, txList), "invalid proof or signatures");
+        require(validateProofAndSignatures(txPos, txBytes, baseTx, proof, confirmSignatures, txList), "invalid proof or signatures");
 
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
@@ -192,35 +193,11 @@ contract RootChain is Ownable {
 
     // Validate the transaction/confirm signatures and check the transaction
     // exists in the submitted block
-    function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, bytes encodedTxList, bytes proof, bytes[] sigList, bytes confirmSignatures, RLPReader.RLPItem[] txList)
+    function validateProofAndSignatures(uint256[3] txPos, bytes txBytes, RLPReader.RLPItem[] baseTx, bytes proof, bytes confirmSignatures, RLPReader.RLPItem[] txList)
         private
         view
         returns (bool)
     {
-        bytes32 merkleHash = keccak256(txBytes);
-        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
-
-        bool check1 = keccak256(encodedTxList).checkSigs(confirmationHash,
-                                 // we always assume the first input is always present in a transaction. The second input is optional
-                                 txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
-                                 sigList, confirmSignatures);
-        bool check2 = merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof);
-
-        return check1 && check2;
-    }
-
-    // Decodes the RLP encoding and retrieves the transaction list, signature
-    // list, and the RLP encoded transaction list.
-    function extractTxListAndSigs(bytes txBytes)
-        private
-        pure
-        returns (RLPReader.RLPItem[], bytes[], bytes)
-    {
-        RLPReader.RLPItem[] memory baseTx = txBytes.toRlpItem().toList();
-        require(baseTx.length == 2, "incorrect baseTx list");
-
-        RLPReader.RLPItem[] memory txList = baseTx[0].toList();
-        require(txList.length == 17, "incorrect tx list");
 
         RLPReader.RLPItem[] memory sigList = baseTx[1].toList();
         require(sigList.length == 1 || sigList.length == 2, "incorrect sig list");
@@ -235,11 +212,15 @@ contract RootChain is Ownable {
             sigs[1] = sigList[1].toBytes();
         }
 
-        bytes memory encodedTxList = baseTx[0].toRlpBytes();
+        bytes32 merkleHash = keccak256(txBytes);
+        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, childChain[txPos[0]].root));
 
-        return (txList, sigs, encodedTxList);
+        return keccak256(baseTx[0].toRlpBytes()).checkSigs(confirmationHash,
+            // we always assume the first input is always present in a transaction. The second input is optional
+            txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
+            sigs, confirmSignatures)
+                && merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof);
     }
-
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
     // been previously exited or are currently pending an exit.
@@ -276,10 +257,11 @@ contract RootChain is Ownable {
     function challengeDepositExit(uint256 nonce, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
         public
     {
-        RLPReader.RLPItem[] memory txList;
-        bytes[] memory sigList;
-        bytes memory encodedTxList;
-        (txList, sigList, encodedTxList) = extractTxListAndSigs(txBytes);
+        RLPReader.RLPItem[] memory baseTx = txBytes.toRlpItem().toList();
+        require(baseTx.length == 2, "incorrect baseTx list");
+
+        RLPReader.RLPItem[] memory txList = baseTx[0].toList();
+        require(txList.length == 17, "incorrect tx list");
 
         // ensure that the txBytes is a direct spend of the deposit
         require(nonce == txList[3].toUint() || nonce == txList[9].toUint(), "challenging transaction is not a direct spend");
@@ -311,10 +293,11 @@ contract RootChain is Ownable {
     function challengeTransactionExit(uint256[3] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
         public
     {
-        RLPReader.RLPItem[] memory txList;
-        bytes[] memory sigList;
-        bytes memory encodedTxList;
-        (txList, sigList, encodedTxList) = extractTxListAndSigs(txBytes);
+        RLPReader.RLPItem[] memory baseTx = txBytes.toRlpItem().toList();
+        require(baseTx.length == 2, "incorrect baseTx list");
+
+        RLPReader.RLPItem[] memory txList = baseTx[0].toList();
+        require(txList.length == 17, "incorrect tx list");
 
         // must be a direct spend
         require(ensureMatchingInputs(exitingTxPos, txList), "challenging transaction is not a direct spend");

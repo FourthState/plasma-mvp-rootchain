@@ -54,13 +54,22 @@ library Validator {
             require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
             require(sigs.length == 2, "must have 2 sigs");
 
-            // Get the second signature 
+            // Get the second signature
             bytes memory sig1 = sigs[1];
             require(sig1.length == 65, "signature must have a length of 65");
 
             // Check that both sigs and confirmsigs were signed by the same user
-            return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, slice(confirmSignatures, 0, 65)) &&
-                checkTxAndConfirmSigs(txHash, confirmationHash, sig1, slice(confirmSignatures, 65, 65));
+            address recoveredTx0 = recover(txHash, sig0);
+            address recoveredConfirmation0 = recover(confirmationHash, slice(confirmSignatures, 0, 65));
+
+            address recoveredTx1 = recover(txHash, sig1);
+            address recoveredConfirmation1 = recover(confirmationHash, slice(confirmSignatures, 65, 65));
+
+            return recoveredTx0 == recoveredConfirmation0 && recoveredTx0 != address(0)
+                && recoveredTx1 == recoveredConfirmation1 && recoveredTx1 != address(0);
+
+            /* return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, slice(confirmSignatures, 0, 65)) &&
+                checkTxAndConfirmSigs(txHash, confirmationHash, sig1, slice(confirmSignatures, 65, 65)); */
 
         } else {
             // normal case when only one input is present
@@ -68,22 +77,10 @@ library Validator {
             require(sigs.length == 1, "must have 1 sigs");
 
             // Check that the sig and confirmsig were signed by the same user
-            return checkTxAndConfirmSigs(txHash, confirmationHash, sig0, confirmSignatures);
+            address recoveredTx = recover(txHash, sig0);
+            address recoveredConfirmation = recover(confirmationHash, confirmSignatures);
+            return recoveredTx == recoveredConfirmation && recoveredTx != address(0);
         }
-    }
-
-    // @param txHash              transaction hash
-    // @param confirmationHash    block header of the merkle tree
-    // @param sigs                transaction signature
-    // @param confirmSignatures   confirm signature
-    function checkTxAndConfirmSigs(bytes32 txHash, bytes32 confirmationHash, bytes sig, bytes confirmSignature)
-        private
-        pure
-        returns (bool)
-    {
-        address recoveredTx = recover(txHash, sig);
-        address recoveredConfirmation = recover(confirmationHash, confirmSignature);
-        return recoveredTx == recoveredConfirmation && recoveredTx != address(0);
     }
 
     // @param hash    hash
