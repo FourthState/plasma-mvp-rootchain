@@ -147,7 +147,7 @@ contract RootChain is Ownable {
     // [[Blknum0, TxIndex0, Oindex0, depositNonce0, Amount0, ConfirmSig0
     //  Blknum1, TxIndex1, Oindex1, depositNonce1, Amount1, ConfirmSig1
     //  NewOwner0, Denom0, NewOwner1, Denom1, Fee],
-    // [signature1, signature2]]
+    //  [Signature1, Signature2]]
     //
     // @param txPos             location of the transaction [blkNum, txIndex, outputIndex]
     // @param txBytes           raw transaction bytes
