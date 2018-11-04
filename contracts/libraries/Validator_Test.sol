@@ -18,12 +18,12 @@ contract Validator_Test {
       return leaf.checkMembership(index, rootHash, proof);
   }
 
-  function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sigs, bytes confirmSignatures)
+  function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sig0, bytes sig1, bytes confirmSignatures)
       public
       pure
       returns (bool)
   {
-      return txHash.checkSigs(confirmationHash, input1, sigs, confirmSignatures);
+      return txHash.checkSigs(confirmationHash, input1, sig0, sig1, confirmSignatures);
   }
 
   function recover(bytes32 hash, bytes sig)
