@@ -44,6 +44,8 @@ library Validator {
         pure
         returns (bool)
     {
+        require(sig0.length == 65 && sig1.length == 65, "signatures must be 65 bytes in length");
+
         if (input1) {
             require(confirmSignatures.length == 130, "two confirm signatures required with two inputs");
 
@@ -56,7 +58,7 @@ library Validator {
         }
 
         // only 1 input present
-        require(confirmSignatures.length == 65, "one confirm signatures required with one input");
+        require(confirmSignatures.length == 65, "one confirm signature required with one input present");
 
         address recoveredAddr = recover(txHash, sig0);
         return recoveredAddr == recover(confirmationHash, confirmSignatures) && recoveredAddr != address(0);
