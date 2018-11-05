@@ -168,7 +168,7 @@ contract('[RootChain] Deposits', async (accounts) => {
 
         // correctly challenge
         await rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
-            toHex(txBytes) toHex(proof), toHex(confirmSig), {from: accounts[3]});
+            toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[3]});
 
         let balance = (await rootchain.balanceOf.call(accounts[3])).toNumber();
         assert.equal(balance, minExitBond, "challenger not awarded exit bond");
