@@ -9,7 +9,7 @@
     "coverage": "./node_modules/.bin/solidity-coverage"
   },
   "devDependencies": {
-    "chai": "^4.1.2",
+    "chai": "^4.2.0",
     "coveralls": "^3.0.2",
     "solidity-coverage": "^0.5.11"
   },
@@ -17,6 +17,6 @@
     "npm": "^5.10.0",
     "openzeppelin-solidity": "1.9.0",
     "rlp": "^2.1.0",
-    "solidity-rlp": "^1.0.1"
+    "solidity-rlp": "^1.1.0"
   }
 }
