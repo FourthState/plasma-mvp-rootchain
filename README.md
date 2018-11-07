@@ -4,9 +4,7 @@
 [![license](https://img.shields.io/github/license/FourthState/plasma-mvp-rootchain.svg)](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/LICENSE)
 [![Coverage Status](https://coveralls.io/repos/github/FourthState/plasma-mvp-rootchain/badge.svg?branch=master)](https://coveralls.io/github/FourthState/plasma-mvp-rootchain?branch=master)
 
-We're implementing [Minimum Viable Plasma](https://ethresear.ch/t/minimal-viable-plasma/426)
-
-This is the Rootchain contract repository for Blockchain @ Berkeley's Plasma team.
+Implementation of [Minimum Viable Plasma](https://ethresear.ch/t/minimal-viable-plasma/426)
 
 ## Overview
 Plasma is a layer 2 scaling solution which conducts transaction processing off chain and allows for only merkle roots of each block to be reported to a root chain. This allows for users to benefit from off chain scaling while still relying on decentralized security.
@@ -17,12 +15,17 @@ The root contract of a Plasma child chain represents an intermediary who can res
 A transaction is encoded in the following form:
 
 ```
-[Blknum1, TxIndex1, Oindex1, DepositNonce1, Amount1, ConfirmSig1
+[ 
+  [Blknum1, TxIndex1, Oindex1, DepositNonce1, Amount1, ConfirmSig1,
 
-Blknum2, TxIndex2, Oindex2, DepositNonce2, Amount2, ConfirmSig2
+  Blknum2, TxIndex2, Oindex2, DepositNonce2, Amount2, ConfirmSig2,
 
-NewOwner, Denom1, NewOwner, Denom2, Fee]
+  NewOwner, Denom1, NewOwner, Denom2, Fee],
+
+  [Signature1, Signature2]
+]
 ```
+The signatures are over the hash of the transaction list signed by the owner of each respective utxo input.
 
 ### Documentation
 

@@ -23,32 +23,6 @@ let fastForward = async function(time) {
     assert.isAtLeast(currTime - oldTime, time, `Block time was not fast forwarded by at least ${time} seconds`);
 }
 
-// helper function to send a UTXO on childchain and submit blockheader to rootchain.
-let sendUTXO = async function(rootchain, authority, sender, txBytes) {
-    // sender sends a deposit UTXO to recipient
-    let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
-    let sigs = await web3.eth.sign(sender, txHash);
-    sigs += Buffer.alloc(65).toString('hex');
-
-    let merkleHash = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
-
-    // the transaction is included in a new block,
-    // the block header is submitted to rootchain
-    let merkleRoot, merkleProof;
-    [merkleRoot, merkleProof] = generateMerkleRootAndProof([merkleHash], 0);
-
-    let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
-    // presumed finality before submitting the block
-    mineNBlocks(5);
-    await rootchain.submitBlock(toHex(merkleRoot), {from: authority});
-
-    // sender signs confirmSig for the transaction
-    let confirmHash = web3.sha3(merkleHash.slice(2) + merkleRoot.slice(2), {encoding: 'hex'});
-    let confirmSignature = await web3.eth.sign(sender, confirmHash);
-
-    return [sigs, confirmSignature, blockNum, merkleProof];
-}
-
 // For a given list of leaves, this function generates a merkle root. It assumes
 // the merkle tree is of depth 16. If there are less than 2^16 leaves, the
 // list is padded with 0x0 transactions. The function also generates a merkle
@@ -112,7 +86,7 @@ let generateMerkleRootAndProofHelper = function(leaves, depth, txIndex, zeroHash
         // Recursively call the helper function, updating the variables we pass in
         // We expect to see the number of leaves to decrease by 1/2
         // This would be the next layer up in the merkle tree.
-        let result =  generateMerkleRootAndProofHelper(newLeaves, depth - 1, Math.floor(txIndex/2), zeroHashesIndex + 1);
+        let result = generateMerkleRootAndProofHelper(newLeaves, depth - 1, Math.floor(txIndex/2), zeroHashesIndex + 1);
 
         result[1] = proof + result[1];
 
@@ -146,6 +120,5 @@ module.exports = {
     mineNBlocks,
     proof,
     zeroHashes,
-    sendUTXO,
     generateMerkleRootAndProof
 };

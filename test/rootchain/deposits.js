@@ -90,14 +90,19 @@ contract('[RootChain] Deposits', async (accounts) => {
         assert.equal(balance, 10, "excess for overpayed bond not refunded to sender");
     });
 
-    it("Can start and finalize a deposit exit", async () => {
+    it("Can start and finalize a deposit exit. Child chain balance should reflect accordingly", async () => {
         let nonce = (await rootchain.depositNonce.call()).toNumber();
         await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
+
+        let childChainBalance = (await rootchain.childChainBalance.call()).toNumber();
+        assert.equal(childChainBalance, 100);
+
         await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
-
         await fastForward(one_week + 100);
-
         await rootchain.finalizeDepositExits();
+
+        childChainBalance = (await rootchain.childChainBalance.call()).toNumber();
+        assert.equal(childChainBalance, 0);
 
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, 100 + minExitBond, "deposit exit not finalized after a week");
@@ -125,16 +130,24 @@ contract('[RootChain] Deposits', async (accounts) => {
         await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
 
         // construct transcation with first input as the deposit
-        let txBytes = Array(17).fill(0);
-        txBytes[3] = nonce; txBytes[12] = accounts[1]; txBytes[13] = 100;
-        txBytes = RLP.encode(txBytes);
-        let txHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+        let msg = Array(17).fill(0);
+        msg[3] = nonce; msg[12] = accounts[1]; msg[13] = 100;
+        let encodedMsg = RLP.encode(msg);
+        let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex'), {encoding: 'hex'});
 
         // create signature by deposit owner. Second signature should be zero
-        let sigs = (await web3.eth.sign(accounts[2], txHash));
+        let sigList = Array(2).fill(0);
+        sigList[0] = (await web3.eth.sign(accounts[2], hashedEncodedMsg));
+
+        let txBytes = Array(2).fill(0);
+        txBytes[0] = msg; txBytes[1] = sigList;
+        txBytes = RLP.encode(txBytes);
+
+        // create signature by deposit owner. Second signature should be zero
+        let sigs = (await web3.eth.sign(accounts[2], hashedEncodedMsg));
         sigs = sigs + Buffer.alloc(65).toString('hex');
 
-        let merkleHash = web3.sha3(txHash.slice(2) + sigs.slice(2), {encoding: 'hex'});
+        let merkleHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
 
         // include this transaction in the next block
         let root = merkleHash;
@@ -160,7 +173,7 @@ contract('[RootChain] Deposits', async (accounts) => {
 
         // correctly challenge
         await rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
-            toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]});
+            toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[3]});
 
         let balance = (await rootchain.balanceOf.call(accounts[3])).toNumber();
         assert.equal(balance, minExitBond, "challenger not awarded exit bond");
