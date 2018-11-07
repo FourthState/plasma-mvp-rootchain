@@ -94,14 +94,14 @@ contract('[RootChain] Deposits', async (accounts) => {
         let nonce = (await rootchain.depositNonce.call()).toNumber();
         await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
 
-        let childChainBalance = await rootchain.childChainBalance.call()).toNumber()
+        let childChainBalance = (await rootchain.childChainBalance.call()).toNumber();
         assert.equal(childChainBalance, 100);
 
         await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
         await fastForward(one_week + 100);
         await rootchain.finalizeDepositExits();
 
-        let childChainBalance = await rootchain.childChainBalance.call()).toNumber()
+        childChainBalance = (await rootchain.childChainBalance.call()).toNumber();
         assert.equal(childChainBalance, 0);
 
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
