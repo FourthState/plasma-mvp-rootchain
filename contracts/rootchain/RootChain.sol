@@ -155,10 +155,10 @@ contract RootChain is Ownable {
         require(spendMsg.length == 2, "incorrect encoding of the transcation");
 
         txList = spendMsg[0].toList();
-        require(txList.length == 17, "incorrect number of items in the transaction");
+        require(txList.length == 17, "incorrect number of items in the transaction list");
 
         sigList = spendMsg[1].toList();
-        require(sigList.length == 2, "two signatures are required in the transaction");
+        require(sigList.length == 2, "two signatures must be present");
 
         // bytes the signatures are over
         txHash = keccak256(spendMsg[0].toRlpBytes());
@@ -206,7 +206,7 @@ contract RootChain is Ownable {
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
         // calculate the priority of the transaction taking into account the withdrawal delay attack
-        // withdrawal delay attack: [insert link]
+        // withdrawal delay attack: https://github.com/FourthState/plasma-mvp-rootchain/issues/42
         txExitQueue.insert(Math.max256(blk.createdAt + 1 weeks, block.timestamp) << 128 | position);
         txExits[position] = exit({
             owner: txList[12 + 2 * txPos[2]].toAddress(),

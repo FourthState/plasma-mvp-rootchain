@@ -4,7 +4,7 @@
 [![license](https://img.shields.io/github/license/FourthState/plasma-mvp-rootchain.svg)](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/LICENSE)
 [![Coverage Status](https://coveralls.io/repos/github/FourthState/plasma-mvp-rootchain/badge.svg?branch=master)](https://coveralls.io/github/FourthState/plasma-mvp-rootchain?branch=master)
 
-Implementing of [Minimum Viable Plasma](https://ethresear.ch/t/minimal-viable-plasma/426)
+Implementation of [Minimum Viable Plasma](https://ethresear.ch/t/minimal-viable-plasma/426)
 
 ## Overview
 Plasma is a layer 2 scaling solution which conducts transaction processing off chain and allows for only merkle roots of each block to be reported to a root chain. This allows for users to benefit from off chain scaling while still relying on decentralized security.
@@ -12,7 +12,7 @@ Plasma is a layer 2 scaling solution which conducts transaction processing off c
 The root contract of a Plasma child chain represents an intermediary who can resolve any disputes. The root contract is responsible for maintaining a mapping from block number to merkle root, processing deposits, and processing withdrawals.
 
 ## Root Contract Details
-A transaction is encoded in the following form: RLP_encode([txList, sigList]). The signatures sign over the hash of the transaction list.
+A transaction is encoded in the following form:
 
 ```
 [ 
@@ -25,6 +25,7 @@ A transaction is encoded in the following form: RLP_encode([txList, sigList]). T
   [Signature1, Signature2]
 ]
 ```
+The signatures are over the hash of the transaction list signed by the owner of each respective utxo input.
 
 ### Documentation
 
