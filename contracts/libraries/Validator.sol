@@ -15,12 +15,12 @@ library Validator {
         returns (bool)
     {
         // depth 16 merkle tree
-        require(proof.length == 512, "Incorrect proof length");
+        require(proof.length % 32 == 0, "Incorrect proof length");
 
         bytes32 proofElement;
         bytes32 computedHash = leaf;
 
-        for (uint256 i = 32; i <= 512; i += 32) {
+        for (uint256 i = 32; i <= proof.length; i += 32) {
             assembly {
                 proofElement := mload(add(proof, i))
             }

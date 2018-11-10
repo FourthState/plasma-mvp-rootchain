@@ -34,7 +34,7 @@ contract('Validator', async (accounts) => {
         let badRoot = web3.sha3("wrongRoot", {encoding: 'hex'});
         assert.isFalse(await instance.checkMembership.call(toHex(leafHash), 0, toHex(badRoot), toHex(proof)), "Returned true on wrong root");
 
-        let badProof = "0".repeat(proof.length);
+        let badProof = "a".repeat(proof.length);
         assert.isFalse(await instance.checkMembership.call(toHex(leafHash), 0, toHex(root), toHex(badProof)), "Returned true on wrong proof");
 
         let err;

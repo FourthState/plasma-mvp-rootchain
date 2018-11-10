@@ -30,7 +30,9 @@ let fastForward = async function(time) {
 // @param leaves The leaves for which this function generates a merkle root and proof
 // @param txIndex The leaf for which this function gneerates a merkle proof
 let generateMerkleRootAndProof = function(leaves, txIndex) {
-    return generateMerkleRootAndProofHelper(leaves, 16, txIndex, 0);
+    // console.log(leaves.length, Math.floor(Math.log2(leaves.length)) + 1);
+    let depth = Math.floor(Math.log2(leaves.length)) + 1;
+    return generateMerkleRootAndProofHelper(leaves, depth, txIndex, 0);
 };
 
 // This helper function recursively generates a merkle root and merkle proof for
