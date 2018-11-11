@@ -90,8 +90,8 @@ contract RootChain is Ownable {
         public
         onlyOwner
     {
-        // ensure finality on previous blocks before submitting another
         require(block.number >= lastParentBlock.add(6), "presumed finality required");
+        require(blocks.length != 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
 
         uint memPtr;
         assembly  {
