@@ -17,7 +17,7 @@ library Validator {
         // variable size Merkle tree, but proof must consist of 32-byte hashes
         require(proof.length % 32 == 0, "Incorrect proof length");
 
-        uint total = proof.length / 32;
+        uint total = proof.length / 32; // FIXME: total calculation is wrong; pass in total # of leaves instead
         bytes32 computedHash = computeHashFromAunts(index, total, leaf, proof);
         return computedHash == rootHash;
     }
@@ -40,7 +40,7 @@ library Validator {
         uint256 numLeft = (total + 1) / 2;
         bytes32 proofElement;
         if (index < numLeft) {
-            bytes32 leftHash = computeHashFromAunts(index, numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 1));
+            bytes32 leftHash = computeHashFromAunts(index, numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 32));
             uint innerHashesMemOffset = (innerHashes.length - 1) * 32;
             assembly {
                 // get the last 32-byte hash from innerHashes array
@@ -49,7 +49,7 @@ library Validator {
             return sha256(abi.encodePacked(leftHash, proofElement));
         }
 
-        bytes32 rightHash = computeHashFromAunts(index-numLeft, total-numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 1));
+        bytes32 rightHash = computeHashFromAunts(index-numLeft, total-numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 32));
         innerHashesMemOffset = (innerHashes.length - 1) * 32;
         assembly {
                 // get the last 32-byte hash from innerHashes array
