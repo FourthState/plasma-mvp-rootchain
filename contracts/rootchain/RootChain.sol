@@ -85,18 +85,31 @@ contract RootChain is Ownable {
         minExitBond = 10000;
     }
 
-    // @param root 32 byte merkleRoot of ChildChain block
-    function submitBlock(bytes32 root)
+    // @param blocks 32 byte merkle roots
+    function submitBlock(bytes blocks)
         public
         onlyOwner
     {
-        // ensure finality on previous blocks before submitting another
         require(block.number >= lastParentBlock.add(6), "presumed finality required");
+        require(blocks.length != 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
 
-        childChain[currentChildBlock] = childBlock(root, block.timestamp);
-        emit BlockSubmitted(root, currentChildBlock);
+        uint memPtr;
+        assembly  {
+            memPtr := add(blocks, 0x20)
+        }
 
-        currentChildBlock = currentChildBlock.add(1);
+        bytes32 root;
+        for (uint i = 0; i < blocks.length; i += 32) {
+            assembly {
+                root := mload(add(memPtr, i))
+            }
+
+            childChain[currentChildBlock] = childBlock(root, block.timestamp);
+            emit BlockSubmitted(root, currentChildBlock);
+
+            currentChildBlock = currentChildBlock.add(1);
+        }
+
         lastParentBlock = block.number;
     }
 

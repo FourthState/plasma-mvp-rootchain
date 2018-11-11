@@ -2,7 +2,7 @@
 ```solidity
 function submitBlock(bytes32 root)
 ```
-The validator submits the block header, `root` of each child chain block.  
+The validator submits the block header, `root` of each child chain block. More than one block can be submitted per call by appending the roots to one another.  
 
 <br >
 
