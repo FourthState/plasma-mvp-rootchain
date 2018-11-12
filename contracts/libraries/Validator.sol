@@ -39,23 +39,31 @@ library Validator {
 
         uint256 numLeft = (total + 1) / 2;
         bytes32 proofElement;
+
+        // prepend 0x20 byte literal to hashes
+        bytes memory b = new bytes(1);
+        assembly {
+            let memPtr := add(b, 0x20)
+            mstore8(memPtr, 0x20)
+        }
+
         if (index < numLeft) {
             bytes32 leftHash = computeHashFromAunts(index, numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 32));
-            uint innerHashesMemOffset = (innerHashes.length - 1) * 32;
+            uint innerHashesMemOffset = innerHashes.length - 32;
             assembly {
                 // get the last 32-byte hash from innerHashes array
                 proofElement := mload(add(add(innerHashes, 0x20), innerHashesMemOffset))
             }
-            return sha256(abi.encodePacked(leftHash, proofElement));
+            return sha256(abi.encodePacked(b, leftHash, b, proofElement));
         }
 
         bytes32 rightHash = computeHashFromAunts(index-numLeft, total-numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 32));
-        innerHashesMemOffset = (innerHashes.length - 1) * 32;
+        innerHashesMemOffset = innerHashes.length - 32;
         assembly {
                 // get the last 32-byte hash from innerHashes array
                 proofElement := mload(add(add(innerHashes, 0x20), innerHashesMemOffset))
         }
-        return sha256(abi.encodePacked(proofElement, rightHash));
+        return sha256(abi.encodePacked(b, proofElement, b, rightHash));
     }
 
     // @param txHash      transaction hash
