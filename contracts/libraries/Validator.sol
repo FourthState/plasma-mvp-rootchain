@@ -5,11 +5,20 @@ import "openzeppelin-solidity/contracts/ECRecovery.sol";
 library Validator {
     uint8 constant WORD_SIZE = 32;
 
+    // temporary placeholder function so rootchain will compile
+    function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
+        internal
+        pure
+        returns (bool)
+    {
+        return false;
+    }
+
     // @param leaf     a leaf of the tree
     // @param index    position of this leaf in the tree that is zero indexed
     // @param rootHash block header of the merkle tree
     // @param proof    sequence of 32-byte hashes from the leaf up to, but excluding, the root
-    function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
+    function checkMembershipNew(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof, uint256 total)
         internal
         pure
         returns (bool)
@@ -17,7 +26,6 @@ library Validator {
         // variable size Merkle tree, but proof must consist of 32-byte hashes
         require(proof.length % 32 == 0, "Incorrect proof length");
 
-        uint total = proof.length / 32; // FIXME: total calculation is wrong; pass in total # of leaves instead
         bytes32 computedHash = computeHashFromAunts(index, total, leaf, proof);
         return computedHash == rootHash;
     }
