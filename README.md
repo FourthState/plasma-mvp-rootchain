@@ -46,4 +46,4 @@ If you encounter problems, make sure your local test rpc (e.g. [ganache](https:/
 
 ### Contributing
 
-See our [contribution guidelines](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/CONTRIBUTING.md). Join our [Discord Server](https://discord.gg/yxZ29kR).
+See our [contribution guidelines](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/CONTRIBUTING.md). Join our [Discord Server](https://discord.gg/YTB5A4P).
