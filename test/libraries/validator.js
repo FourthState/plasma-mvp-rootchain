@@ -20,36 +20,24 @@ contract('Validator', async (accounts) => {
         let index = 1; // index of the leaf we want to prove
 
         assert.isTrue(await instance.checkMembership.call(toHex(leaf), index, toHex(rootHash), toHex(proof), total), "Didn't prove membership");
+    });
+
+    it("Verifies the membership in a merkle tree with 7 leaves", async () => {
+        // checking membership of 3rd leaf
+        let rootHash = "0x4edd08572735720e2769fa536c03e5d2ed29ff2ba97fb102cfe71fdae3c30428";
+        let leaf = "0x714c0269d202e4302fadab4d62a4e9171fbf09508cb589616342cce45981d329";
+        let proof = "0xfbec635c930057fdc76939052216ed2aed7af618109b983ee1ae7b13c909f2dd1a61753dc9eccd5506144081ba000a8e44c9262be17ab934dda9e4fa10495fccdbb108450dad46789d67f5cfb5ee4be7f505bd8835a0867410412f22cfda8ad5";
+        let total = 7; // Merkle tree contains 7 leaf nodes (transactions)
+        let index = 2; // index of the leaf we want to prove
+
+        assert.isTrue(await instance.checkMembership.call(toHex(leaf), index, toHex(rootHash), toHex(proof), total), "Didn't prove membership");
 
 
-        // Roothash: 0xc803774ffce8f36dd1b4c723ea44be78c32efe956cf6cc1147f94df54943069f
-        // Total: 2
-        // LeafHash: 0x7802f7f1a871c2c75dca4f512fbd5f5d60360340471c656ddd2b5a3544d15230
-        // TxBytes: 0xf8f6f8ad80808002948c89ebb48b229921bf76e0266c87f09abfad25b2f847f843b84104065b07a270acc5988a2f38514baff38060b4acb9b7e59255abae900a5e280c7a94699d3abce1d5c59d7774eb98ac427bb51f029ada3709740f59c5fd837c7d01c18080808080940000000000000000000000000000000000000000c4c180c18094812f9b92dddb609b8e45512a69d0326bf83ac167649400000000000000000000000000000000000000008080f845f843b8414bb5ca41727a9674f9942afce98fb8544a29861c955820e8de4dc5eb027a18e102ec1949b5ce6220ecf74d36f6bd36e3c99d0cd7779abb5df761682aa7a35e9100
-        // Proof: 0x99cdb2c39ce2b89c6731f010f166ae68e09475acc4db24ad06cb518a7514a3d8
-
-        let leafHash = "0x99cdb2c39ce2b89c6731f010f166ae68e09475acc4db24ad06cb518a7514a3d8";
-        index = 0;
-        rootHash = "0xc803774ffce8f36dd1b4c723ea44be78c32efe956cf6cc1147f94df54943069f";
-        proof = "0x7802f7f1a871c2c75dca4f512fbd5f5d60360340471c656ddd2b5a3544d15230";
-        total = 2;
-        let txBytes = "0xf8f6f8ad80808002940e02ce999156cf4e5a30d91b79329e1f01d61379f847f843b84144669afe046856647d4cc350a94bad2bc999f74fdb380afcc3d2ab4acc9b14aa1cf53012025c79250432f3ea6151d21f580fd6ef900d6bd99859b0b9bef0d49200c18080808080940000000000000000000000000000000000000000c4c180c1809453bb5e06573dbd3baeff3710c860f09f06c4c8a4329400000000000000000000000000000000000000008032f845f843b8418d6db49e7be23a6f90b223b4858d6e19937df13dc1abd3ac1d2b684e971d03d735651eed2cd4dbc46351a1272ed8d3d6993c9454f9c70c2a086a800aa9237aa500";
-        
-        // let tx = await instance.checkMembership(toHex(leafHash), index, toHex(rootHash), toHex(proof), total)
-
-        // let tx = await instance.computeHashFromTwoHashes(toHex(proof), toHex(leafHash));
-
-        let tx = await instance.computeMerkleHashFromTxBytes(toHex(txBytes));
-
-        console.log(tx);
-
-        for (let i = 0; i < tx.logs.length; i++) {
-            console.log(tx.logs[i]);
-            console.log(tx.logs[i].args);
-        }
-        // let txResult = await instance.checkMembership.call(toHex(leafHash), index, toHex(rootHash), toHex(proof), total);
-        // assert.isTrue(txResult, "Didn't prove membership");
-
+        // checking membership of 4th leaf
+        leaf = "0xfbec635c930057fdc76939052216ed2aed7af618109b983ee1ae7b13c909f2dd";
+        proof = "0x714c0269d202e4302fadab4d62a4e9171fbf09508cb589616342cce45981d3291a61753dc9eccd5506144081ba000a8e44c9262be17ab934dda9e4fa10495fccdbb108450dad46789d67f5cfb5ee4be7f505bd8835a0867410412f22cfda8ad5";
+        index = 3;
+        assert.isTrue(await instance.checkMembership.call(toHex(leaf), index, toHex(rootHash), toHex(proof), total), "Didn't prove membership");
     });
 
     // it("Catches bad input on checkMembership", async () => {
