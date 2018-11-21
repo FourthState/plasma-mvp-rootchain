@@ -30,7 +30,7 @@ library Validator {
         return computedHash == rootHash;
     }
 
-      // from https://tendermint.com/docs/spec/blockchain/encoding.html#simple-merkle-proof
+    // from https://tendermint.com/docs/spec/blockchain/encoding.html#simple-merkle-proof
     function computeHashFromAunts(uint256 index, uint256 total, bytes32 leaf, bytes innerHashes)
         internal
         pure
@@ -63,11 +63,7 @@ library Validator {
                 proofElement := mload(add(add(innerHashes, 0x20), innerHashesMemOffset))
             }
 
-            // emit ProofElement(proofElement);
-            // emit LeftHash(leftHash);
-
             return sha256(abi.encodePacked(b, leftHash, b, proofElement));
-            // return sha256(abi.encodePacked(leftHash, proofElement));
         }
 
         bytes32 rightHash = computeHashFromAunts(index-numLeft, total-numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 32));
@@ -76,10 +72,7 @@ library Validator {
                 // get the last 32-byte hash from innerHashes array
                 proofElement := mload(add(add(innerHashes, 0x20), innerHashesMemOffset))
         }
-        // emit ProofElement(proofElement);
-        // emit RightHash(rightHash);
         return sha256(abi.encodePacked(b, proofElement, b, rightHash));
-        // return sha256(abi.encodePacked(proofElement, rightHash));
     }
 
     // @param txHash      transaction hash
