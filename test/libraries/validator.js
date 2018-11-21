@@ -1,5 +1,6 @@
 let assert = require('chai').assert;
 let RLP = require('rlp');
+let sha256 = require('js-sha256').sha256;
 
 let Validator_Test = artifacts.require("Validator_Test");
 let { catchError, toHex } = require('../utilities.js');
@@ -34,7 +35,7 @@ contract('Validator', async (accounts) => {
         proof = "0x7802f7f1a871c2c75dca4f512fbd5f5d60360340471c656ddd2b5a3544d15230";
         total = 2;
         let txBytes = "0xf8f6f8ad80808002940e02ce999156cf4e5a30d91b79329e1f01d61379f847f843b84144669afe046856647d4cc350a94bad2bc999f74fdb380afcc3d2ab4acc9b14aa1cf53012025c79250432f3ea6151d21f580fd6ef900d6bd99859b0b9bef0d49200c18080808080940000000000000000000000000000000000000000c4c180c1809453bb5e06573dbd3baeff3710c860f09f06c4c8a4329400000000000000000000000000000000000000008032f845f843b8418d6db49e7be23a6f90b223b4858d6e19937df13dc1abd3ac1d2b684e971d03d735651eed2cd4dbc46351a1272ed8d3d6993c9454f9c70c2a086a800aa9237aa500";
-        
+
         // let tx = await instance.checkMembership(toHex(leafHash), index, toHex(rootHash), toHex(proof), total)
 
         // let tx = await instance.computeHashFromTwoHashes(toHex(proof), toHex(leafHash));
@@ -50,6 +51,35 @@ contract('Validator', async (accounts) => {
         // let txResult = await instance.checkMembership.call(toHex(leafHash), index, toHex(rootHash), toHex(proof), total);
         // assert.isTrue(txResult, "Didn't prove membership");
 
+    });
+
+    it("Verifies the membership in a merkle tree with two leaves", async () => {
+        // start transaction exit
+        let txPos = [2, 1, 0];
+        let txBytes = "0xf8ebf86180808002940e02ce999156cf4e5a30d91b79329e1f01d61379c080808080940000000000000000000000000000000000000000c09453bb5e06573dbd3baeff3710c860f09f06c4c8a4329400000000000000000000000000000000000000008032f886b841e275f716d994ae42f55c0efc0a1cbbd1f82282eb1bc51debff150f237a9a8673605db73ed2158bdf051b0752ca08b0666b125f64d566a44d4af9d1801d2d628901b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let proof = "0x101b20dfeeb844bd04547d5539b8704201e127a50438a874cdf3af596206562b";
+        let confirmSigs = "0x43ace83a1bdbc809abf48f186daf9069a48f0e7d7ec66b386b2b384b0b15867c19fd0ba9e3b2eb1f175655bacdf0aeca2cb2d8d172373fd0ba16a69b8d35daeb00";
+        let total = 2;
+
+        let decoded = RLP.decode(txBytes);
+
+        let txHash = "26aece2943f31a0530b66a537a21ec898c094253664282cb9cced295ee41e44e";
+
+//web3.sha3("0xf86180808001940e02ce999156cf4e5a30d91b79329e1f01d61379c080808080940000000000000000000000000000000000000000c09453bb5e06573dbd3baeff3710c860f09f06c4c8a4329400000000000000000000000000000000000000008032", {encoding: 'hex'});
+
+        let merkleHash = sha256.hex(txBytes);
+        let merkleRoot = "0x2e0a279b8da810123fcca277a6687e3d62ab34a13f1916d84fcb6493078c8921"
+
+        let confirmHash = sha256(merkleHash + merkleRoot.slice(2));
+
+        let sig0 = "0xe275f716d994ae42f55c0efc0a1cbbd1f82282eb1bc51debff150f237a9a8673605db73ed2158bdf051b0752ca08b0666b125f64d566a44d4af9d1801d2d628901"
+        let sig1 = "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+        console.log(merkleHash);
+        console.log(txHash);
+
+        let result = await instance.checkSigs(toHex(txHash), toHex(confirmHash), 0, toHex(sig0), toHex(sig1), toHex(confirmSigs))
+        console.log(result);
     });
 
     // it("Catches bad input on checkMembership", async () => {

@@ -160,6 +160,12 @@ contract RootChain is Ownable {
         sigList = spendMsg[1].toList();
         // require(sigList.length == 2, "two signatures must be present"); // FIXME add this line back later
 
+        /* bytes memory input = bytes(0x101010101010101010101010101010102); */
+
+        /* bytes32 actualRlpBytes = bytesToBytes32(spendMsg[0].toRlpBytes(), 0); */
+        /* bytes32 expectedRlpBytes = 0xF0E112BBDB5D7621A61ECE66D1C0473D7BB2EFCB5707AE8C3993210F5C833F50;
+        require(expectedRlpBytes != expectedRlpBytes, byte32ToString(expectedRlpBytes)); */
+
         // bytes the signatures are over
         txHash = keccak256(spendMsg[0].toRlpBytes());
     }
@@ -191,7 +197,7 @@ contract RootChain is Ownable {
 
         // check signatures
         bytes32 merkleHash = sha256(txBytes); // FIXME: should be sha256
-        require(txHash.checkSigs(keccak256(abi.encodePacked(merkleHash, blk.root)), // confirmation hash -- sha3(merkleHash, root)
+        require(txHash.checkSigs(sha256(abi.encodePacked(merkleHash, blk.root)), // confirmation hash -- sha3(merkleHash, root)
                          // we always assume the first input is always present in a transaction. The second input is optional
                          txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
                          sigList[0].toBytes(), sigList[1].toBytes(), confirmSignatures), "signature mismatch");

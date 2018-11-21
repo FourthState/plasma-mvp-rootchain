@@ -69,32 +69,30 @@ contract('[RootChain] Transactions', async (accounts) => {
 
 
 
-
-
     it("Allows only the utxo owner to start an exit", async () => {
         rootchain = await RootChain.new({from: authority});
 
         mineNBlocks(5);
         await rootchain.submitBlock(toHex("0x1234567890"), {from: authority});
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0xc803774ffce8f36dd1b4c723ea44be78c32efe956cf6cc1147f94df54943069f"), {from: authority});
+        await rootchain.submitBlock(toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109"), {from: authority});
         mineNBlocks(5);
 
 
-        // start transaction exit 
+        // start transaction exit
         let txPos = [2, 1, 0];
-        let txBytes = "0xf8f6f8ad80808002940e02ce999156cf4e5a30d91b79329e1f01d61379f847f843b84144669afe046856647d4cc350a94bad2bc999f74fdb380afcc3d2ab4acc9b14aa1cf53012025c79250432f3ea6151d21f580fd6ef900d6bd99859b0b9bef0d49200c18080808080940000000000000000000000000000000000000000c4c180c1809453bb5e06573dbd3baeff3710c860f09f06c4c8a4329400000000000000000000000000000000000000008032f845f843b8418d6db49e7be23a6f90b223b4858d6e19937df13dc1abd3ac1d2b684e971d03d735651eed2cd4dbc46351a1272ed8d3d6993c9454f9c70c2a086a800aa9237aa500";
-        let proof = "0x9dbe6bb6372348d05c3dcf6c08f0aeb101f28eed4d3cbff8927d24ab23ab0a51";
-        let confirmSigs = "BECF36F0CB740A24D973F7782AFB02CB45A1DEEEE52FAA0BD981C242F054FFDD5E2D4F52ED86934CE96F86482FC153698E804B931C6242712F2815E193BF527E01";
+        let txBytes = "0xf8ebf86180808002940e02ce999156cf4e5a30d91b79329e1f01d61379c080808080940000000000000000000000000000000000000000c09453bb5e06573dbd3baeff3710c860f09f06c4c8a4329400000000000000000000000000000000000000008032f886b841288caa04324245958feb44f9ef5d483618b2cfea74622af8a1075a4089be513001cca34ed1230a20849b5c2b4ae33b3e24f4b36cf1d2d2dc45f1485c6f2c03a600b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let proof = "0xf17d0ac90940e6055a992ac3f76742a2ab47c504b495c6b1accdf839ac018814";
+        let confirmSigs = "0xff05e0519b90b7b3f0d9d8a73a2792d55413f0f5626901d45ab0c8adedb668b638d1eac62cd88cd0719d8bfe0c47357c27463677c0997ad3337a0baed7fd6d6600";
         let total = 2;
 
         // console.log("accounts: ");
         // console.log(accounts);
 
-        let newOwner = "0x53bb5e06573dbd3baeff3710c860f09f06c4c8a4";
+        let newOwner = "0x53bB5E06573dbD3baEFF3710c860F09F06C4C8A4";
 
         let tx = await rootchain.startTransactionExit(txPos,
-            toHex(txBytes), toHex(proof), toHex(confirmSigs), {from: newOwner, value: minExitBond, gas: 10000000});
+            toHex(txBytes), toHex(proof), toHex(confirmSigs), {from: newOwner, value: minExitBond});
         console.log(tx);
     });
 
