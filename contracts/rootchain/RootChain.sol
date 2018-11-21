@@ -305,10 +305,10 @@ contract RootChain is Ownable {
 
         // confirm challenging transcation's inclusion and confirm signature
         bytes32 root = childChain[challengingTxPos[0]].root;
-        bytes32 merkleHash = keccak256(txBytes);
-        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
+        bytes32 merkleHash = sha256(txBytes);
+        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembership(challengingTxPos[1], root, proof), "incorrect merkle proof");
+        require(merkleHash.checkMembershipNew(challengingTxPos[1], root, proof, 1), "incorrect merkle proof");
 
         // exit successfully challenged. Award the sender with the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
