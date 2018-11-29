@@ -64,15 +64,15 @@ library Validator {
             }
 
             return sha256(abi.encodePacked(b, leftHash, b, proofElement));
+        } else {
+            bytes32 rightHash = computeHashFromAunts(index-numLeft, total-numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 32));
+            innerHashesMemOffset = innerHashes.length - 32;
+            assembly {
+                    // get the last 32-byte hash from innerHashes array
+                    proofElement := mload(add(add(innerHashes, 0x20), innerHashesMemOffset))
+            }
+            return sha256(abi.encodePacked(b, proofElement, b, rightHash));
         }
-
-        bytes32 rightHash = computeHashFromAunts(index-numLeft, total-numLeft, leaf, slice(innerHashes, 0, innerHashes.length - 32));
-        innerHashesMemOffset = innerHashes.length - 32;
-        assembly {
-                // get the last 32-byte hash from innerHashes array
-                proofElement := mload(add(add(innerHashes, 0x20), innerHashesMemOffset))
-        }
-        return sha256(abi.encodePacked(b, proofElement, b, rightHash));
     }
 
     // @param txHash      transaction hash

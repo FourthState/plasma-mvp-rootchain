@@ -40,4 +40,12 @@ contract Validator_Test {
   {
       return Validator.slice(_bytes, start, len);
   }
+
+  function test_sha256(bytes input)
+      public
+      pure
+      returns (bytes32)
+  {
+      return sha256(input);
+  }
 }
