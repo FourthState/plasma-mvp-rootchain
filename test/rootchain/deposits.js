@@ -35,7 +35,7 @@ contract('[RootChain] Deposits', async (accounts) => {
         assert.equal(tx.logs[0].args.depositNonce, nonce, "incorrect deposit nonce");
 
         // check rootchain deposit mapping
-        let deposit = await rootchain.getDeposit.call(nonce);
+        let deposit = await rootchain.deposits.call(nonce);
         assert.equal(deposit[0], accounts[2], "incorrect deposit owner");
         assert.equal(deposit[1], 100, "incorrect deposit amount");
     });
@@ -107,7 +107,7 @@ contract('[RootChain] Deposits', async (accounts) => {
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, 100 + minExitBond, "deposit exit not finalized after a week");
 
-        let exit = await rootchain.getDepositExit.call(nonce);
+        let exit = await rootchain.depositExits.call(nonce);
         assert.equal(exit[3], 3, "exit's state not set to finalized");
     });
 
@@ -178,7 +178,7 @@ contract('[RootChain] Deposits', async (accounts) => {
         let balance = (await rootchain.balanceOf.call(accounts[3])).toNumber();
         assert.equal(balance, minExitBond, "challenger not awarded exit bond");
 
-        let exit = await rootchain.getDepositExit.call(nonce);
+        let exit = await rootchain.depositExits.call(nonce);
         assert.equal(exit[3], 2, "exit state not changed to challenged");
 
         // Cannot challenge twice
