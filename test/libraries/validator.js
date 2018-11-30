@@ -3,7 +3,7 @@ let RLP = require('rlp');
 
 let Validator_Test = artifacts.require("Validator_Test");
 let { catchError, toHex } = require('../utilities.js');
-let {zeroHashes, generateMerkleRootAndProof, generateMerkleRootAndProofNew} = require('../rootchain/rootchain_helpers.js');
+let {zeroHashes, generateMerkleRootAndProofNew} = require('../rootchain/rootchain_helpers.js');
 
 contract('Validator', async (accounts) => {
     let instance;
@@ -216,7 +216,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + sigOverTxHash.slice(2), {encoding: 'hex'});
-        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
+        let rootHash = generateMerkleRootAndProofNew([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
 
         // create confirmSignatures
@@ -238,7 +238,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + sigOverTxHash, {encoding: 'hex'});
-        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
+        let rootHash = generateMerkleRootAndProofNew([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
 
         // create confirmSignatures
@@ -267,7 +267,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + validSig.slice(2), {encoding: 'hex'});
-        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
+        let rootHash = generateMerkleRootAndProofNew([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
         // create confirmSignatures
         let confirmSignatures = await web3.eth.sign(signer0, confirmationHash);

@@ -196,14 +196,14 @@ contract RootChain is Ownable {
         childBlock storage blk = childChain[txPos[0]];
 
         // check signatures
-        bytes32 merkleHash = sha256(txBytes); // FIXME: should be sha256
-        require(txHash.checkSigs(sha256(abi.encodePacked(merkleHash, blk.root)), // confirmation hash -- sha3(merkleHash, root)
+        bytes32 merkleHash = sha256(txBytes);
+        require(txHash.checkSigs(sha256(abi.encodePacked(merkleHash, blk.root)), // confirmation hash -- sha256(merkleHash, root)
                          // we always assume the first input is always present in a transaction. The second input is optional
                          txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
                          sigList[0].toBytes(), sigList[1].toBytes(), confirmSignatures), "signature mismatch");
 
         // check proof
-        require(merkleHash.checkMembershipNew(txPos[1], blk.root, proof, 2), "invalid merkle proof"); // FIXME: should not hardcode total=2
+        require(merkleHash.checkMembershipNew(txPos[1], blk.root, proof, 1), "invalid merkle proof"); // FIXME: should not hardcode total=2
 
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
@@ -270,10 +270,10 @@ contract RootChain is Ownable {
 
         // check for inclusion in the side chain
         bytes32 root = childChain[newTxPos[0]].root;
-        bytes32 merkleHash = keccak256(txBytes);
-        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
+        bytes32 merkleHash = sha256(txBytes);
+        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembership(newTxPos[1], root, proof), "incorrect merkle proof");
+        require(merkleHash.checkMembershipNew(newTxPos[1], root, proof, 1), "incorrect merkle proof");
 
         // exit successfully challenged
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
