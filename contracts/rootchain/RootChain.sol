@@ -87,18 +87,40 @@ contract RootChain is Ownable {
     }
 
     // @param root 32 byte merkleRoot of ChildChain block
-    function submitBlock(bytes32 root, uint256 numTxns)
+    function submitBlock(bytes blocks, uint256[] numTxns)
         public
         onlyOwner
     {
-        // ensure finality on previous blocks before submitting another
+        require(block.number >= lastParentBlock.add(6), "presumed finality required");
+        require(blocks.length != 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
+        require(blocks.length / 32 == numTxns.length, "blocks and numTxns lengths are inconsistent");
+
+        uint memPtr;
+        assembly  {
+            memPtr := add(blocks, 0x20)
+        }
+
+        bytes32 root;
+        for (uint i = 0; i < blocks.length; i += 32) {
+            assembly {
+                root := mload(add(memPtr, i))
+            }
+
+            childChain[currentChildBlock] = childBlock(root, numTxns[i], block.timestamp);
+            emit BlockSubmitted(root, currentChildBlock, numTxns[i]);
+
+            currentChildBlock = currentChildBlock.add(1);
+        }
+
+        lastParentBlock = block.number;
+        /* // ensure finality on previous blocks before submitting another
         require(block.number >= lastParentBlock.add(6), "presumed finality required");
 
-        childChain[currentChildBlock] = childBlock(root, numTxns, block.timestamp);
-        emit BlockSubmitted(root, currentChildBlock, numTxns);
+        childChain[currentChildBlock] = childBlock(root, numTxns[0], block.timestamp);
+        emit BlockSubmitted(root, currentChildBlock, numTxns[0]);
 
         currentChildBlock = currentChildBlock.add(1);
-        lastParentBlock = block.number;
+        lastParentBlock = block.number; */
     }
 
     // @param owner owner of this deposit

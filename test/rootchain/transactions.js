@@ -49,7 +49,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         [merkleRoot, proof] = generateMerkleRootAndProofNew([merkleHash], 0);
         mineNBlocks(5);
         let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
-        await rootchain.submitBlock(toHex(merkleRoot), 1, {from: authority});
+        await rootchain.submitBlock(toHex(merkleRoot), [1], {from: authority});
 
         // construct the confirm signature
         let confirmHash = sha256String(merkleHash + merkleRoot.slice(2));
@@ -69,9 +69,9 @@ contract('[RootChain] Transactions', async (accounts) => {
         let total = 2;
 
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0x1234567890"), 1, {from: authority});
+        await rootchain.submitBlock(toHex(web3.sha3('1234')), [1], {from: authority});
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109"), total, {from: authority});
+        await rootchain.submitBlock(toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109"), [total], {from: authority});
         mineNBlocks(5);
 
         // console.log("accounts: ");
@@ -103,11 +103,11 @@ contract('[RootChain] Transactions', async (accounts) => {
         let newTotal = 1;
 
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0x1234567890"), 1, {from: authority});
+        await rootchain.submitBlock(toHex(web3.sha3('1234')), [1], {from: authority});
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109"), total, {from: authority});
+        await rootchain.submitBlock(toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109"), [total], {from: authority});
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0x0501f4b09300d277cdfedb8c6d4747919bbbf454ef6ba9d300796e2703bf444c"), newTotal, {from: authority});
+        await rootchain.submitBlock(toHex("0x0501f4b09300d277cdfedb8c6d4747919bbbf454ef6ba9d300796e2703bf444c"), [newTotal], {from: authority});
         mineNBlocks(5);
 
 
@@ -225,7 +225,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         [root, proof2] = generateMerkleRootAndProofNew([merkleHash], 0);
         mineNBlocks(5);
         let blockNum = await rootchain.currentChildBlock.call();
-        await rootchain.submitBlock(toHex(root), 1, {from: authority});
+        await rootchain.submitBlock(toHex(root), [1], {from: authority});
 
         // create the confirm sig
         let confirmHash = sha256String(merkleHash + root.slice(2));
@@ -286,7 +286,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         [root, proof2] = generateMerkleRootAndProofNew([merkleHash], 0);
         let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root), 1, {from: authority});
+        await rootchain.submitBlock(toHex(root), [1], {from: authority});
 
         // create the confirm sig
         let confirmHash = sha256String(merkleHash + root.slice(2));
@@ -318,7 +318,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         [root1, proof1] = generateMerkleRootAndProofNew([merkleHash1], 0);
         let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root1), 1, {from: authority});
+        await rootchain.submitBlock(toHex(root1), [1], {from: authority});
 
         // create confirmation signature
         let confirmationHash1 = sha256String(merkleHash1.slice(2) + root1.slice(2));
@@ -339,7 +339,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         [root2, proof2] = generateMerkleRootAndProofNew([merkleHash2], 0);
         let blockNum2 = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root2), 1, {from: authority});
+        await rootchain.submitBlock(toHex(root2), [1], {from: authority});
 
         // create confirmation signature
         let confirmationHash2 = sha256String(merkleHash2.slice(2) + root2.slice(2));
@@ -373,7 +373,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         [root1, proof1] = generateMerkleRootAndProofNew([merkleHash1], 0);
         let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root1), 1, {from: authority});
+        await rootchain.submitBlock(toHex(root1), [1], {from: authority});
 
         // create confirmation signature
         let confirmationHash1 = sha256String(merkleHash1.slice(2) + root1.slice(2));
@@ -393,7 +393,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         [root2, proof2] = generateMerkleRootAndProofNew([merkleHash2], 0);
         let blockNum2 = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root2), 1, {from: authority});
+        await rootchain.submitBlock(toHex(root2), [1], {from: authority});
 
         // create confirmation signature
         let confirmationHash2 = sha256String(merkleHash2.slice(2) + root2.slice(2));

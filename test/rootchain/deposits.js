@@ -157,7 +157,7 @@ contract('[RootChain] Deposits', async (accounts) => {
         let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
 
         mineNBlocks(5); // presumed finality before submitting the block
-        await rootchain.submitBlock(toHex(root), 1, {from: authority});
+        await rootchain.submitBlock(toHex(root), [1], {from: authority});
 
         // create the confirm sig
         let confirmHash = sha256String(merkleHash + root.slice(2));
