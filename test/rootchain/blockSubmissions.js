@@ -20,7 +20,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         mineNBlocks(5);
 
         let blockRoot = '2984748479872';
-        let tx = await rootchain.submitBlock(web3.fromAscii(blockRoot), {from: authority});
+        let tx = await rootchain.submitBlock(web3.fromAscii(blockRoot), 1, {from: authority});
         // BlockSubmitted event
         assert.equal(web3.toUtf8(tx.logs[0].args.root), blockRoot, "incorrect block root in BlockSubmitted event");
         assert.equal(tx.logs[0].args.blockNumber.toNumber(), blkNum, "incorrect block number in BlockSubmitted event");
@@ -33,7 +33,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         let prev = (await rootchain.currentChildBlock.call()).toNumber();
 
         mineNBlocks(5);
-        let [err] = await catchError(rootchain.submitBlock(web3.fromAscii('578484785954'), {from: accounts[1]}));
+        let [err] = await catchError(rootchain.submitBlock(web3.fromAscii('578484785954'), 1, {from: accounts[1]}));
         if (!err)
             assert.fail("Submitted blocked without being the authority");
 
@@ -47,14 +47,14 @@ contract('[RootChain] Block Submissions', async (accounts) => {
 
         mineNBlocks(5);
         let root = '2984748479872'
-        let tx = await rootchain.submitBlock(web3.fromAscii(root), {from: authority});
+        let tx = await rootchain.submitBlock(web3.fromAscii(root), 1, {from: authority});
         // BlockSubmitted event
         assert.equal(web3.toUtf8(tx.logs[0].args.root), root, "incorrect block root in BlockSubmitted event");
         assert.equal(tx.logs[0].args.blockNumber.toNumber(), blkNum, "incorrect block number in BlockSubmitted event");
 
         // Second submission does not wait and therfore fails.
         mineNBlocks(3);
-        let [err] = await catchError(rootchain.submitBlock(web3.fromAscii('696969696969'), {from: authority}));
+        let [err] = await catchError(rootchain.submitBlock(web3.fromAscii('696969696969'), 1, {from: authority}));
         if (!err)
             assert.fail("Submitted block without presumed finality");
     });

@@ -22,7 +22,7 @@ contract RootChain is Ownable {
      */
 
     event AddedToBalances(address owner, uint256 amount);
-    event BlockSubmitted(bytes32 root, uint256 blockNumber);
+    event BlockSubmitted(bytes32 root, uint256 blockNumber, uint256 numTxns);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce);
 
     event ChallengedTransactionExit(uint position, address owner, uint256 amount);
@@ -46,6 +46,7 @@ contract RootChain is Ownable {
     mapping(uint256 => depositStruct) public deposits;
     struct childBlock {
         bytes32 root;
+        uint256 numTxns;
         uint256 createdAt;
     }
     struct depositStruct {
@@ -86,15 +87,15 @@ contract RootChain is Ownable {
     }
 
     // @param root 32 byte merkleRoot of ChildChain block
-    function submitBlock(bytes32 root)
+    function submitBlock(bytes32 root, uint256 numTxns)
         public
         onlyOwner
     {
         // ensure finality on previous blocks before submitting another
         require(block.number >= lastParentBlock.add(6), "presumed finality required");
 
-        childChain[currentChildBlock] = childBlock(root, block.timestamp);
-        emit BlockSubmitted(root, currentChildBlock);
+        childChain[currentChildBlock] = childBlock(root, numTxns, block.timestamp);
+        emit BlockSubmitted(root, currentChildBlock, numTxns);
 
         currentChildBlock = currentChildBlock.add(1);
         lastParentBlock = block.number;
@@ -203,7 +204,7 @@ contract RootChain is Ownable {
                          sigList[0].toBytes(), sigList[1].toBytes(), confirmSignatures), "signature mismatch");
 
         // check proof
-        require(merkleHash.checkMembershipNew(txPos[1], blk.root, proof, 1), "invalid merkle proof"); // FIXME: should not hardcode total=2
+        require(merkleHash.checkMembershipNew(txPos[1], blk.root, proof, blk.numTxns), "invalid merkle proof"); // FIXME: should not hardcode total=2
 
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
@@ -269,11 +270,12 @@ contract RootChain is Ownable {
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
         // check for inclusion in the side chain
-        bytes32 root = childChain[newTxPos[0]].root;
+        childBlock storage blk = childChain[newTxPos[0]];
+
         bytes32 merkleHash = sha256(txBytes);
-        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, root));
+        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembershipNew(newTxPos[1], root, proof, 1), "incorrect merkle proof");
+        require(merkleHash.checkMembershipNew(newTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
 
         // exit successfully challenged
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
@@ -304,11 +306,12 @@ contract RootChain is Ownable {
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
         // confirm challenging transcation's inclusion and confirm signature
-        bytes32 root = childChain[challengingTxPos[0]].root;
+        childBlock storage blk = childChain[challengingTxPos[0]];
+
         bytes32 merkleHash = sha256(txBytes);
-        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, root));
+        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembershipNew(challengingTxPos[1], root, proof, 1), "incorrect merkle proof");
+        require(merkleHash.checkMembershipNew(challengingTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
 
         // exit successfully challenged. Award the sender with the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
