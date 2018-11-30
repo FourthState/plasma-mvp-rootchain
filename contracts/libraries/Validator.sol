@@ -40,6 +40,8 @@ library Validator {
         bytes32 proofElement;
 
         // prepend 0x20 byte literal to hashes
+        // tendermint prefixes intermediate hashes with 0x20 bytes literals 
+        // before hashing them.
         bytes memory b = new bytes(1);
         assembly {
             let memPtr := add(b, 0x20)

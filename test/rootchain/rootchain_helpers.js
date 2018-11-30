@@ -32,6 +32,8 @@ let sha256String = function(input) {
 
 // SHA256 hashes together 2 inputs and returns it in string form.
 // Expects hex inputs, and prepend each input with a 0x20 byte literal.
+// Tendermint prefixes intermediate hashes with 0x20 bytes literals 
+// before hashing them.
 let sha256StringMultiple = function(input1, input2) {
     let toHash = "0x20" + input1.slice(2) + "20" + input2.slice(2);
     return toHex(ethjs_util.sha256(toHash).toString('hex'));
