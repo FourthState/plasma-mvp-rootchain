@@ -24,130 +24,63 @@ let fastForward = async function(time) {
     assert.isAtLeast(currTime - oldTime, time, `Block time was not fast forwarded by at least ${time} seconds`);
 }
 
-// // For a given list of leaves, this function generates a merkle root. It assumes
-// // the merkle tree is of depth 16. If there are less than 2^16 leaves, the
-// // list is padded with 0x0 transactions. The function also generates a merkle
-// // proof for the leaf at txIndex.
-// // @param leaves The leaves for which this function generates a merkle root and proof
-// // @param txIndex The leaf for which this function gneerates a merkle proof
-// let generateMerkleRootAndProof = function(leaves, txIndex) {
-//     // console.log(leaves.length, Math.floor(Math.log2(leaves.length)) + 1);
-//     let depth = Math.floor(Math.log2(leaves.length)) + 1;
-//     return generateMerkleRootAndProofHelper(leaves, depth, txIndex, 0);
-// };
-//
-// // This helper function recursively generates a merkle root and merkle proof for
-// // a given list of leaves and a leaf's txIndex.
-// let generateMerkleRootAndProofHelper = function(leaves, depth, txIndex, zeroHashesIndex) {
-//     // If the depth is 0, then we are already at the root. This means that we
-//     // expect there to only be one leaf, which is the root.
-//     if (depth == 0) {
-//         if (leaves.length == 1) {
-//             return [leaves[0], ""];
-//         }
-//         else {
-//             return ["", ""];
-//         }
-//     }
-//     else {
-//         let newLeaves = [];
-//         let proof = "";
-//
-//         // For each pair of leaves, concat them together and hash the result
-//         let i = 0;
-//         while (i + 2 <= leaves.length) {
-//             let mergedHash = web3.sha3(leaves[i].slice(2) + leaves[i + 1].slice(2), {encoding: 'hex'});
-//             newLeaves.push(mergedHash);
-//
-//             // For the txIndex of interest, we want to generate a merkle proof,
-//             // which means that we need to keep track of the other leaf in the
-//             // pair.
-//             if (txIndex == i) {
-//                 proof = leaves[i + 1].slice(2);
-//             }
-//             else if (txIndex == i + 1) {
-//                 proof = leaves[i].slice(2);
-//             }
-//
-//             i += 2;
-//         }
-//
-//         // If i < leaves.length, then that means there's an odd number of leaves
-//         // In this case, we need to hash the remaining leaf with the zeroHash of
-//         // the current depth, which has been hardcoded in "rootchain_helpers"
-//         if (i < leaves.length) {
-//             let mergedHash = web3.sha3(leaves[i].slice(2) + zeroHashes[zeroHashesIndex], {encoding: 'hex'});
-//             // For the txIndex of interest, we want to generate a merkle proof,
-//             // which means that we need to keep track of the other leaf in the
-//             // pair.
-//             if (txIndex == i) {
-//                 proof = zeroHashes[zeroHashesIndex];
-//             }
-//             newLeaves.push(mergedHash);
-//         }
-//
-//         // Recursively call the helper function, updating the variables we pass in
-//         // We expect to see the number of leaves to decrease by 1/2
-//         // This would be the next layer up in the merkle tree.
-//         let result = generateMerkleRootAndProofHelper(newLeaves, depth - 1, Math.floor(txIndex/2), zeroHashesIndex + 1);
-//
-//         result[1] = proof + result[1];
-//
-//         return result;
-//     }
-// };
-
+// SHA256 hash the input and returns it in string form.
+// Expects a hex input.
 let sha256String = function(input) {
     return toHex(ethjs_util.sha256(toHex(input)).toString('hex'));
 };
 
+// SHA256 hashes together 2 inputs and returns it in string form.
+// Expects hex inputs, and prepend each input with a 0x20 byte literal.
 let sha256StringMultiple = function(input1, input2) {
     let toHash = "0x20" + input1.slice(2) + "20" + input2.slice(2);
     return toHex(ethjs_util.sha256(toHash).toString('hex'));
 };
 
-let generateMerkleRootAndProofNew = function(leaves, index) {
-    if (leaves.length == 0) {
+// For a given list of leaves, this function constructs a simple merkle tree.
+// It returns the merkle root and the merkle proof for the txn at index.
+// @param leaves The leaves for which this function generates a merkle root and proof
+// @param txIndex The leaf for which this function generates a merkle proof
+//
+// Simple Tree: https://tendermint.com/docs/spec/blockchain/encoding.html#merkle-trees
+let generateMerkleRootAndProof = function(leaves, index) {
+    if (leaves.length == 0) { // If there are no leaves, then we can't generate anything
         return ["", ""];
-    } else if (leaves.length == 1) {
+    } else if (leaves.length == 1) { // If there's only 1 leaf, return it with and empty proof
         return [leaves[0], ""];
     } else {
         let pivot = Math.floor((leaves.length + 1) / 2);
 
-        // console.log(pivot, leaves.slice(0, pivot).length, leaves.slice(pivot, leaves.length).length);
+        let left, right;
+        let proof = "";
 
-        if (index < 0) {
-            let left = generateMerkleRootAndProofNew(leaves.slice(0, pivot), -1);
-            let right = generateMerkleRootAndProofNew(leaves.slice(pivot, leaves.length), -1);
+        // If the index will be in the left subtree (index < pivot), then we
+        // need to generate the proof using the intermediary hash from the right
+        // side. Otherwise, do the reverse.
+        if (index < pivot) {
+            // recursively call the function on the leaves that will be in the
+            // left and right sub trees.
+            left = generateMerkleRootAndProof(leaves.slice(0, pivot), index);
+            right = generateMerkleRootAndProof(leaves.slice(pivot, leaves.length), -1);
 
-            return [sha256StringMultiple(left[0], right[0]), "error"];
-        } else if (index < pivot) {
-            let left = generateMerkleRootAndProofNew(leaves.slice(0, pivot), index);
-            let right = generateMerkleRootAndProofNew(leaves.slice(pivot, leaves.length), -1);
-
-            let proof = "";
+            // add current level's right intermediary hash to the proof
             if (index >= 0) {
-                // console.log(left[1], right[0]);
                 proof = left[1] + right[0].slice(2);
             }
-
-            return [sha256StringMultiple(left[0], right[0]), toHex(proof)];
         } else {
-            let left = generateMerkleRootAndProofNew(leaves.slice(0, pivot), -1);
-            let right = generateMerkleRootAndProofNew(leaves.slice(pivot, leaves.length), index - pivot);
+            // recursively call the function on the leaves that will be in the
+            // left and right sub trees.
+            // since the index will be in the right sub tree, we need to update
+            // it's value.
+            left = generateMerkleRootAndProof(leaves.slice(0, pivot), -1);
+            right = generateMerkleRootAndProof(leaves.slice(pivot, leaves.length), index - pivot);
 
-            let proof = "";
+            // add current level's left intermediary hash to the proof
             if (index >= 0) {
-                // console.log(right[1], left[0]);
                 proof = right[1] + left[0].slice(2);
             }
-
-            return [sha256StringMultiple(left[0], right[0]), toHex(proof)];
         }
-
-        // let left = generateMerkleRootAndProofNew(leaves.slice(0, pivot), index);
-        // let right = generateMerkleRootAndProofNew(leaves.slice(pivot, leaves.length), index);
-        // return sha256String(left + right.slice(2));
+        return [sha256StringMultiple(left[0], right[0]), toHex(proof)];
     }
 };
 
@@ -178,5 +111,5 @@ module.exports = {
     proof,
     zeroHashes,
     sha256String,
-    generateMerkleRootAndProofNew
+    generateMerkleRootAndProof
 };

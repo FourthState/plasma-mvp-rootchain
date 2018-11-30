@@ -8,7 +8,7 @@ let {
     mineNBlocks,
     zeroHashes,
     sha256String,
-    generateMerkleRootAndProofNew
+    generateMerkleRootAndProof
 } = require('./rootchain_helpers.js');
 
 let { toHex, catchError } = require('../utilities.js');
@@ -46,7 +46,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         // submit the block
         let merkleHash = sha256String(txBytes);
         let merkleRoot;
-        [merkleRoot, proof] = generateMerkleRootAndProofNew([merkleHash], 0);
+        [merkleRoot, proof] = generateMerkleRootAndProof([merkleHash], 0);
         mineNBlocks(5);
         let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
         await rootchain.submitBlock(toHex(merkleRoot), [1], {from: authority});
@@ -61,66 +61,70 @@ contract('[RootChain] Transactions', async (accounts) => {
     it("Allows only the utxo owner to start an exit (hardcoded)", async () => {
         rootchain = await RootChain.new({from: authority});
 
-        // start transaction exit
+        // utxo information
         let txPos = [2, 1, 0];
         let txBytes = "0xf8ebf86180808002940e02ce999156cf4e5a30d91b79329e1f01d61379c080808080940000000000000000000000000000000000000000c09453bb5e06573dbd3baeff3710c860f09f06c4c8a4329400000000000000000000000000000000000000008032f886b841288caa04324245958feb44f9ef5d483618b2cfea74622af8a1075a4089be513001cca34ed1230a20849b5c2b4ae33b3e24f4b36cf1d2d2dc45f1485c6f2c03a600b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
         let proof = "0xf17d0ac90940e6055a992ac3f76742a2ab47c504b495c6b1accdf839ac018814";
         let confirmSigs = "0xff05e0519b90b7b3f0d9d8a73a2792d55413f0f5626901d45ab0c8adedb668b638d1eac62cd88cd0719d8bfe0c47357c27463677c0997ad3337a0baed7fd6d6600";
         let total = 2;
 
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex(web3.sha3('1234')), [1], {from: authority});
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109"), [total], {from: authority});
-        mineNBlocks(5);
+        // submit block roots
+        let root1 = toHex(web3.sha3('1234')).slice(2);
+        let root2 = toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109").slice(2);
+        let roots = root1 + root2;
 
-        // console.log("accounts: ");
-        // console.log(accounts);
+        mineNBlocks(5);
+        await rootchain.submitBlock(toHex(roots), [1, total], {from: authority});
+        mineNBlocks(5);
 
         let newOwner = "0x53bB5E06573dbD3baEFF3710c860F09F06C4C8A4";
 
-        let tx = await rootchain.startTransactionExit(txPos,
+        // attempt to start an transaction exit
+        await rootchain.startTransactionExit(txPos,
             toHex(txBytes), toHex(proof), toHex(confirmSigs), {from: newOwner, value: minExitBond});
-        // console.log(tx);
     });
 
     it("Can challenge a spend of a utxo (hardcoded)", async () => {
 
         rootchain = await RootChain.new({from: authority});
 
-        // new transaction
+        // utxo information
         let txPos = [2, 1, 0];
         let txBytes = "0xf8ebf86180808002940e02ce999156cf4e5a30d91b79329e1f01d61379c080808080940000000000000000000000000000000000000000c09453bb5e06573dbd3baeff3710c860f09f06c4c8a4329400000000000000000000000000000000000000008032f886b841288caa04324245958feb44f9ef5d483618b2cfea74622af8a1075a4089be513001cca34ed1230a20849b5c2b4ae33b3e24f4b36cf1d2d2dc45f1485c6f2c03a600b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
         let proof = "0xf17d0ac90940e6055a992ac3f76742a2ab47c504b495c6b1accdf839ac018814";
         let confirmSigs = "0xff05e0519b90b7b3f0d9d8a73a2792d55413f0f5626901d45ab0c8adedb668b638d1eac62cd88cd0719d8bfe0c47357c27463677c0997ad3337a0baed7fd6d6600";
         let total = 2;
 
-        // spend the exit
+        // spend the utxo
         let newTxPostxPos = [3, 0, 0];
         let newTxBytes = "0xf9012ff8a5020180809453bb5e06573dbd3baeff3710c860f09f06c4c8a4f843b841ff05e0519b90b7b3f0d9d8a73a2792d55413f0f5626901d45ab0c8adedb668b638d1eac62cd88cd0719d8bfe0c47357c27463677c0997ad3337a0baed7fd6d660080808080940000000000000000000000000000000000000000c0940e02ce999156cf4e5a30d91b79329e1f01d61379199400000000000000000000000000000000000000008019f886b841ff4bafce58d0752731eec71617c68d256058b518e015bb7b0f85a053e491868964be5cd62b744362cb744e20de55f7123ca80115058ff9c1b76d7f31589bf99b01b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
         let newProof = "";
         let newConfirmSigs = "0x3dd7595c79ddbf6ea25ccb64f96218a80ecb435369fedcb865e54a87bd8464282210148512342574a6bf8e6f7a916bf4f0e65e1601cbe0b8124718b85860bb7e01";
         let newTotal = 1;
 
+        // submit block roots
+        let root1 = toHex(web3.sha3('1234')).slice(2);
+        let root2 = toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109").slice(2);
+        let root3 = toHex("0x0501f4b09300d277cdfedb8c6d4747919bbbf454ef6ba9d300796e2703bf444c").slice(2);
+        let roots = root1 + root2 + root3;
+
         mineNBlocks(5);
-        await rootchain.submitBlock(toHex(web3.sha3('1234')), [1], {from: authority});
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0x783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109"), [total], {from: authority});
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex("0x0501f4b09300d277cdfedb8c6d4747919bbbf454ef6ba9d300796e2703bf444c"), [newTotal], {from: authority});
+        await rootchain.submitBlock(toHex(roots), [1, total, newTotal], {from: authority});
         mineNBlocks(5);
 
 
         let newOwner = "0x53bB5E06573dbD3baEFF3710c860F09F06C4C8A4";
 
+        // attempt to start an transaction exit
         let tx = await rootchain.startTransactionExit(txPos,
             toHex(txBytes), toHex(proof), toHex(confirmSigs), {from: newOwner, value: minExitBond});
 
-        // challenge
+        // challenge the exit above
         await rootchain.challengeTransactionExit(txPos, newTxPostxPos,
             toHex(newTxBytes), toHex(newProof), toHex(newConfirmSigs),
             {from: accounts[2]});
 
+        // check that the bond has been rewarded to the challenger
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, minExitBond, "exit bond not rewarded to challenger");
     });
@@ -222,7 +226,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         // include this transaction in the next block
         let merkleHash = sha256String(newTxBytes);
         let root, proof2;
-        [root, proof2] = generateMerkleRootAndProofNew([merkleHash], 0);
+        [root, proof2] = generateMerkleRootAndProof([merkleHash], 0);
         mineNBlocks(5);
         let blockNum = await rootchain.currentChildBlock.call();
         await rootchain.submitBlock(toHex(root), [1], {from: authority});
@@ -283,7 +287,7 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         // include this transaction in the next block
         let root, proof2;
-        [root, proof2] = generateMerkleRootAndProofNew([merkleHash], 0);
+        [root, proof2] = generateMerkleRootAndProof([merkleHash], 0);
         let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
         await rootchain.submitBlock(toHex(root), [1], {from: authority});
@@ -315,7 +319,7 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         let merkleHash1 = sha256String(txBytes1);
         let root1, proof1;
-        [root1, proof1] = generateMerkleRootAndProofNew([merkleHash1], 0);
+        [root1, proof1] = generateMerkleRootAndProof([merkleHash1], 0);
         let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
         await rootchain.submitBlock(toHex(root1), [1], {from: authority});
@@ -336,7 +340,7 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         let merkleHash2 = sha256String(txBytes2);
         let root2, proof2;
-        [root2, proof2] = generateMerkleRootAndProofNew([merkleHash2], 0);
+        [root2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
         let blockNum2 = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
         await rootchain.submitBlock(toHex(root2), [1], {from: authority});
@@ -370,7 +374,7 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         let merkleHash1 = sha256String(txBytes1);
         let root1, proof1;
-        [root1, proof1] = generateMerkleRootAndProofNew([merkleHash1], 0);
+        [root1, proof1] = generateMerkleRootAndProof([merkleHash1], 0);
         let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
         await rootchain.submitBlock(toHex(root1), [1], {from: authority});
@@ -390,7 +394,7 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         let merkleHash2 = sha256String(txBytes2);
         let root2, proof2;
-        [root2, proof2] = generateMerkleRootAndProofNew([merkleHash2], 0);
+        [root2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
         let blockNum2 = (await rootchain.currentChildBlock.call()).toNumber();
         mineNBlocks(5);
         await rootchain.submitBlock(toHex(root2), [1], {from: authority});

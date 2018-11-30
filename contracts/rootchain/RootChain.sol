@@ -86,7 +86,8 @@ contract RootChain is Ownable {
         minExitBond = 10000;
     }
 
-    // @param root 32 byte merkleRoot of ChildChain block
+    // @param blocks 32 byte merkle roots
+    // @param numTxns number of txns in each merkle tree
     function submitBlock(bytes blocks, uint256[] numTxns)
         public
         onlyOwner
@@ -102,13 +103,14 @@ contract RootChain is Ownable {
         }
 
         bytes32 root;
-        for (uint i = 0; i < blocks.length; i += 32) {
+        for (uint i = 0; i < numTxns.length; i ++) {
+            uint j = i * 32;
             assembly {
-                root := mload(add(memPtr, i))
+                root := mload(add(memPtr, j))
             }
 
-            childChain[currentChildBlock] = childBlock(root, numTxns[i/32], block.timestamp);
-            emit BlockSubmitted(root, currentChildBlock, numTxns[i/32]);
+            childChain[currentChildBlock] = childBlock(root, numTxns[i], block.timestamp);
+            emit BlockSubmitted(root, currentChildBlock, numTxns[i]);
 
             currentChildBlock = currentChildBlock.add(1);
         }
@@ -174,13 +176,7 @@ contract RootChain is Ownable {
         require(txList.length == 17, "incorrect number of items in the transaction list");
 
         sigList = spendMsg[1].toList();
-        // require(sigList.length == 2, "two signatures must be present"); // FIXME add this line back later
-
-        /* bytes memory input = bytes(0x101010101010101010101010101010102); */
-
-        /* bytes32 actualRlpBytes = bytesToBytes32(spendMsg[0].toRlpBytes(), 0); */
-        /* bytes32 expectedRlpBytes = 0xF0E112BBDB5D7621A61ECE66D1C0473D7BB2EFCB5707AE8C3993210F5C833F50;
-        require(expectedRlpBytes != expectedRlpBytes, byte32ToString(expectedRlpBytes)); */
+        require(sigList.length == 2, "two signatures must be present");
 
         // bytes the signatures are over
         txHash = keccak256(spendMsg[0].toRlpBytes());
@@ -219,7 +215,7 @@ contract RootChain is Ownable {
                          sigList[0].toBytes(), sigList[1].toBytes(), confirmSignatures), "signature mismatch");
 
         // check proof
-        require(merkleHash.checkMembershipNew(txPos[1], blk.root, proof, blk.numTxns), "invalid merkle proof"); // FIXME: should not hardcode total=2
+        require(merkleHash.checkMembership(txPos[1], blk.root, proof, blk.numTxns), "invalid merkle proof"); // FIXME: should not hardcode total=2
 
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
@@ -290,7 +286,7 @@ contract RootChain is Ownable {
         bytes32 merkleHash = sha256(txBytes);
         bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembershipNew(newTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
+        require(merkleHash.checkMembership(newTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
 
         // exit successfully challenged
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
@@ -326,7 +322,7 @@ contract RootChain is Ownable {
         bytes32 merkleHash = sha256(txBytes);
         bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembershipNew(challengingTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
+        require(merkleHash.checkMembership(challengingTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
 
         // exit successfully challenged. Award the sender with the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);

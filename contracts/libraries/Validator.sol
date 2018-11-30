@@ -5,20 +5,11 @@ import "openzeppelin-solidity/contracts/ECRecovery.sol";
 library Validator {
     uint8 constant WORD_SIZE = 32;
 
-    // temporary placeholder function so rootchain will compile
-    function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
-        internal
-        pure
-        returns (bool)
-    {
-        return false;
-    }
-
     // @param leaf     a leaf of the tree
     // @param index    position of this leaf in the tree that is zero indexed
     // @param rootHash block header of the merkle tree
     // @param proof    sequence of 32-byte hashes from the leaf up to, but excluding, the root
-    function checkMembershipNew(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof, uint256 total)
+    function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof, uint256 total)
         internal
         pure
         returns (bool)
@@ -30,7 +21,7 @@ library Validator {
         return computedHash == rootHash;
     }
 
-    // from https://tendermint.com/docs/spec/blockchain/encoding.html#simple-merkle-proof
+    // from https://tendermint.com/docs/spec/blockchain/encoding.html#merkle-trees
     function computeHashFromAunts(uint256 index, uint256 total, bytes32 leaf, bytes innerHashes)
         internal
         pure

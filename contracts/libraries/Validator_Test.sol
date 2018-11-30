@@ -14,7 +14,7 @@ contract Validator_Test {
       public
       returns (bool)
   {
-      return leaf.checkMembershipNew(index, rootHash, proof, total);
+      return leaf.checkMembership(index, rootHash, proof, total);
   }
 
   function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sig0, bytes sig1, bytes confirmSignatures)
