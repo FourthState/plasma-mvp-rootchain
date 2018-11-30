@@ -11,25 +11,17 @@ contract('Validator', async (accounts) => {
         instance = await Validator_Test.new();
     });
 
-
-    it("Verifies the membership in a merkle tree with two leaves (hardcoded)", async () => {
-        let rootHash = "0xc803774ffce8f36dd1b4c723ea44be78c32efe956cf6cc1147f94df54943069f";
-        let leaf = "0x7802f7f1a871c2c75dca4f512fbd5f5d60360340471c656ddd2b5a3544d15230";
-        let proof = "0x99cdb2c39ce2b89c6731f010f166ae68e09475acc4db24ad06cb518a7514a3d8";
-        let total = 2; // Merkle tree contains 2 leaf nodes (transactions)
-        let index = 1; // index of the leaf we want to prove
-
-        assert.isTrue(await instance.checkMembership.call(toHex(leaf), index, toHex(rootHash), toHex(proof), total), "Didn't prove membership");
-    });
-
     it("Verifies the membership in a merkle tree with 7 leaves (hardcoded)", async () => {
-        // checking membership of 3rd leaf
+        // this utxo input and the merkle root of its block were generated
+        // by the side chain
+        // this side chain block contains 7 txns
         let rootHash = "0x4edd08572735720e2769fa536c03e5d2ed29ff2ba97fb102cfe71fdae3c30428";
         let leaf = "0x714c0269d202e4302fadab4d62a4e9171fbf09508cb589616342cce45981d329";
         let proof = "0xfbec635c930057fdc76939052216ed2aed7af618109b983ee1ae7b13c909f2dd1a61753dc9eccd5506144081ba000a8e44c9262be17ab934dda9e4fa10495fccdbb108450dad46789d67f5cfb5ee4be7f505bd8835a0867410412f22cfda8ad5";
         let total = 7; // Merkle tree contains 7 leaf nodes (transactions)
         let index = 2; // index of the leaf we want to prove
 
+        // checking membership of 3rd leaf
         assert.isTrue(await instance.checkMembership.call(toHex(leaf), index, toHex(rootHash), toHex(proof), total), "Didn't prove membership");
 
 
