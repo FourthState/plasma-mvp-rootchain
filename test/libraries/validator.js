@@ -3,7 +3,7 @@ let RLP = require('rlp');
 
 let Validator_Test = artifacts.require("Validator_Test");
 let { catchError, toHex } = require('../utilities.js');
-let {zeroHashes, generateMerkleRootAndProof } = require('../rootchain/rootchain_helpers.js');
+let {zeroHashes, generateMerkleRootAndProofNew} = require('../rootchain/rootchain_helpers.js');
 
 contract('Validator', async (accounts) => {
     let instance;
@@ -11,34 +11,65 @@ contract('Validator', async (accounts) => {
         instance = await Validator_Test.new();
     });
 
+
+    it("Verifies the membership in a merkle tree with two leaves (hardcoded)", async () => {
+        let rootHash = "0xc803774ffce8f36dd1b4c723ea44be78c32efe956cf6cc1147f94df54943069f";
+        let leaf = "0x7802f7f1a871c2c75dca4f512fbd5f5d60360340471c656ddd2b5a3544d15230";
+        let proof = "0x99cdb2c39ce2b89c6731f010f166ae68e09475acc4db24ad06cb518a7514a3d8";
+        let total = 2; // Merkle tree contains 2 leaf nodes (transactions)
+        let index = 1; // index of the leaf we want to prove
+
+        assert.isTrue(await instance.checkMembership.call(toHex(leaf), index, toHex(rootHash), toHex(proof), total), "Didn't prove membership");
+    });
+
+    it("Verifies the membership in a merkle tree with 7 leaves (hardcoded)", async () => {
+        // checking membership of 3rd leaf
+        let rootHash = "0x4edd08572735720e2769fa536c03e5d2ed29ff2ba97fb102cfe71fdae3c30428";
+        let leaf = "0x714c0269d202e4302fadab4d62a4e9171fbf09508cb589616342cce45981d329";
+        let proof = "0xfbec635c930057fdc76939052216ed2aed7af618109b983ee1ae7b13c909f2dd1a61753dc9eccd5506144081ba000a8e44c9262be17ab934dda9e4fa10495fccdbb108450dad46789d67f5cfb5ee4be7f505bd8835a0867410412f22cfda8ad5";
+        let total = 7; // Merkle tree contains 7 leaf nodes (transactions)
+        let index = 2; // index of the leaf we want to prove
+
+        assert.isTrue(await instance.checkMembership.call(toHex(leaf), index, toHex(rootHash), toHex(proof), total), "Didn't prove membership");
+
+
+        // checking membership of 4th leaf
+        leaf = "0xfbec635c930057fdc76939052216ed2aed7af618109b983ee1ae7b13c909f2dd";
+        proof = "0x714c0269d202e4302fadab4d62a4e9171fbf09508cb589616342cce45981d3291a61753dc9eccd5506144081ba000a8e44c9262be17ab934dda9e4fa10495fccdbb108450dad46789d67f5cfb5ee4be7f505bd8835a0867410412f22cfda8ad5";
+        index = 3;
+        assert.isTrue(await instance.checkMembership.call(toHex(leaf), index, toHex(rootHash), toHex(proof), total), "Didn't prove membership");
+    });
+
     it("Verifies the membership in a merkle tree with only one transaction", async () => {
         let leafHash = web3.sha3("inputSeed");
 
         let root, proof;
-        [root, proof] = generateMerkleRootAndProof([leafHash], 0);
+        [root, proof] = generateMerkleRootAndProofNew([leafHash], 0);
 
-        assert.isTrue(await instance.checkMembership.call(toHex(leafHash), 0, toHex(root), toHex(proof)), "Didn't prove membership");
+        assert.isTrue(await instance.checkMembership.call(toHex(leafHash), 0, toHex(root), toHex(proof), 1), "Didn't prove membership");
     });
 
     it("Catches bad input on checkMembership", async () => {
-        let leafHash = web3.sha3("inputSeed", {encoding: 'hex'});
+        let leafHash1 = web3.sha3("inputSeed1");
+        let leafHash2 = web3.sha3("inputSeed2");
+        let leafHash3 = web3.sha3("inputSeed3");
 
         let root, proof;
-        [root, proof] = generateMerkleRootAndProof([leafHash], 0);
+        [root, proof] = generateMerkleRootAndProofNew([leafHash1, leafHash2, leafHash3], 0);
 
         let badLeafHash = web3.sha3("wrongInputSeed", {encoding: 'hex'});
-        assert.isFalse(await instance.checkMembership.call(toHex(badLeafHash), 0, toHex(root), toHex(proof)), "Returned true on wrong leaf");
+        assert.isFalse(await instance.checkMembership.call(toHex(badLeafHash), 0, toHex(root), toHex(proof), 3), "Returned true on wrong leaf");
 
-        assert.isFalse(await instance.checkMembership.call(toHex(leafHash), 1, toHex(root), toHex(proof)), "Returned true on wrong index");
+        assert.isFalse(await instance.checkMembership.call(toHex(leafHash1), 1, toHex(root), toHex(proof), 3), "Returned true on wrong index");
 
         let badRoot = web3.sha3("wrongRoot", {encoding: 'hex'});
-        assert.isFalse(await instance.checkMembership.call(toHex(leafHash), 0, toHex(badRoot), toHex(proof)), "Returned true on wrong root");
+        assert.isFalse(await instance.checkMembership.call(toHex(leafHash1), 0, toHex(badRoot), toHex(proof), 3), "Returned true on wrong root");
 
-        let badProof = "0".repeat(proof.length);
-        assert.isFalse(await instance.checkMembership.call(toHex(leafHash), 0, toHex(root), toHex(badProof)), "Returned true on wrong proof");
+        let badProof = "a".repeat(proof.length - 2);
+        assert.isFalse(await instance.checkMembership.call(toHex(leafHash1), 0, toHex(root), toHex(badProof), 3), "Returned true on wrong proof");
 
         let err;
-        [err] = await catchError(instance.checkMembership.call(toHex(leafHash), 0, toHex(root), toHex(proof + "0000")));
+        [err] = await catchError(instance.checkMembership.call(toHex(leafHash1), 0, toHex(root), toHex(proof + "0000"), 3));
         if (!err)
             assert.fail("Didn't revert on an proof with the bad size");
     });
@@ -48,23 +79,23 @@ contract('Validator', async (accounts) => {
         let leafHash2 = web3.sha3("inputSeed2");
         let leafHash3 = web3.sha3("inputSeed3");
         let leafHash4 = web3.sha3("inputSeed4");
-        let leafHash5 = toHex(zeroHashes[0]);
+        let leafHash5 = web3.sha3("inputSeed5");
 
         let root, proof;
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 0);
-        assert.isTrue(await instance.checkMembership.call(toHex(leafHash1), 0, toHex(root), toHex(proof)), "Didn't prove membership");
+        [root, proof] = generateMerkleRootAndProofNew([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 0);
+        assert.isTrue(await instance.checkMembership.call(toHex(leafHash1), 0, toHex(root), toHex(proof), 5), "Didn't prove membership");
 
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 1);
-        assert.isTrue(await instance.checkMembership.call(toHex(leafHash2), 1, toHex(root), toHex(proof)), "Didn't prove membership");
+        [root, proof] = generateMerkleRootAndProofNew([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 1);
+        assert.isTrue(await instance.checkMembership.call(toHex(leafHash2), 1, toHex(root), toHex(proof), 5), "Didn't prove membership");
 
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 2);
-        assert.isTrue(await instance.checkMembership.call(toHex(leafHash3), 2, toHex(root), toHex(proof)), "Didn't prove membership");
+        [root, proof] = generateMerkleRootAndProofNew([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 2);
+        assert.isTrue(await instance.checkMembership.call(toHex(leafHash3), 2, toHex(root), toHex(proof), 5), "Didn't prove membership");
 
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 3);
-        assert.isTrue(await instance.checkMembership.call(toHex(leafHash4), 3, toHex(root), toHex(proof)), "Didn't prove membership");
+        [root, proof] = generateMerkleRootAndProofNew([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 3);
+        assert.isTrue(await instance.checkMembership.call(toHex(leafHash4), 3, toHex(root), toHex(proof), 5), "Didn't prove membership");
 
-        [root, proof] = generateMerkleRootAndProof([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 4);
-        assert.isTrue(await instance.checkMembership.call(toHex(leafHash5), 4, toHex(root), toHex(proof)), "Didn't prove membership");
+        [root, proof] = generateMerkleRootAndProofNew([leafHash1, leafHash2, leafHash3, leafHash4, leafHash5], 4);
+        assert.isTrue(await instance.checkMembership.call(toHex(leafHash5), 4, toHex(root), toHex(proof), 5), "Didn't prove membership");
     });
 
     it("Slices bytes correctly", async () => {
@@ -185,7 +216,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + sigOverTxHash.slice(2), {encoding: 'hex'});
-        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
+        let rootHash = generateMerkleRootAndProofNew([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
 
         // create confirmSignatures
@@ -207,7 +238,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + sigOverTxHash, {encoding: 'hex'});
-        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
+        let rootHash = generateMerkleRootAndProofNew([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
 
         // create confirmSignatures
@@ -236,7 +267,7 @@ contract('Validator', async (accounts) => {
 
         // create confirmationHash
         let merkleHash = web3.sha3(txHash.slice(2) + validSig.slice(2), {encoding: 'hex'});
-        let rootHash = generateMerkleRootAndProof([merkleHash], 0)[0];
+        let rootHash = generateMerkleRootAndProofNew([merkleHash], 0)[0];
         let confirmationHash = web3.sha3(merkleHash.slice(2) + rootHash, {encoding: 'hex'});
         // create confirmSignatures
         let confirmSignatures = await web3.eth.sign(signer0, confirmationHash);

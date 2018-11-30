@@ -19,7 +19,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         // waiting at least 5 root chain blocks before submitting a block
         mineNBlocks(5);
         let root = web3.sha3('1234');
-        let tx = await rootchain.submitBlock(root, {from: authority});
+        let tx = await rootchain.submitBlock(root, [1], {from: authority});
 
         // BlockSubmitted event
         assert.equal(tx.logs[0].args.root, root, "incorrect block root in BlockSubmitted event");
@@ -32,7 +32,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         let prev = (await rootchain.currentChildBlock.call()).toNumber();
 
         mineNBlocks(5);
-        let [err] = await catchError(rootchain.submitBlock(web3.sha3('578484785954'), {from: accounts[1]}));
+        let [err] = await catchError(rootchain.submitBlock(web3.sha3('578484785954'), [1], {from: accounts[1]}));
         if (!err)
             assert.fail("Submitted blocked without being the authority");
 
@@ -46,7 +46,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
 
         mineNBlocks(5);
         let root = web3.sha3('12345');
-        let tx = await rootchain.submitBlock(root, {from: authority});
+        let tx = await rootchain.submitBlock(root, [1], {from: authority});
 
         // BlockSubmitted event
         assert.equal(tx.logs[0].args.root, root, "incorrect block root in BlockSubmitted event");
