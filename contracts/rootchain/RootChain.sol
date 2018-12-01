@@ -25,14 +25,11 @@ contract RootChain is Ownable {
     event BlockSubmitted(bytes32 root, uint256 blockNumber);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce);
 
-    event ChallengedTransactionExit(uint position, address owner, uint256 amount);
-    event ChallengedDepositExit(uint nonce, address owner, uint256 amount);
-
-    event FinalizedTransactionExit(uint position, address owner, uint256 amount);
-    event FinalizedDepositExit(uint priority, address owner, uint256 amount);
-
-    event StartedTransactionExit(uint position, address owner, uint256 amount, bytes confirmSignatures);
+    event StartedTransactionExit(uint[3] position, address owner, uint256 amount, bytes confirmSignatures);
     event StartedDepositExit(uint nonce, address owner, uint256 amount);
+
+    event ChallengedExit(uint[4] position, address owner, uint256 amount);
+    event FinalizedExit(uint[4] position, address owner, uint256 amount);
 
     /*
      *  Storage
@@ -64,6 +61,7 @@ contract RootChain is Ownable {
         uint256 amount;
         uint256 createdAt;
         address owner;
+        uint256[4] position; // (blkNum, txIndex, outputIndex, depositNonce)
         ExitState state; // default value is `NonExistent`
     }
 
@@ -165,6 +163,7 @@ contract RootChain is Ownable {
             owner: owner,
             amount: amount,
             createdAt: block.timestamp,
+            position: [0,0,0,nonce],
             state: ExitState.Pending
         });
 
@@ -245,10 +244,11 @@ contract RootChain is Ownable {
             owner: txList[12 + 2 * txPos[2]].toAddress(),
             amount: txList[13 + 2 * txPos[2]].toUint(),
             createdAt: block.timestamp,
+            position: [txPos[0], txPos[1], txPos[2], 0],
             state: ExitState.Pending
         });
 
-        emit StartedTransactionExit(position, msg.sender, txList[13 + 2 * txPos[2]].toUint(), confirmSignatures);
+        emit StartedTransactionExit(txPos, msg.sender, txList[13 + 2 * txPos[2]].toUint(), confirmSignatures);
     }
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
@@ -307,7 +307,7 @@ contract RootChain is Ownable {
         totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
 
         depositExits[nonce].state = ExitState.Challenged;
-        emit ChallengedDepositExit(nonce, exit_.owner, exit_.amount);
+        emit ChallengedExit(exit_.position, exit_.owner, exit_.amount);
     }
 
     // @param exitingTxPos     position of the invalid exiting transaction [blkNum, txIndex, outputIndex]
@@ -344,7 +344,7 @@ contract RootChain is Ownable {
 
         // reflect challenged state
         txExits[position].state = ExitState.Challenged;
-        emit ChallengedTransactionExit(position, exit_.owner, exit_.amount);
+        emit ChallengedExit(exit_.position, exit_.owner, exit_.amount);
     }
 
     function missingBlockChallenge(uint256[3] txPos, uint256 missingBlock) {
@@ -405,7 +405,7 @@ contract RootChain is Ownable {
         * Conditions:
         *   1. Exits exist
         *   2. Exits must be a week old
-        *   3. Funds must exists for the exit to withdraw
+        *   3. Funds must exist for the exit to withdraw
         */
         uint256 amountToAdd;
         while (queue.currentSize() > 0 &&
@@ -420,14 +420,12 @@ contract RootChain is Ownable {
                 balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
                 totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
 
-                if (isDeposits) {
+                if (isDeposits)
                     depositExits[priority].state = ExitState.Finalized;
-                    emit FinalizedDepositExit(priority, currentExit.owner, amountToAdd);
-                } else {
+                else
                     txExits[position].state = ExitState.Finalized;
-                    emit FinalizedTransactionExit(position, currentExit.owner, amountToAdd);
-                }
 
+                emit FinalizedExit(currentExit.position, currentExit.owner, amountToAdd);
                 emit AddedToBalances(currentExit.owner, amountToAdd);
 
                 // move onto the next oldest exit
@@ -488,40 +486,5 @@ contract RootChain is Ownable {
         returns (uint256)
     {
         return balances[_address];
-    }
-
-    function getChildBlock(uint256 blockNumber)
-        public
-        view
-        returns (bytes32, uint256)
-    {
-        return (childChain[blockNumber].root, childChain[blockNumber].createdAt);
-    }
-
-    function getTransactionExit(uint256 position)
-        public
-        view
-        returns (address, uint256, uint256, ExitState)
-    {
-        exit memory exit_ = txExits[position];
-        return (exit_.owner, exit_.amount, exit_.createdAt, exit_.state);
-    }
-
-    function getDepositExit(uint256 priority)
-        public
-        view
-        returns (address, uint256, uint256, ExitState)
-    {
-        exit memory exit_ = depositExits[priority];
-        return (exit_.owner, exit_.amount, exit_.createdAt, exit_.state);
-    }
-
-    function getDeposit(uint256 nonce)
-        public
-        view
-        returns(address, uint256, uint256)
-    {
-        depositStruct memory deposit_ = deposits[nonce];
-        return (deposit_.owner, deposit_.amount, deposit_.createdAt);
     }
 }
