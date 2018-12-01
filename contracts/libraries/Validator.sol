@@ -31,16 +31,16 @@ library Validator {
         require(total > 0, "Must have at least one leaf node");
 
         if (total == 1) {
-            require(innerHashes.length == 0, "computeHashFromAunts 1");
+            require(innerHashes.length == 0, "Simple Tree with 1 txn should have no innerHashes");
             return leaf;
         }
-        require(innerHashes.length != 0, "computeHashFromAunts 2");
+        require(innerHashes.length != 0, "Simple Tree with > 1 txn should have innerHashes");
 
         uint256 numLeft = (total + 1) / 2;
         bytes32 proofElement;
 
         // prepend 0x20 byte literal to hashes
-        // tendermint prefixes intermediate hashes with 0x20 bytes literals 
+        // tendermint prefixes intermediate hashes with 0x20 bytes literals
         // before hashing them.
         bytes memory b = new bytes(1);
         assembly {
