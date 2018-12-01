@@ -28,7 +28,7 @@ contract('[RootChain] Miscellaneous', async (accounts) => {
         await rootchain.submitBlock(toHex(roots), [1, 2], {from: authority});
 
         assert.equal((await rootchain.currentChildBlock.call()).toNumber(), currentChildBlock + 2, "blocknum incremented incorrectly");
-        assert.equal((await rootchain.getChildBlock.call(currentChildBlock))[0], toHex(root1), "mismatch in block root");
-        assert.equal((await rootchain.getChildBlock.call(currentChildBlock+1))[0], toHex(root2), "mismatch in block root");
+        assert.equal((await rootchain.childChain.call(currentChildBlock))[0], toHex(root1), "mismatch in block root");
+        assert.equal((await rootchain.childChain.call(currentChildBlock+1))[0], toHex(root2), "mismatch in block root");
     });
 });

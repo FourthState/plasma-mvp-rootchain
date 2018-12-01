@@ -25,7 +25,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         assert.equal(tx.logs[0].args.root, root, "incorrect block root in BlockSubmitted event");
         assert.equal(tx.logs[0].args.blockNumber.toNumber(), blkNum, "incorrect block number in BlockSubmitted event");
 
-        assert.equal((await rootchain.getChildBlock.call(blkNum))[0], root, 'Child block merkle root does not match submitted merkle root.');
+        assert.equal((await rootchain.childChain.call(blkNum))[0], root, 'Child block merkle root does not match submitted merkle root.');
     });
 
     it("Submit block from someone other than authority", async () => {

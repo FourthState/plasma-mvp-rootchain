@@ -143,8 +143,7 @@ contract('[RootChain] Transactions', async (accounts) => {
             toHex(txBytes), toHex(proof), toHex(confirmSignatures),
             {from: accounts[1], value: minExitBond});
 
-        let position = 1000000*txPos[0];
-        assert.equal(tx.logs[0].args.position.toNumber(), position, "StartedTransactionExit event emits incorrect priority");
+        assert.equal(tx.logs[0].args.position.toString(), txPos.toString(), "StartedTransactionExit event emits incorrect priority");
         assert.equal(tx.logs[0].args.owner, accounts[1], "StartedTransactionExit event emits incorrect owner");
         assert.equal(tx.logs[0].args.amount.toNumber(), amount, "StartedTransactionExit event emits incorrect amount");
         assert.equal(tx.logs[0].args.confirmSignatures, toHex(confirmSignatures), "StartedTransactionExit event does not emit confirm signatures");
@@ -163,7 +162,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         assert.equal(balance, amount + minExitBond);
 
         let position = 1000000*txPos[0];
-        let exit = await rootchain.getTransactionExit.call(position);
+        let exit = await rootchain.txExits.call(position);
         assert.equal(exit[3].toNumber(), 3, "exit's state not set to finalized");
     });
 
@@ -431,8 +430,8 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         // Check to make sure challenge period has not ended
         let position = 1000000 * blockNum2 + 1;
-        let currExit = await rootchain.getTransactionExit.call(position);
-        assert.ok((currExit[2].add(604800)) > (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp);
+        let currExit = await rootchain.txExits.call(position);
+        assert.ok((currExit[2] + 604800) > (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp);
 
         // start exit for accounts[1], oldest utxo avaliable
         await rootchain.startTransactionExit([blockNum1, 0, 0],
@@ -443,34 +442,34 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         // finalize exits should finalize accounts[2] then accounts[1]
         let finalizedExits = await rootchain.finalizeTransactionExits({from: authority});
-        let finalizedExit = await rootchain.getTransactionExit.call(position);
-        assert.equal(finalizedExits.logs[0].args.position, position, "Incorrect position for finalized tx");
+        let finalizedExit = await rootchain.txExits.call(position);
+        assert.equal(finalizedExits.logs[0].args.position.toString(), [blockNum2, 0, 1, 0].toString(), "Incorrect position for finalized tx");
         assert.equal(finalizedExits.logs[0].args.owner, accounts[2], "Incorrect finalized exit owner");
         assert.equal(finalizedExits.logs[0].args.amount.toNumber(), 25 + minExitBond, "Incorrect finalized exit amount.");
         assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
 
         // Check other exits
         position = 1000000 * blockNum2;
-        finalizedExit = await rootchain.getTransactionExit.call(position);
-        assert.equal(finalizedExits.logs[2].args.position, position, "Incorrect position for finalized tx");
+        finalizedExit = await rootchain.txExits.call(position);
+        assert.equal(finalizedExits.logs[2].args.position.toString(), [blockNum2, 0, 0, 0].toString(), "Incorrect position for finalized tx");
         assert.equal(finalizedExits.logs[2].args.owner, accounts[1], "Incorrect finalized exit owner");
         assert.equal(finalizedExits.logs[2].args.amount.toNumber(), 25 + minExitBond, "Incorrect finalized exit amount.");
         assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
 
         // Last exit should still be pending
         position = 1000000 * blockNum1;
-        let pendingExit = await rootchain.getTransactionExit.call(position);
-        assert.equal(pendingExit[0], accounts[1], "Incorrect pending exit owner");
-        assert.equal(pendingExit[1], 50, "Incorrect pending exit amount");
+        let pendingExit = await rootchain.txExits.call(position);
+        assert.equal(pendingExit[2], accounts[1], "Incorrect pending exit owner");
+        assert.equal(pendingExit[0], 50, "Incorrect pending exit amount");
         assert.equal(pendingExit[3].toNumber(), 1, "Incorrect pending exit state.");
 
         // Fast Forward rest of challenge period
         fastForward(one_week);
         await rootchain.finalizeTransactionExits({from: authority});
         // Check that last exit was processed
-        finalizedExit = await rootchain.getTransactionExit.call(position);
-        assert.equal(finalizedExit[0], accounts[1], "Incorrect finalized exit owner");
-        assert.equal(finalizedExit[1], 50, "Incorrect finalized exit amount");
+        finalizedExit = await rootchain.txExits.call(position);
+        assert.equal(finalizedExit[2], accounts[1], "Incorrect finalized exit owner");
+        assert.equal(finalizedExit[0], 50, "Incorrect finalized exit amount");
         assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
     });
 });
