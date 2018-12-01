@@ -2,13 +2,6 @@ let RLP = require('rlp');
 
 let { toHex } = require('../utilities.js');
 
-// Wait for n blocks to pass
-let mineNBlocks = async function(numBlocks) {
-    for (i = 0; i < numBlocks; i++) {
-    await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
-    }
-}
-
 // Fast forward 1 week
 let fastForward = async function(time) {
     await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
@@ -117,7 +110,6 @@ let zeroHashes = [ '000000000000000000000000000000000000000000000000000000000000
 
 module.exports = {
     fastForward,
-    mineNBlocks,
     proof,
     zeroHashes,
     generateMerkleRootAndProof
