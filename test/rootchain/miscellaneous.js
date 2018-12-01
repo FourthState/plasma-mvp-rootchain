@@ -1,7 +1,6 @@
 let RootChain = artifacts.require("RootChain");
 
 let { catchError, toHex } = require("../utilities.js");
-let { mineNBlocks } = require("./rootchain_helpers.js");
 
 contract('[RootChain] Miscellaneous', async (accounts) => {
 
@@ -21,14 +20,22 @@ contract('[RootChain] Miscellaneous', async (accounts) => {
         let root2 = web3.sha3("root2").slice(2);
         let roots = root1 + root2;
 
-        // rootchain finality check
-        mineNBlocks(6);
+        let lastCommitedBlock = 0;
+        await rootchain.submitBlock(toHex(roots), 1, {from: authority});
 
-        let currentChildBlock = (await rootchain.currentChildBlock.call()).toNumber();
-        await rootchain.submitBlock(toHex(roots), {from: authority});
+        assert.equal((await rootchain.lastCommittedBlock.call()).toNumber(), 2, "blocknum incremented incorrectly");
+        assert.equal((await rootchain.childChain.call(1))[0], toHex(root1), "mismatch in block root");
+        assert.equal((await rootchain.childChain.call(2))[0], toHex(root2), "mismatch in block root");
+    });
 
-        assert.equal((await rootchain.currentChildBlock.call()).toNumber(), currentChildBlock + 2, "blocknum incremented incorrectly");
-        assert.equal((await rootchain.childChain.call(currentChildBlock))[0], toHex(root1), "mismatch in block root");
-        assert.equal((await rootchain.childChain.call(currentChildBlock+1))[0], toHex(root2), "mismatch in block root");
+    it("Enforced block number ordering", async () => {
+        let root1 = web3.sha3("root1").slice(2)
+        let root3 = web3.sha3("root3").slice(2)
+
+        await rootchain.submitBlock(toHex(root1), 1);
+        let err;
+        [err] = await catchError(rootchain.submitBlock(toHex(root3), 3));
+        if (err == null)
+            assert.fail("Allowed block submission with inconsistent ordering");
     });
 });

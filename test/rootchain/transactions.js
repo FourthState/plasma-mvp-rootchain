@@ -5,7 +5,6 @@ let RootChain = artifacts.require('RootChain');
 
 let {
     fastForward,
-    mineNBlocks,
     zeroHashes,
     generateMerkleRootAndProof
 } = require('./rootchain_helpers.js');
@@ -46,9 +45,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let merkleHash = web3.sha3(txBytes, {encoding: 'hex'});
         let merkleRoot;
         [merkleRoot, proof] = generateMerkleRootAndProof([merkleHash], 0);
-        mineNBlocks(5);
-        let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
-        await rootchain.submitBlock(toHex(merkleRoot), {from: authority});
+        let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(merkleRoot), blockNum, {from: authority});
 
         // construct the confirm signature
         let confirmHash = web3.sha3(merkleHash + merkleRoot.slice(2), {encoding: 'hex'});
@@ -162,9 +160,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let merkleHash = web3.sha3(newTxBytes, {encoding: 'hex'});
         let root, proof2;
         [root, proof2] = generateMerkleRootAndProof([merkleHash], 0);
-        mineNBlocks(5);
-        let blockNum = await rootchain.currentChildBlock.call();
-        await rootchain.submitBlock(toHex(root), {from: authority});
+        let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(root), blockNum, {from: authority});
 
         // create the confirm sig
         let confirmHash = web3.sha3(merkleHash + root.slice(2), {encoding: 'hex'});
@@ -223,9 +220,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         // include this transaction in the next block
         let root, proof2;
         [root, proof2] = generateMerkleRootAndProof([merkleHash], 0);
-        let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root), {from: authority});
+        let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(root), blockNum, {from: authority});
 
         // create the confirm sig
         let confirmHash = web3.sha3(merkleHash + root.slice(2), {encoding: 'hex'});
@@ -255,9 +251,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let merkleHash1 = web3.sha3(txBytes1, {encoding: 'hex'});
         let root1, proof1;
         [root1, proof1] = generateMerkleRootAndProof([merkleHash1], 0);
-        let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root1), {from: authority});
+        let blockNum1 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(root1), blockNum1, {from: authority});
 
         // create confirmation signature
         let confirmationHash1 = web3.sha3(merkleHash1.slice(2) + root1.slice(2), {encoding: 'hex'});
@@ -276,9 +271,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let merkleHash2 = web3.sha3(txBytes2, {encoding: 'hex'});
         let root2, proof2;
         [root2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
-        let blockNum2 = (await rootchain.currentChildBlock.call()).toNumber();
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root2), {from: authority});
+        let blockNum2 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(root2), blockNum2, {from: authority});
 
         // create confirmation signature
         let confirmationHash2 = web3.sha3(merkleHash2.slice(2) + root2.slice(2), {encoding: 'hex'});
@@ -310,9 +304,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let merkleHash1 = web3.sha3(txBytes1, {encoding: 'hex'});
         let root1, proof1;
         [root1, proof1] = generateMerkleRootAndProof([merkleHash1], 0);
-        let blockNum1 = (await rootchain.currentChildBlock.call()).toNumber();
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root1), {from: authority});
+        let blockNum1 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(root1), blockNum1, {from: authority});
 
         // create confirmation signature
         let confirmationHash1 = web3.sha3(merkleHash1.slice(2) + root1.slice(2), {encoding: 'hex'});
@@ -330,9 +323,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let merkleHash2 = web3.sha3(txBytes2, {encoding: 'hex'});
         let root2, proof2;
         [root2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
-        let blockNum2 = (await rootchain.currentChildBlock.call()).toNumber();
-        mineNBlocks(5);
-        await rootchain.submitBlock(toHex(root2), {from: authority});
+        let blockNum2 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(root2), blockNum2, {from: authority});
 
         // create confirmation signature
         let confirmationHash2 = web3.sha3(merkleHash2.slice(2) + root2.slice(2), {encoding: 'hex'});

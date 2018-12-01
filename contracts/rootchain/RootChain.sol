@@ -36,7 +36,7 @@ contract RootChain is Ownable {
      */
 
     // child chain
-    uint256 public latestChildBlock;
+    uint256 public lastCommittedBlock;
     uint256 public depositNonce;
     mapping(uint256 => childBlock) public childChain;
     mapping(uint256 => depositStruct) public deposits;
@@ -75,18 +75,18 @@ contract RootChain is Ownable {
 
     constructor() public
     {
-        latestChildBlock = 0;
+        lastCommittedBlock = 0;
         depositNonce = 1;
         minExitBond = 10000;
     }
 
     // @param blocks 32 byte merkle roots
-    // @notice this is meant to called in sequence with sidechains by the operator when minting blocks
+    // @param blockNum the block number of the first header
     function submitBlock(bytes blocks, uint256 blockNum)
         public
         onlyOwner
     {
-        bool latestCommit = true ? blockNum > latestChildBlock : false;
+        require(blockNum == lastCommittedBlock + 1, "inconsistent block number ordering");
         require(blocks.length != 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
 
         uint memPtr;
@@ -96,9 +96,6 @@ contract RootChain is Ownable {
 
         bytes32 root;
         for (uint i = 0; i < blocks.length; i += 32) {
-            // Commitments to the chain cannot be overwritten
-            // If this conditional passes, this call cannot be the latest commitment
-            if (childChain[blockNum].root != bytes32(0)) return;
 
             assembly {
                 root := mload(add(memPtr, i))
@@ -110,26 +107,8 @@ contract RootChain is Ownable {
             blockNum = blockNum.add(1);
         }
 
-        if (latestCommit)
-            latestChildBlock = blockNum;
-    }
-
-    // @param header block header that has been reorged
-    // @param signatures the signature created by the operator for this header
-    // @param position index of the reorged block header
-    // @notice reorged blocks must be filled in left to right. The previous header makes sure the validator cannot create
-    function insertBlock(bytes32 header, bytes signature, uint256 position)
-        public
-    {
-        require(position < latestChildBlock, "position must be less than the last commited child block");
-        require(childChain[position].root == bytes32(0), "the header for this position is already committed");
-
-        bytes32 hash = keccak256(abi.encodePacked(position, header));
-        require(hash.recover(signature) == owner, "signature not signed by the operator");
-
-        childChain[position] = childBlock(header, block.timestamp);
-        emit BlockSubmitted(header, position);
-    }
+        lastCommittedBlock = blockNum.sub(1);
+   }
 
     // @param owner owner of this deposit
     function deposit(address owner)
@@ -345,16 +324,6 @@ contract RootChain is Ownable {
         // reflect challenged state
         txExits[position].state = ExitState.Challenged;
         emit ChallengedExit(exit_.position, exit_.owner, exit_.amount);
-    }
-
-    function missingBlockChallenge(uint256[3] txPos, uint256 missingBlock) {
-        require(missingBlock < txPos[0], "missing block cannot be a block after the one which the transcation has been included");
-
-        if (childChain[missingBlock].root != bytes32(0)) return;
-        
-        // Delete the exit rather than changing it to a challenged state. Allows this exit to be started again.
-        // The priority number will remain in the queue but will be skipped over - State = ExitState.NonExistent
-        delete txExits[txPos[0] * blockIndexFactor + txPos[1] * txIndexFactor + txPos[2]];
     }
 
     // When challenging an exiting transcation located at `exitingTxPos`, we must make sure that the challenging
