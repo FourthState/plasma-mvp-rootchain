@@ -99,16 +99,17 @@ contract RootChain is Ownable {
 
         bytes32 root;
         for (uint i = 0; i < numTxns.length; i++) {
-            blockNum = blockNum.add(i);
             assembly {
                 root := mload(add(memPtr, mul(i, 32)))
             }
 
             childChain[blockNum] = childBlock(root, numTxns[i], block.timestamp);
             emit BlockSubmitted(root, blockNum, numTxns[i]);
+
+            blockNum = blockNum.add(1);
         }
 
-        lastCommittedBlock = blockNum;
+        lastCommittedBlock = blockNum.sub(1);
    }
 
     // @param owner owner of this deposit
