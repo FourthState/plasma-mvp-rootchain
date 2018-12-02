@@ -116,7 +116,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let root3 = "0501f4b09300d277cdfedb8c6d4747919bbbf454ef6ba9d300796e2703bf444c";
         let roots = root1 + root2 + root3;
 
-        await rootchain.submitBlock(toHex(roots), [1, total, newTotal], 1, {from: authority});
+        let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(roots), [1, total, newTotal], blockNum, {from: authority});
 
         let newOwner = "0x53bB5E06573dbD3baEFF3710c860F09F06C4C8A4";
 
