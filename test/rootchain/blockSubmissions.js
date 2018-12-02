@@ -2,13 +2,13 @@ let assert = require('chai').assert;
 
 let RootChain = artifacts.require("RootChain");
 
-let catchError = require('../utilities.js').catchError;
+let { toHex, catchError } = require('../utilities.js');
 
 contract('[RootChain] Block Submissions', async (accounts) => {
     let rootchain;
     let authority = accounts[0];
     let minExitBond = 10000;
-    before(async () => {
+    beforeEach(async () => {
         rootchain = await RootChain.new({from: authority});
     });
 

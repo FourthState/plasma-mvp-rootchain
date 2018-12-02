@@ -81,7 +81,7 @@ contract RootChain is Ownable {
         minExitBond = 10000;
     }
 
-    // @param blocks 32 byte merkle roots
+    // @param blocks 32 byte merkle roots appended in ascending order
     // @param numTxns number of transactions per block
     // @param blockNum the block number of the first header
     function submitBlock(bytes blocks, uint256[] numTxns, uint256 blockNum)
