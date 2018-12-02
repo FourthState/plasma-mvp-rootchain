@@ -22,7 +22,7 @@ contract RootChain is Ownable {
      */
 
     event AddedToBalances(address owner, uint256 amount);
-    event BlockSubmitted(bytes32 root, uint256 blockNumber);
+    event BlockSubmitted(bytes32 root, uint256 blockNumber, uint256 numTxns);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce);
 
     event StartedTransactionExit(uint[3] position, address owner, uint256 amount, bytes confirmSignatures);
@@ -42,6 +42,7 @@ contract RootChain is Ownable {
     mapping(uint256 => depositStruct) public deposits;
     struct childBlock {
         bytes32 root;
+        uint256 numTxns;
         uint256 createdAt;
     }
     struct depositStruct {
@@ -81,13 +82,15 @@ contract RootChain is Ownable {
     }
 
     // @param blocks 32 byte merkle roots
+    // @param numTxns number of transactions per block
     // @param blockNum the block number of the first header
-    function submitBlock(bytes blocks, uint256 blockNum)
+    function submitBlock(bytes blocks, uint256[] numTxns, uint256 blockNum)
         public
         onlyOwner
     {
         require(blockNum == lastCommittedBlock + 1, "inconsistent block number ordering");
-        require(blocks.length != 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
+        require(blocks.length > 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
+        require(blocks.length / 32 == numTxns.length, "blocks and numTxns lengths are inconsistent");
 
         uint memPtr;
         assembly  {
@@ -95,19 +98,17 @@ contract RootChain is Ownable {
         }
 
         bytes32 root;
-        for (uint i = 0; i < blocks.length; i += 32) {
-
+        for (uint i = 0; i < numTxns.length; i++) {
+            blockNum = blockNum.add(i);
             assembly {
-                root := mload(add(memPtr, i))
+                root := mload(add(memPtr, mul(i, 32)))
             }
 
-            childChain[blockNum] = childBlock(root, block.timestamp);
-            emit BlockSubmitted(root, blockNum);
-
-            blockNum = blockNum.add(1);
+            childChain[blockNum] = childBlock(root, numTxns[i], block.timestamp);
+            emit BlockSubmitted(root, blockNum, numTxns[i]);
         }
 
-        lastCommittedBlock = blockNum.sub(1);
+        lastCommittedBlock = blockNum;
    }
 
     // @param owner owner of this deposit
@@ -201,14 +202,14 @@ contract RootChain is Ownable {
         childBlock storage blk = childChain[txPos[0]];
 
         // check signatures
-        bytes32 merkleHash = keccak256(txBytes);
-        require(txHash.checkSigs(keccak256(abi.encodePacked(merkleHash, blk.root)), // confirmation hash -- sha3(merkleHash, root)
+        bytes32 merkleHash = sha256(txBytes);
+        require(txHash.checkSigs(sha256(abi.encodePacked(merkleHash, blk.root)), // confirmation hash -- sha256(merkleHash, root)
                          // we always assume the first input is always present in a transaction. The second input is optional
                          txList[6].toUint() > 0 || txList[9].toUint() > 0, // existence of input1. Either a deposit or utxo
                          sigList[0].toBytes(), sigList[1].toBytes(), confirmSignatures), "signature mismatch");
 
         // check proof
-        require(merkleHash.checkMembership(txPos[1], blk.root, proof), "invalid merkle proof");
+        require(merkleHash.checkMembership(txPos[1], blk.root, proof, blk.numTxns), "invalid merkle proof");
 
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
@@ -275,11 +276,12 @@ contract RootChain is Ownable {
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
         // check for inclusion in the side chain
-        bytes32 root = childChain[newTxPos[0]].root;
-        bytes32 merkleHash = keccak256(txBytes);
-        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
+        childBlock storage blk = childChain[newTxPos[0]];
+
+        bytes32 merkleHash = sha256(txBytes);
+        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembership(newTxPos[1], root, proof), "incorrect merkle proof");
+        require(merkleHash.checkMembership(newTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
 
         // exit successfully challenged
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
@@ -310,11 +312,12 @@ contract RootChain is Ownable {
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
         // confirm challenging transcation's inclusion and confirm signature
-        bytes32 root = childChain[challengingTxPos[0]].root;
-        bytes32 merkleHash = keccak256(txBytes);
-        bytes32 confirmationHash = keccak256(abi.encodePacked(merkleHash, root));
+        childBlock storage blk = childChain[challengingTxPos[0]];
+
+        bytes32 merkleHash = sha256(txBytes);
+        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.root));
         require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembership(challengingTxPos[1], root, proof), "incorrect merkle proof");
+        require(merkleHash.checkMembership(challengingTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
 
         // exit successfully challenged. Award the sender with the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);

@@ -14,7 +14,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
 
     it("Submit block from authority", async () => {
         let root = web3.sha3('1234');
-        let tx = await rootchain.submitBlock(root, 1, {from: authority});
+        let tx = await rootchain.submitBlock(root, [1], 1, {from: authority});
 
         // BlockSubmitted event
         assert.equal(tx.logs[0].args.root, root, "incorrect block root in BlockSubmitted event");
@@ -26,7 +26,7 @@ contract('[RootChain] Block Submissions', async (accounts) => {
     it("Submit block from someone other than authority", async () => {
         let prev = (await rootchain.lastCommittedBlock.call()).toNumber();
 
-        let [err] = await catchError(rootchain.submitBlock(web3.sha3('578484785954'), {from: accounts[1]}));
+        let [err] = await catchError(rootchain.submitBlock(web3.sha3('578484785954'), [1], 1, {from: accounts[1]}));
         if (!err)
             assert.fail("Submitted blocked without being the authority");
 

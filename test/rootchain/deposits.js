@@ -3,7 +3,7 @@ let assert = require('chai').assert;
 
 let RootChain = artifacts.require("RootChain");
 
-let { fastForward, proof, zeroHashes } = require('./rootchain_helpers.js');
+let { fastForward, proof, zeroHashes, sha256String, generateMerkleRootAndProof } = require('./rootchain_helpers.js');
 let { catchError, toHex } = require('../utilities.js');
 
 contract('[RootChain] Deposits', async (accounts) => {
@@ -147,17 +147,17 @@ contract('[RootChain] Deposits', async (accounts) => {
         let sigs = (await web3.eth.sign(accounts[2], hashedEncodedMsg));
         sigs = sigs + Buffer.alloc(65).toString('hex');
 
-        let merkleHash = web3.sha3(txBytes.toString('hex'), {encoding: 'hex'});
+        let merkleHash = sha256String(txBytes.toString('hex'));
 
         // include this transaction in the next block
-        let root = merkleHash;
-        for (let i = 0; i < 16; i++)
-            root = web3.sha3(root + zeroHashes[i], {encoding: 'hex'}).slice(2)
+        let root;
+        [root, proof] = generateMerkleRootAndProof([merkleHash], 0);
+
         let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(root), blockNum, {from: authority});
+        await rootchain.submitBlock(toHex(root), [1], blockNum, {from: authority});
 
         // create the confirm sig
-        let confirmHash = web3.sha3(merkleHash.slice(2) + root, {encoding: 'hex'});
+        let confirmHash = sha256String(merkleHash + root.slice(2));
         let confirmSig = await web3.eth.sign(accounts[2], confirmHash);
 
         // start the malicious exit
