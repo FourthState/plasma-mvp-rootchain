@@ -55,6 +55,11 @@ contract('[RootChain] Transactions', async (accounts) => {
         txPos = [blockNum, 0, 0];
     });
 
+    it("Will not revert finalizeExit with an empty queue", async () => {
+        await rootchain.finalizeDepositExits();
+        await rootchain.finalizeTransactionExits();
+    });
+
     it("Allows only the utxo owner to start an exit (hardcoded)", async () => {
         rootchain = await RootChain.new({from: authority});
 
