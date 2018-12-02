@@ -258,6 +258,48 @@ contract RootChain is Ownable {
         return true;
     }
 
+    // Validator of any block can call this function to exit the fees collected
+    // for that particular block. The validator declares the fee amount, and the exit
+    // is added to exit queue with the lowest priority for that block.
+    // In case of a wrong fee amount specified, users on the Plasma chain would mass exit.
+    // In case of the fee UTXO already spent, anyone can challenge the fee exit by providing
+    // the spend of the fee UTXO.
+    // @param blockNumber      the block for which the validator wants to exit fees
+    // @param feeAmount        the amount of the fee collected in block blockNumber
+    function startFeeExit(uint256 blockNumber, uint256 feeAmount)
+        public
+        payable
+        onlyOwner
+    {
+        // specified blockNumber must exist in child chain
+        bytes32 empty;
+        require(childChain[blockNumber].root != empty, "specified block does not exist in child chain.");
+
+        require(msg.value >= minExitBond, "insufficient exit bond");
+        if (msg.value > minExitBond) {
+            uint256 excess = msg.value.sub(minExitBond);
+            balances[msg.sender] = balances[msg.sender].add(excess);
+            totalWithdrawBalance = totalWithdrawBalance.add(excess);
+        }
+
+        // a fee UTXO has explicitly defined position [blockNumber, 2**16 - 1, 0]
+        uint256 txIndex = 2**16 - 1;
+        uint256 position = blockIndexFactor*blockNumber + txIndexFactor*txIndex + 0;
+        require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
+
+        txExitQueue.insert(Math.max256(childChain[blockNumber].createdAt + 1 weeks, block.timestamp) << 128 | position);
+        txExits[position] = exit({
+            owner: msg.sender,
+            amount: feeAmount,
+            createdAt: block.timestamp,
+            position: [blockNumber, txIndex, 0, 0],
+            state: ExitState.Pending
+        });
+
+        // pass in empty bytes for confirmSignatures for StartedTransactionExit event.
+        emit StartedTransactionExit([blockNumber, txIndex, 0], msg.sender, feeAmount, "");
+    }
+
     // @param depositNonce     the nonce of the deposit trying to exit
     // @param newTxPos         position of the transaction with this deposit as an input [blkNum, txIndex, outputIndex]
     // @param txBytes          bytes of this transcation

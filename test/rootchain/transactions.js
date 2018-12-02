@@ -163,6 +163,54 @@ contract('[RootChain] Transactions', async (accounts) => {
         assert.equal(exit[3].toNumber(), 3, "exit's state not set to finalized");
     });
 
+    it("Allows validator to start a fee withdrawal exit", async () => {
+        let feeAmount = 100; // can be any arbitrary amount
+
+        // non-validators cannot start fee exits
+        let err;
+        [err] = await catchError(rootchain.startFeeExit(txPos[0], feeAmount, {from: accounts[1], value: minExitBond}));
+        if (!err)
+            assert.fail("fee exit start from non-validator");
+
+        // validator cannot start a fee exit without putting a sufficient exit bond
+        [err] = await catchError(rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond - 100}));
+        if (!err)
+            assert.fail("started fee exit with insufficient bond");
+
+        // validator can start a fee exit with sufficient exit bond
+        let tx = await rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond});
+
+        let position = 1000000*txPos[0] + 10*(Math.pow(2, 16) - 1);
+        let feeExit = await rootchain.txExits.call(position);
+        assert.equal(feeExit[0].toNumber(), feeAmount, "Incorrect fee exit amount");
+        assert.equal(feeExit[2], authority, "Incorrect fee exit owner");
+        assert.equal(feeExit[3].toNumber(), 1, "Incorrect exit state.");
+
+        // can only start a fee exit for any particular block once
+        [err] = await catchError(rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond}));
+        if (!err)
+            assert.fail("reopened the same exit while already a pending one existed");
+    });
+
+    it("Allows validator to start and finalize a fee withdrawal exit", async () => {
+        await rootchain.deposit(authority, {from: authority, value: 100});
+
+        // fee can be any arbitrary amount; users mass exit if validator declares incorrect fee
+        let feeAmount = 150;
+        await rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond});
+
+        fastForward(one_week + 1000);
+
+        await rootchain.finalizeTransactionExits();
+
+        let balance = (await rootchain.balanceOf.call(accounts[0])).toNumber();
+        assert.equal(balance, feeAmount + minExitBond, "Validator has incorrect balance");
+
+        let position = 1000000*txPos[0] + 10*(Math.pow(2, 16) - 1);
+        let exit = await rootchain.txExits.call(position);
+        assert.equal(exit[3].toNumber(), 3, "Fee exit state is not Finalized");
+    });
+
     it("Requires sufficient bond and refunds excess if overpayed", async () => {
         let err;
         [err] = await catchError(rootchain.startTransactionExit(txPos,
