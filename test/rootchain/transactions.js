@@ -1,4 +1,3 @@
-
 let RLP = require('rlp');
 let assert = require('chai').assert
 
