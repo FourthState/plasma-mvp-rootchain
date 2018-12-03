@@ -100,8 +100,11 @@ contract RootChain is Ownable {
             memPtr := add(blocks, 0x20)
         }
 
+        uint maxNumTxPerBlock = 2**16 - 1;
         bytes32 root;
         for (uint i = 0; i < txnsPerBlock.length; i++) {
+            require(txnsPerBlock[i] <= maxNumTxPerBlock, "number of transactions per block exceeds limit");
+
             assembly {
                 root := mload(add(memPtr, mul(i, 32)))
             }

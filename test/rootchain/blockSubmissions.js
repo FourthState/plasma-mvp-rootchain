@@ -41,7 +41,6 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         let root2 = web3.sha3("root2").slice(2);
         let roots = root1 + root2;
 
-        let lastCommitedBlock = 0;
         await rootchain.submitBlock(toHex(roots), [1, 2], [0, 0], 1, {from: authority});
 
         assert.equal((await rootchain.lastCommittedBlock.call()).toNumber(), 2, "blocknum incremented incorrectly");
@@ -56,7 +55,6 @@ contract('[RootChain] Block Submissions', async (accounts) => {
 
         let fees = [100, 200];
 
-        let lastCommitedBlock = 0;
         await rootchain.submitBlock(toHex(roots), [1, 2], fees, 1, {from: authority});
 
         assert.equal((await rootchain.lastCommittedBlock.call()).toNumber(), 2, "blocknum incremented incorrectly");
@@ -64,6 +62,23 @@ contract('[RootChain] Block Submissions', async (accounts) => {
         assert.equal((await rootchain.childChain.call(2))[0], toHex(root2), "mismatch in block root");
         assert.equal((await rootchain.childChain.call(1))[2], fees[0], "mismatch in block fees");
         assert.equal((await rootchain.childChain.call(2))[2], fees[1], "mismatch in block fees");
+    });
+
+    it("Cannot exceed size limits for a block", async () => {
+        let root = web3.sha3("root1").slice(2);
+
+        let fees = [100];
+        let numTxns0 = [65535]
+        let numTxns1 = [65536];
+
+        let err;
+        // numTxns1 exceeds block size limit
+        [err] = await catchError(rootchain.submitBlock(toHex(root), numTxns1, fees, 1, {from: authority}));
+        if (!err)
+            assert.fail("Allowed submission of a block that exceeds block size limit");
+
+        // numTxns0 does not exceed block size limit
+        await rootchain.submitBlock(toHex(root), numTxns0, fees, 1, {from: authority});
     });
 
     it("Enforces block number ordering", async () => {
