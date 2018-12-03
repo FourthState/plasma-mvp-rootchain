@@ -2,7 +2,7 @@
 
 The transcation bytes, `txBytes`, in the contract follow the convention:  
 ```
-[ 
+RLP_ENCODE ([ 
   [Blknum1, TxIndex1, Oindex1, DepositNonce1, Amount1, ConfirmSig1,
 
   Blknum2, TxIndex2, Oindex2, DepositNonce2, Amount2, ConfirmSig2,
@@ -10,7 +10,7 @@ The transcation bytes, `txBytes`, in the contract follow the convention:
   NewOwner, Denom1, NewOwner, Denom2, Fee],
 
   [Signature1, Signature2]
-]
+])
 ```
 ```solidity
 function submitBlock(bytes32 blocks, uint256[] txnsPerBlock, uint256 blockNum)
