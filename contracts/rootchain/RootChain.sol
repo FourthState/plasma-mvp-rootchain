@@ -22,7 +22,7 @@ contract RootChain is Ownable {
      */
 
     event AddedToBalances(address owner, uint256 amount);
-    event BlockSubmitted(bytes32 root, uint256 blockNumber, uint256 numTxns);
+    event BlockSubmitted(bytes32 root, uint256 blockNumber, uint256 numTxns, uint256 feeAmount);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce);
 
     event StartedTransactionExit(uint[3] position, address owner, uint256 amount, bytes confirmSignatures);
@@ -43,6 +43,7 @@ contract RootChain is Ownable {
     struct childBlock {
         bytes32 root;
         uint256 numTxns;
+        uint256 feeAmount;
         uint256 createdAt;
     }
     struct depositStruct {
@@ -82,15 +83,17 @@ contract RootChain is Ownable {
     }
 
     // @param blocks 32 byte merkle roots appended in ascending order
-    // @param numTxns number of transactions per block
+    // @param txnsPerBlock number of transactions per block
+    // @param feesPerBlock amount of fees the validator has collected per block
     // @param blockNum the block number of the first header
-    function submitBlock(bytes blocks, uint256[] txnsPerBlock, uint256 blockNum)
+    function submitBlock(bytes blocks, uint256[] txnsPerBlock, uint256[] feesPerBlock, uint256 blockNum)
         public
         onlyOwner
     {
         require(blockNum == lastCommittedBlock + 1, "inconsistent block number ordering");
         require(blocks.length > 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
         require(blocks.length / 32 == txnsPerBlock.length, "blocks and txnsPerBlock lengths are inconsistent");
+        require(blocks.length / 32 == feesPerBlock.length, "blocks and feesPerBlock lengths are inconsistent");
 
         uint memPtr;
         assembly  {
@@ -103,8 +106,8 @@ contract RootChain is Ownable {
                 root := mload(add(memPtr, mul(i, 32)))
             }
 
-            childChain[blockNum] = childBlock(root, txnsPerBlock[i], block.timestamp);
-            emit BlockSubmitted(root, blockNum, txnsPerBlock[i]);
+            childChain[blockNum] = childBlock(root, txnsPerBlock[i], feesPerBlock[i], block.timestamp);
+            emit BlockSubmitted(root, blockNum, txnsPerBlock[i], feesPerBlock[i]);
 
             blockNum = blockNum.add(1);
         }
@@ -259,14 +262,11 @@ contract RootChain is Ownable {
     }
 
     // Validator of any block can call this function to exit the fees collected
-    // for that particular block. The validator declares the fee amount, and the exit
-    // is added to exit queue with the lowest priority for that block.
-    // In case of a wrong fee amount specified, users on the Plasma chain would mass exit.
+    // for that particular block. The fee exit is added to exit queue with the lowest priority for that block.
     // In case of the fee UTXO already spent, anyone can challenge the fee exit by providing
     // the spend of the fee UTXO.
     // @param blockNumber      the block for which the validator wants to exit fees
-    // @param feeAmount        the amount of the fee collected in block blockNumber
-    function startFeeExit(uint256 blockNumber, uint256 feeAmount)
+    function startFeeExit(uint256 blockNumber)
         public
         payable
         onlyOwner
@@ -287,6 +287,7 @@ contract RootChain is Ownable {
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
         txExitQueue.insert(Math.max256(childChain[blockNumber].createdAt + 1 weeks, block.timestamp) << 128 | position);
+        uint256 feeAmount = childChain[blockNumber].feeAmount;
         txExits[position] = exit({
             owner: msg.sender,
             amount: feeAmount,

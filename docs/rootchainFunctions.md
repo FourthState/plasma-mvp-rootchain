@@ -13,9 +13,9 @@ RLP_ENCODE ([
 ])
 ```
 ```solidity
-function submitBlock(bytes32 blocks, uint256[] txnsPerBlock, uint256 blockNum)
+function submitBlock(bytes32 blocks, uint256[] txnsPerBlock, uint256[] feesPerBlock, uint256 blockNum)
 ```
-The validator submits appended block headers in ascending order. Each block can be of variable block size(capped at 2^16 txns per block). The total number of transactions per block must be passed in through `txnsPerBlock`.
+The validator submits appended block headers in ascending order. Each block can be of variable block size(capped at 2^16 txns per block). The total number of transactions per block must be passed in through `txnsPerBlock`. The amount of transaction fees collected by the validator per block must be passed in through `feesPerBlock`.
 `blockNum` must be the intended block number of the first header in this call. Ordering is enforced on each call. `blockNum == lastCommittedBlock + 1`.
 
 <br >
@@ -65,11 +65,11 @@ This is because of the differing priority calculation. The priority of a deposit
 <br />
 
 ```solidity
-function startFeeExit(uint256 blockNumber, uint256 feeAmount)
+function startFeeExit(uint256 blockNumber)
 ```
 The validator of any block should call this function to exit the fees they've collected for that particular block.
-The validator declares the block number, `blockNumber`, for which they'd like to exit fees, and the corresponding amount, `feeAmount`. This exit is then added to exit queue with the lowest priority for that block.
-Note that if the validator attempts to start an exit for a fee-UTXO that has already been spent in a later block, the exit can be challenged through `startTransactionExit` the same way as a regular transaction exit. However, if the fee-UTXO has not been spent, but the validator claims the incorrect `feeAmount` for a block, users should watch and exit.
+The validator declares the `blockNumber` of the block for which they'd like to exit fees. This exit is then added to exit queue with the lowest priority for that block.
+Note that if the validator attempts to start an exit for a fee-UTXO that has already been spent in a later block, the exit can be challenged through `startTransactionExit` the same way as a regular transaction exit.
 
 <br />
 

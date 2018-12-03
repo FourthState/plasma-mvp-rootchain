@@ -46,7 +46,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let merkleRoot;
         [merkleRoot, proof] = generateMerkleRootAndProof([merkleHash], 0);
         let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(merkleRoot), [1], blockNum, {from: authority});
+        await rootchain.submitBlock(toHex(merkleRoot), [1], [0], blockNum, {from: authority});
 
         // construct the confirm signature
         let confirmHash = sha256String(merkleHash + merkleRoot.slice(2));
@@ -78,7 +78,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let root2 = "783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109";
         let roots = root1 + root2;
 
-        await rootchain.submitBlock(toHex(roots), [1, total], 1, {from: authority});
+        await rootchain.submitBlock(toHex(roots), [1, total], [0, 0], 1, {from: authority});
 
         let newOwner = "0x53bB5E06573dbD3baEFF3710c860F09F06C4C8A4";
 
@@ -117,7 +117,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let roots = root1 + root2 + root3;
 
         let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(roots), [1, total, newTotal], blockNum, {from: authority});
+        await rootchain.submitBlock(toHex(roots), [1, total, newTotal], [0, 0, 0], blockNum, {from: authority});
 
         let newOwner = "0x53bB5E06573dbD3baEFF3710c860F09F06C4C8A4";
 
@@ -164,46 +164,71 @@ contract('[RootChain] Transactions', async (accounts) => {
     });
 
     it("Allows validator to start a fee withdrawal exit", async () => {
-        let feeAmount = 100; // can be any arbitrary amount
-
         // non-validators cannot start fee exits
         let err;
-        [err] = await catchError(rootchain.startFeeExit(txPos[0], feeAmount, {from: accounts[1], value: minExitBond}));
+        [err] = await catchError(rootchain.startFeeExit(txPos[0], {from: accounts[1], value: minExitBond}));
         if (!err)
             assert.fail("fee exit start from non-validator");
 
         // validator cannot start a fee exit without putting a sufficient exit bond
-        [err] = await catchError(rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond - 100}));
+        [err] = await catchError(rootchain.startFeeExit(txPos[0], {from: authority, value: minExitBond - 100}));
         if (!err)
             assert.fail("started fee exit with insufficient bond");
 
         // cannot start a fee exit for a non-existent block
         let nonExitentBlockNum = txPos[0] + 100;
-        [err] = await catchError(rootchain.startFeeExit(nonExitentBlockNum, feeAmount, {from: authority, value: minExitBond}));
+        [err] = await catchError(rootchain.startFeeExit(nonExitentBlockNum, {from: authority, value: minExitBond}));
         if (!err)
             assert.fail("started fee exit for non-existent block");
 
         // validator can start a fee exit with sufficient exit bond
-        let tx = await rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond});
+        let tx = await rootchain.startFeeExit(txPos[0], {from: authority, value: minExitBond});
 
         let position = 1000000*txPos[0] + 10*(Math.pow(2, 16) - 1);
         let feeExit = await rootchain.txExits.call(position);
-        assert.equal(feeExit[0].toNumber(), feeAmount, "Incorrect fee exit amount");
+        assert.equal(feeExit[0].toNumber(), 0, "Incorrect fee exit amount");
         assert.equal(feeExit[2], authority, "Incorrect fee exit owner");
         assert.equal(feeExit[3].toNumber(), 1, "Incorrect exit state.");
 
         // can only start a fee exit for any particular block once
-        [err] = await catchError(rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond}));
+        [err] = await catchError(rootchain.startFeeExit(txPos[0], {from: authority, value: minExitBond}));
         if (!err)
             assert.fail("attempted the same exit while a pending one existed");
     });
 
     it("Allows validator to start and finalize a fee withdrawal exit", async () => {
-        await rootchain.deposit(authority, {from: authority, value: 100});
+        let depositAmount = 1000;
+        let feeAmount = 10;
 
-        // fee can be any arbitrary amount; users mass exit if validator declares incorrect fee
-        let feeAmount = 150;
-        await rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond});
+        let depositNonce = (await rootchain.depositNonce.call()).toNumber();
+        await rootchain.deposit(accounts[0], {from: accounts[0], value: depositAmount});
+
+        // deposit is the first input. accounts[0] sends entire deposit to accounts[1]
+        // fee is 10 for this tx
+        let txList = Array(17).fill(0);
+        txList[3] = depositNonce;
+        txList[12] = accounts[1];
+        txList[13] = depositAmount - feeAmount;
+        txList[16] = feeAmount;
+
+        let txHash = web3.sha3(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
+        let sigs = [toHex(await web3.eth.sign(accounts[0], txHash)), toHex(Buffer.alloc(65).toString('hex'))];
+        let txBytes = [txList, sigs];
+        txBytes = RLP.encode(txBytes).toString('hex');
+
+        // submit the block
+        let merkleHash = sha256String(txBytes);
+        let merkleRoot = generateMerkleRootAndProof([merkleHash], 0)[0];
+        let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(merkleRoot), [1], [feeAmount], blockNum, {from: authority});
+
+        await rootchain.startFeeExit(blockNum, {from: authority, value: minExitBond});
+
+        let position = 1000000*blockNum + 10*(Math.pow(2, 16) - 1);
+        let feeExit = await rootchain.txExits.call(position);
+        assert.equal(feeExit[0].toNumber(), feeAmount, "Incorrect fee exit amount");
+        assert.equal(feeExit[2], authority, "Incorrect fee exit owner");
+        assert.equal(feeExit[3].toNumber(), 1, "Fee exit state is not Pending");
 
         fastForward(one_week + 1000);
 
@@ -212,9 +237,8 @@ contract('[RootChain] Transactions', async (accounts) => {
         let balance = (await rootchain.balanceOf.call(accounts[0])).toNumber();
         assert.equal(balance, feeAmount + minExitBond, "Validator has incorrect balance");
 
-        let position = 1000000*txPos[0] + 10*(Math.pow(2, 16) - 1);
-        let exit = await rootchain.txExits.call(position);
-        assert.equal(exit[3].toNumber(), 3, "Fee exit state is not Finalized");
+        feeExit = await rootchain.txExits.call(position);
+        assert.equal(feeExit[3].toNumber(), 3, "Fee exit state is not Finalized");
     });
 
     it("Requires sufficient bond and refunds excess if overpayed", async () => {
@@ -287,7 +311,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let root, proof2;
         [root, proof2] = generateMerkleRootAndProof([merkleHash], 0);
         let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(root), [1], blockNum, {from: authority});
+        await rootchain.submitBlock(toHex(root), [1], [0], blockNum, {from: authority});
 
         // create the confirm sig
         let confirmHash = sha256String(merkleHash + root.slice(2));
@@ -347,7 +371,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let root, proof2;
         [root, proof2] = generateMerkleRootAndProof([merkleHash], 0);
         let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(root), [1], blockNum, {from: authority});
+        await rootchain.submitBlock(toHex(root), [1], [0], blockNum, {from: authority});
 
         // create the confirm sig
         let confirmHash = sha256String(merkleHash + root.slice(2));
@@ -378,7 +402,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let root1, proof1;
         [root1, proof1] = generateMerkleRootAndProof([merkleHash1], 0);
         let blockNum1 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(root1), [1], blockNum1, {from: authority});
+        await rootchain.submitBlock(toHex(root1), [1], [0], blockNum1, {from: authority});
 
         // create confirmation signature
         let confirmationHash1 = sha256String(merkleHash1.slice(2) + root1.slice(2));
@@ -398,7 +422,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let root2, proof2;
         [root2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
         let blockNum2 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(root2), [1], blockNum2, {from: authority});
+        await rootchain.submitBlock(toHex(root2), [1], [0], blockNum2, {from: authority});
 
         // create confirmation signature
         let confirmationHash2 = sha256String(merkleHash2.slice(2) + root2.slice(2));
@@ -431,7 +455,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let root1, proof1;
         [root1, proof1] = generateMerkleRootAndProof([merkleHash1], 0);
         let blockNum1 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(root1), [1], blockNum1, {from: authority});
+        await rootchain.submitBlock(toHex(root1), [1], [0], blockNum1, {from: authority});
 
         // create confirmation signature
         let confirmationHash1 = sha256String(merkleHash1.slice(2) + root1.slice(2));
@@ -450,7 +474,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let root2, proof2;
         [root2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
         let blockNum2 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(root2), [1], blockNum2, {from: authority});
+        await rootchain.submitBlock(toHex(root2), [1], [0], blockNum2, {from: authority});
 
         // create confirmation signature
         let confirmationHash2 = sha256String(merkleHash2.slice(2) + root2.slice(2));
