@@ -457,7 +457,7 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         // Fast Forward rest of challenge period
         fastForward(one_week);
-        let tx = await rootchain.finalizeTransactionExits({from: authority});
+        await rootchain.finalizeTransactionExits({from: authority});
         // Check that last exit was processed
         finalizedExit = await rootchain.txExits.call(position);
         assert.equal(finalizedExit[2], accounts[1], "Incorrect finalized exit owner");
