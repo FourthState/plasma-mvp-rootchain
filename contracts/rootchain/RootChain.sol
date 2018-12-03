@@ -84,13 +84,13 @@ contract RootChain is Ownable {
     // @param blocks 32 byte merkle roots appended in ascending order
     // @param numTxns number of transactions per block
     // @param blockNum the block number of the first header
-    function submitBlock(bytes blocks, uint256[] numTxns, uint256 blockNum)
+    function submitBlock(bytes blocks, uint256[] txnsPerBlock, uint256 blockNum)
         public
         onlyOwner
     {
         require(blockNum == lastCommittedBlock + 1, "inconsistent block number ordering");
         require(blocks.length > 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
-        require(blocks.length / 32 == numTxns.length, "blocks and numTxns lengths are inconsistent");
+        require(blocks.length / 32 == txnsPerBlock.length, "blocks and txnsPerBlock lengths are inconsistent");
 
         uint memPtr;
         assembly  {
@@ -98,18 +98,18 @@ contract RootChain is Ownable {
         }
 
         bytes32 root;
-        for (uint i = 0; i < numTxns.length; i++) {
+        for (uint i = 0; i < txnsPerBlock.length; i++) {
             assembly {
                 root := mload(add(memPtr, mul(i, 32)))
             }
 
-            childChain[blockNum] = childBlock(root, numTxns[i], block.timestamp);
-            emit BlockSubmitted(root, blockNum, numTxns[i]);
+            childChain[blockNum] = childBlock(root, txnsPerBlock[i], block.timestamp);
+            emit BlockSubmitted(root, blockNum, txnsPerBlock[i]);
 
             blockNum = blockNum.add(1);
         }
 
-        lastCommittedBlock = blockNum.sub(1);
+        lastCommittedBlock = lastCommittedBlock.add(txnsPerBlock.length);
    }
 
     // @param owner owner of this deposit
