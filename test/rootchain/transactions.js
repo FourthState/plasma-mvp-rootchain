@@ -177,6 +177,12 @@ contract('[RootChain] Transactions', async (accounts) => {
         if (!err)
             assert.fail("started fee exit with insufficient bond");
 
+        // cannot start a fee exit for a non-existent block
+        let nonExitentBlockNum = txPos[0] + 100;
+        [err] = await catchError(rootchain.startFeeExit(nonExitentBlockNum, feeAmount, {from: authority, value: minExitBond}));
+        if (!err)
+            assert.fail("started fee exit for non-existent block");
+
         // validator can start a fee exit with sufficient exit bond
         let tx = await rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond});
 
@@ -189,7 +195,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         // can only start a fee exit for any particular block once
         [err] = await catchError(rootchain.startFeeExit(txPos[0], feeAmount, {from: authority, value: minExitBond}));
         if (!err)
-            assert.fail("reopened the same exit while already a pending one existed");
+            assert.fail("attempted the same exit while a pending one existed");
     });
 
     it("Allows validator to start and finalize a fee withdrawal exit", async () => {

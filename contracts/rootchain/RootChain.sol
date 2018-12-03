@@ -272,8 +272,7 @@ contract RootChain is Ownable {
         onlyOwner
     {
         // specified blockNumber must exist in child chain
-        bytes32 empty;
-        require(childChain[blockNumber].root != empty, "specified block does not exist in child chain.");
+        require(childChain[blockNumber].root != bytes32(0), "specified block does not exist in child chain.");
 
         require(msg.value >= minExitBond, "insufficient exit bond");
         if (msg.value > minExitBond) {

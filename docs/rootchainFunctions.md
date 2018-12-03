@@ -65,6 +65,15 @@ This is because of the differing priority calculation. The priority of a deposit
 <br />
 
 ```solidity
+function startFeeExit(uint256 blockNumber, uint256 feeAmount)
+```
+The validator of any block should call this function to exit the fees they've collected for that particular block.
+The validator declares the block number, `blockNumber`, for which they'd like to exit fees, and the corresponding amount, `feeAmount`. This exit is then added to exit queue with the lowest priority for that block.
+Note that if the validator attempts to start an exit for a fee-UTXO that has already been spent in a later block, the exit can be challenged through `startTransactionExit` the same way as a regular transaction exit. However, if the fee-UTXO has not been spent, but the validator claims the incorrect `feeAmount` for a block, users should watch and exit.
+
+<br />
+
+```solidity
 function challengeTransactionExit(uint256[3] exitingTxPos, uint256[2] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
 ```
 `exitingTxPos` and `challengingTxPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`
