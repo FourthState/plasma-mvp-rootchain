@@ -355,7 +355,7 @@ contract RootChain is Ownable {
     // Finalizes exits by iterating through either the depositExitQueue or txExitQueue.
     // Users can determine the number of exits they're willing to process by varying
     // the amount of gas allow finalize*Exits() to process.
-    // Each transaction takes < 80000 wei to process.
+    // Each transaction takes < 80000 gas to process.
     function finalize(uint256[] storage queue, bool isDeposits)
         private
     {
