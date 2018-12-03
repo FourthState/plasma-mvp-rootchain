@@ -3,7 +3,7 @@ let assert = require('chai').assert;
 
 let RootChain = artifacts.require("RootChain");
 
-let { fastForward, mineNBlocks, proof, zeroHashes, sha256String, generateMerkleRootAndProof } = require('./rootchain_helpers.js');
+let { fastForward, proof, zeroHashes, sha256String, generateMerkleRootAndProof } = require('./rootchain_helpers.js');
 let { catchError, toHex } = require('../utilities.js');
 
 contract('[RootChain] Deposits', async (accounts) => {
@@ -153,10 +153,8 @@ contract('[RootChain] Deposits', async (accounts) => {
         let root;
         [root, proof] = generateMerkleRootAndProof([merkleHash], 0);
 
-        let blockNum = (await rootchain.currentChildBlock.call()).toNumber();
-
-        mineNBlocks(5); // presumed finality before submitting the block
-        await rootchain.submitBlock(toHex(root), [1], {from: authority});
+        let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(root), [1], blockNum, {from: authority});
 
         // create the confirm sig
         let confirmHash = sha256String(merkleHash + root.slice(2));

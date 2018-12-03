@@ -36,8 +36,7 @@ contract RootChain is Ownable {
      */
 
     // child chain
-    uint256 public currentChildBlock;
-    uint256 public lastParentBlock;
+    uint256 public lastCommittedBlock;
     uint256 public depositNonce;
     mapping(uint256 => childBlock) public childChain;
     mapping(uint256 => depositStruct) public deposits;
@@ -77,23 +76,21 @@ contract RootChain is Ownable {
 
     constructor() public
     {
-        currentChildBlock = 1;
+        lastCommittedBlock = 0;
         depositNonce = 1;
-        lastParentBlock = block.number;
-
         minExitBond = 10000;
     }
 
-    // @param blocks 32 byte merkle roots
-    // @param numTxns number of txns in each merkle tree
-    function submitBlock(bytes blocks, uint256[] numTxns)
+    // @param blocks 32 byte merkle roots appended in ascending order
+    // @param numTxns number of transactions per block
+    // @param blockNum the block number of the first header
+    function submitBlock(bytes blocks, uint256[] txnsPerBlock, uint256 blockNum)
         public
         onlyOwner
     {
-        // ensure finality on previous blocks before submitting another
-        require(block.number >= lastParentBlock.add(6), "presumed finality required");
-        require(blocks.length != 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
-        require(blocks.length / 32 == numTxns.length, "blocks and numTxns lengths are inconsistent");
+        require(blockNum == lastCommittedBlock + 1, "inconsistent block number ordering");
+        require(blocks.length > 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
+        require(blocks.length / 32 == txnsPerBlock.length, "blocks and txnsPerBlock lengths are inconsistent");
 
         uint memPtr;
         assembly  {
@@ -101,20 +98,19 @@ contract RootChain is Ownable {
         }
 
         bytes32 root;
-        for (uint i = 0; i < numTxns.length; i ++) {
-            uint j = i * 32;
+        for (uint i = 0; i < txnsPerBlock.length; i++) {
             assembly {
-                root := mload(add(memPtr, j))
+                root := mload(add(memPtr, mul(i, 32)))
             }
 
-            childChain[currentChildBlock] = childBlock(root, numTxns[i], block.timestamp);
-            emit BlockSubmitted(root, currentChildBlock, numTxns[i]);
+            childChain[blockNum] = childBlock(root, txnsPerBlock[i], block.timestamp);
+            emit BlockSubmitted(root, blockNum, txnsPerBlock[i]);
 
-            currentChildBlock = currentChildBlock.add(1);
+            blockNum = blockNum.add(1);
         }
 
-        lastParentBlock = block.number;
-    }
+        lastCommittedBlock = lastCommittedBlock.add(txnsPerBlock.length);
+   }
 
     // @param owner owner of this deposit
     function deposit(address owner)
