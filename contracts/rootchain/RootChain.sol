@@ -82,10 +82,10 @@ contract RootChain is Ownable {
         minExitBond = 10000;
     }
 
-    // @param blocks 32 byte merkle roots appended in ascending order
+    // @param blocks       32 byte merkle roots appended in ascending order
     // @param txnsPerBlock number of transactions per block
     // @param feesPerBlock amount of fees the validator has collected per block
-    // @param blockNum the block number of the first header
+    // @param blockNum     the block number of the first header
     function submitBlock(bytes blocks, uint256[] txnsPerBlock, uint256[] feesPerBlock, uint256 blockNum)
         public
         onlyOwner
@@ -251,9 +251,6 @@ contract RootChain is Ownable {
                 uint256 inputIndex = txList[6*i + 1].toUint();
                 uint256 outputIndex = txList[6*i + 2].toUint();
                 uint256 position = blockIndexFactor*blkNum + txIndexFactor*inputIndex + outputIndex;
-
-                require(outputIndex <= 1 && inputIndex < 2 ** 16, "invalid transaction positions");
-
                 state = txExits[position].state;
             } else
                 state = depositExits[depositNonce_].state;
@@ -269,7 +266,7 @@ contract RootChain is Ownable {
     // for that particular block. The fee exit is added to exit queue with the lowest priority for that block.
     // In case of the fee UTXO already spent, anyone can challenge the fee exit by providing
     // the spend of the fee UTXO.
-    // @param blockNumber      the block for which the validator wants to exit fees
+    // @param blockNumber the block for which the validator wants to exit fees
     function startFeeExit(uint256 blockNumber)
         public
         payable
