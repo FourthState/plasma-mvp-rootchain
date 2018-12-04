@@ -352,6 +352,10 @@ contract RootChain is Ownable {
     function finalizeDepositExits() public { finalize(depositExitQueue, true); }
     function finalizeTransactionExits() public { finalize(txExitQueue, false); }
 
+    // Finalizes exits by iterating through either the depositExitQueue or txExitQueue.
+    // Users can determine the number of exits they're willing to process by varying
+    // the amount of gas allow finalize*Exits() to process.
+    // Each transaction takes < 80000 gas to process.
     function finalize(uint256[] storage queue, bool isDeposits)
         private
     {
@@ -383,7 +387,8 @@ contract RootChain is Ownable {
         uint256 amountToAdd;
         while (queue.currentSize() > 0 &&
                (block.timestamp - currentExit.createdAt) > 1 weeks &&
-               currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance) {
+               currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance &&
+               msg.gas > 80000) {
 
             // skip currentExit if it is not in 'started/pending' state.
             if (currentExit.state != ExitState.Pending) {
