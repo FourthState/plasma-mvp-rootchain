@@ -253,6 +253,9 @@ contract RootChain is Ownable {
                 uint256 inputIndex = txList[6*i + 1].toUint();
                 uint256 outputIndex = txList[6*i + 2].toUint();
                 uint256 position = blockIndexFactor*blkNum + txIndexFactor*inputIndex + outputIndex;
+
+                require(outputIndex <= 1 && inputIndex < 2 ** 16, "invalid transaction positions");
+
                 state = txExits[position].state;
             } else
                 state = depositExits[depositNonce_].state;
