@@ -639,7 +639,7 @@ contract('[RootChain] Transactions', async (accounts) => {
         let merkleRoot2, proof2;
         [merkleRoot2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
         let blockNum2 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(merkleRoot2), [1], blockNum2, {from: authority});
+        await rootchain.submitBlock(toHex(merkleRoot2), [1], [0], blockNum2, {from: authority});
 
         // construct the confirm signature
         let confirmHash2 = sha256String(merkleHash2 + merkleRoot2.slice(2));
