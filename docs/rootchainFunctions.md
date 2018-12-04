@@ -74,7 +74,7 @@ Note that if the validator attempts to start an exit for a fee-UTXO that has alr
 <br />
 
 ```solidity
-function challengeTransactionExit(uint256[3] exitingTxPos, uint256[2] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
+function challengeTransactionExit(uint256[3] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
 ```
 `exitingTxPos` and `challengingTxPos` follow the convention - `[blockNumber, transcationIndex, outputIndex]`
 
