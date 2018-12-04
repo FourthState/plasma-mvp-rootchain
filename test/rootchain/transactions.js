@@ -133,6 +133,10 @@ contract('[RootChain] Transactions', async (accounts) => {
         // check that the bond has been rewarded to the challenger
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, minExitBond, "exit bond not rewarded to challenger");
+
+        let position = 1000000*txPos[0] + 10*txPos[1];
+        let exit = await rootchain.txExits.call(position);
+        assert.equal(exit[3].toNumber(), 2, "Fee exit state is not Challenged");
     });
 
     it("Catches StartedTransactionExit event", async () => {
@@ -306,6 +310,9 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, minExitBond, "exit bond not rewarded to challenger");
+
+        feeExit = await rootchain.txExits.call(position);
+        assert.equal(feeExit[3].toNumber(), 2, "Fee exit state is not Challenged");
     });
 
     it("Requires sufficient bond and refunds excess if overpayed", async () => {
@@ -411,6 +418,10 @@ contract('[RootChain] Transactions', async (accounts) => {
 
         let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, minExitBond, "exit bond not rewarded to challenger");
+
+        let position = 1000000*txPos[0];
+        let exit = await rootchain.txExits.call(position);
+        assert.equal(exit[3].toNumber(), 2, "Fee exit state is not Challenged");
 
         // start an exit of the new utxo after successfully challenging
         await rootchain.startTransactionExit([blockNum, 0, 0],
