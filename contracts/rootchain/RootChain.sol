@@ -109,10 +109,8 @@ contract RootChain is Ownable {
                 root := mload(add(memPtr, mul(i, 32)))
             }
 
-            childChain[blockNum] = childBlock(root, txnsPerBlock[i], feesPerBlock[i], block.timestamp);
-            emit BlockSubmitted(root, blockNum, txnsPerBlock[i], feesPerBlock[i]);
-
-            blockNum = blockNum.add(1);
+            childChain[blockNum + i] = childBlock(root, txnsPerBlock[i], feesPerBlock[i], block.timestamp);
+            emit BlockSubmitted(root, blockNum + i, txnsPerBlock[i], feesPerBlock[i]);
         }
 
         lastCommittedBlock = lastCommittedBlock.add(txnsPerBlock.length);
@@ -158,9 +156,9 @@ contract RootChain is Ownable {
     }
 
     // Transaction encoding:
-    // [[Blknum0, TxIndex0, Oindex0, depositNonce0, Amount0, ConfirmSig0
-    //  Blknum1, TxIndex1, Oindex1, depositNonce1, Amount1, ConfirmSig1
-    //  NewOwner0, Denom0, NewOwner1, Denom1, Fee],
+    // [[Blknum1, TxIndex1, Oindex1, DepositNonce1, Owner1, Input1ConfirmSig,
+    //   Blknum2, TxIndex2, Oindex2, DepositNonce2, Owner2, Input2ConfirmSig,
+    //   NewOwner, Denom1, NewOwner, Denom2, Fee],
     //  [Signature1, Signature2]]
     //
     // @param txBytes rlp encoded transaction
@@ -436,7 +434,7 @@ contract RootChain is Ownable {
         while (queue.currentSize() > 0 &&
                (block.timestamp - currentExit.createdAt) > 1 weeks &&
                currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance &&
-               msg.gas > 80000) {
+               gasleft() > 80000) {
 
             // skip currentExit if it is not in 'started/pending' state.
             if (currentExit.state != ExitState.Pending) {
