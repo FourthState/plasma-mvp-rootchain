@@ -619,4 +619,62 @@ contract('[RootChain] Transactions', async (accounts) => {
         assert.equal(finalizedExit[0], 50, "Incorrect finalized exit amount");
         assert.equal(finalizedExit[3].toNumber(), 3, "Incorrect finalized exit state.");
     });
+
+    it("Does not finalize a transaction exit if not enough gas", async () => {
+        depositNonce = (await rootchain.depositNonce.call()).toNumber();
+        await rootchain.deposit(accounts[0], {from: accounts[0], value: amount});
+
+        // deposit is the first input. accounts[0] sends entire deposit to accounts[1]
+        let txList2 = Array(17).fill(0);
+        txList2[3] = depositNonce; txList2[12] = accounts[1]; txList2[13] = amount;
+        let txHash2 = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+
+        let sigs2 = [toHex(await web3.eth.sign(accounts[0], txHash2)), toHex(Buffer.alloc(65).toString('hex'))];
+
+        txBytes2 = [txList2, sigs2];
+        txBytes2 = RLP.encode(txBytes2).toString('hex');
+
+        // submit the block
+        let merkleHash2 = sha256String(txBytes2);
+        let merkleRoot2, proof2;
+        [merkleRoot2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
+        let blockNum2 = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
+        await rootchain.submitBlock(toHex(merkleRoot2), [1], blockNum2, {from: authority});
+
+        // construct the confirm signature
+        let confirmHash2 = sha256String(merkleHash2 + merkleRoot2.slice(2));
+        confirmSignatures2 = await web3.eth.sign(accounts[0], confirmHash2);
+
+        txPos2 = [blockNum2, 0, 0];
+
+        // Start txn exit on both utxos
+        await rootchain.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(confirmSignatures),
+            {from: accounts[1], value: minExitBond});
+
+        await rootchain.startTransactionExit(txPos2,
+            toHex(txBytes2), toHex(proof2), toHex(confirmSignatures2),
+            {from: accounts[1], value: minExitBond});
+
+        fastForward(one_week + 1000);
+
+        // Only provide enough gas for 1 txn to be finalized
+        await rootchain.finalizeTransactionExits({gas: 120000});
+
+        // The first utxo should have been exited correctly
+        let balance = (await rootchain.balanceOf.call(accounts[1])).toNumber();
+        assert.equal(balance, amount + minExitBond);
+
+        let position = 1000000*txPos[0];
+        let exit = await rootchain.txExits.call(position);
+        assert.equal(exit[3].toNumber(), 3, "exit's state not set to finalized");
+
+        // The second utxo exit should still be pending
+        balance = (await rootchain.balanceOf.call(accounts[1])).toNumber();
+        assert.equal(balance, amount + minExitBond);
+
+        position = 1000000*txPos2[0];
+        exit = await rootchain.txExits.call(position);
+        assert.equal(exit[3].toNumber(), 1, "exit has been challenged or finalized");
+    });
 });
