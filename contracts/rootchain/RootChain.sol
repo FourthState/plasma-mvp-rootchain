@@ -25,11 +25,11 @@ contract RootChain is Ownable {
     event BlockSubmitted(bytes32 root, uint256 blockNumber, uint256 numTxns, uint256 feeAmount);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce, uint256 ethBlockNum);
 
-    event StartedTransactionExit(uint[3] position, address owner, uint256 amount, bytes confirmSignatures);
-    event StartedDepositExit(uint nonce, address owner, uint256 amount);
+    event StartedTransactionExit(uint256[3] position, address owner, uint256 amount, bytes confirmSignatures);
+    event StartedDepositExit(uint256 nonce, address owner, uint256 amount);
 
-    event ChallengedExit(uint[4] position, address owner, uint256 amount);
-    event FinalizedExit(uint[4] position, address owner, uint256 amount);
+    event ChallengedExit(uint256[4] position, address owner, uint256 amount);
+    event FinalizedExit(uint256[4] position, address owner, uint256 amount);
 
     /*
      *  Storage
