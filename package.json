@@ -5,7 +5,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "truffle test",
+    "test": "rm -rf build && truffle test",
     "coverage": "./node_modules/.bin/solidity-coverage"
   },
   "devDependencies": {

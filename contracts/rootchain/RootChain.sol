@@ -50,7 +50,7 @@ contract RootChain is Ownable {
         address owner;
         uint256 amount;
         uint256 createdAt;
-        uint256 ethBlocknum;
+        uint256 ethBlockNum;
     }
 
     // exits
@@ -62,6 +62,7 @@ contract RootChain is Ownable {
     enum ExitState { NonExistent, Pending, Challenged, Finalized }
     struct exit {
         uint256 amount;
+        uint256 committedFee;
         uint256 createdAt;
         address owner;
         uint256[4] position; // (blkNum, txIndex, outputIndex, depositNonce)
@@ -75,6 +76,7 @@ contract RootChain is Ownable {
     // constants
     uint256 public constant txIndexFactor = 10;
     uint256 public constant blockIndexFactor = 1000000;
+    uint256 public constant maxTxnsPerBLock = 2**16 - 1;
 
     constructor() public
     {
@@ -87,34 +89,23 @@ contract RootChain is Ownable {
     // @param txnsPerBlock number of transactions per block
     // @param feesPerBlock amount of fees the validator has collected per block
     // @param blockNum     the block number of the first header
-    function submitBlock(bytes blocks, uint256[] txnsPerBlock, uint256[] feesPerBlock, uint256 blockNum)
+    function submitBlock(bytes32[] headers, uint256[] txnsPerBlock, uint256[] feesPerBlock, uint256 blockNum)
         public
         onlyOwner
     {
         require(blockNum == lastCommittedBlock + 1, "inconsistent block number ordering");
-        require(blocks.length > 0 && blocks.length % 32 == 0, "block roots must be of size 32 bytes");
-        require(blocks.length / 32 == txnsPerBlock.length, "blocks and txnsPerBlock lengths are inconsistent");
-        require(blocks.length / 32 == feesPerBlock.length, "blocks and feesPerBlock lengths are inconsistent");
+        require(headers.length > 0, "no headres present");
+        require(headers.length == txnsPerBlock.length, "blocks and txnsPerBlock lengths are inconsistent");
+        require(headers.length  == feesPerBlock.length, "blocks and feesPerBlock lengths are inconsistent");
 
-        uint memPtr;
-        assembly  {
-            memPtr := add(blocks, 0x20)
+        for (uint i = 0; i < headers.length; i++) {
+            require(txnsPerBlock[i] <= maxTxnsPerBLock, "number of transactions in block exceeds limit");
+
+            childChain[blockNum + i] = childBlock(headers[i], txnsPerBlock[i], feesPerBlock[i], block.timestamp);
+            emit BlockSubmitted(headers[i], blockNum + i, txnsPerBlock[i], feesPerBlock[i]);
         }
 
-        uint maxNumTxPerBlock = 2**16 - 1;
-        bytes32 root;
-        for (uint i = 0; i < txnsPerBlock.length; i++) {
-            require(txnsPerBlock[i] <= maxNumTxPerBlock, "number of transactions per block exceeds limit");
-
-            assembly {
-                root := mload(add(memPtr, mul(i, 32)))
-            }
-
-            childChain[blockNum + i] = childBlock(root, txnsPerBlock[i], feesPerBlock[i], block.timestamp);
-            emit BlockSubmitted(root, blockNum + i, txnsPerBlock[i], feesPerBlock[i]);
-        }
-
-        lastCommittedBlock = lastCommittedBlock.add(txnsPerBlock.length);
+        lastCommittedBlock = lastCommittedBlock.add(headers.length);
    }
 
     // @param owner owner of this deposit
@@ -148,6 +139,7 @@ contract RootChain is Ownable {
         depositExits[nonce] = exit({
             owner: owner,
             amount: amount,
+            committedFee: 0,
             createdAt: block.timestamp,
             position: [0,0,0,nonce],
             state: ExitState.Pending
@@ -188,7 +180,7 @@ contract RootChain is Ownable {
     // @param confirmSignatures confirm signatures sent by the owners of the inputs acknowledging the spend.
     // @notice `confirmSignatures` and `ConfirmSig0`/`ConfirmSig1` are unrelated to each other.
     // @notice `confirmSignatures` is either 65 or 130 bytes in length dependent on if input2 is used.
-    function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes confirmSignatures)
+    function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes confirmSignatures, uint256 committedFee)
         public
         payable
     {
@@ -221,20 +213,23 @@ contract RootChain is Ownable {
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
 
         uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
-        require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
+        exit storage e = txExits[position];
+        require(e.state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
         // calculate the priority of the transaction taking into account the withdrawal delay attack
         // withdrawal delay attack: https://github.com/FourthState/plasma-mvp-rootchain/issues/42
         txExitQueue.insert(Math.max256(blk.createdAt + 1 weeks, block.timestamp) << 128 | position);
-        txExits[position] = exit({
-            owner: txList[12 + 2 * txPos[2]].toAddress(),
-            amount: txList[13 + 2 * txPos[2]].toUint(),
-            createdAt: block.timestamp,
-            position: [txPos[0], txPos[1], txPos[2], 0],
-            state: ExitState.Pending
-        });
+        uint256 amount = txList[13 + 2*txPos[2]].toUint();
 
-        emit StartedTransactionExit(txPos, msg.sender, txList[13 + 2 * txPos[2]].toUint(), confirmSignatures);
+        // write exit to storage
+        e.owner = msg.sender;
+        e.amount = amount;
+        e.committedFee = committedFee;
+        e.position = [txPos[0], txPos[1], txPos[2], 0];
+        e.createdAt = block.timestamp;
+        e.state = ExitState.Pending;
+
+        emit StartedTransactionExit(txPos, msg.sender, amount, confirmSignatures);
     }
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
@@ -285,7 +280,7 @@ contract RootChain is Ownable {
 
         // a fee UTXO has explicitly defined position [blockNumber, 2**16 - 1, 0]
         uint256 txIndex = 2**16 - 1;
-        uint256 position = blockIndexFactor*blockNumber + txIndexFactor*txIndex + 0;
+        uint256 position = blockIndexFactor*blockNumber + txIndexFactor*txIndex;
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
         txExitQueue.insert(Math.max256(childChain[blockNumber].createdAt + 1 weeks, block.timestamp) << 128 | position);
@@ -293,6 +288,7 @@ contract RootChain is Ownable {
         txExits[position] = exit({
             owner: msg.sender,
             amount: feeAmount,
+            committedFee: 0,
             createdAt: block.timestamp,
             position: [blockNumber, txIndex, 0, 0],
             state: ExitState.Pending
@@ -300,6 +296,41 @@ contract RootChain is Ownable {
 
         // pass in empty bytes for confirmSignatures for StartedTransactionExit event.
         emit StartedTransactionExit([blockNumber, txIndex, 0], msg.sender, feeAmount, "");
+    }
+
+    // @param exitedTxPos transaction position of the exit with an invalid committed fee
+    // @param challengingTxPos transaction posision of the inc
+    // @param txBytes raw bytes of the transcation
+    // @param proof merkle proof of the included transaction
+    function challengeFeeMismatch(uint256[3] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof)
+        public
+    {
+        RLPReader.RLPItem[] memory txList;
+        (txList, , ) = decodeTransaction(txBytes);
+
+        // exitingTxPos must be the first input of the challenging transaction
+        require(exitingTxPos[0] == txList[0].toUint() && exitingTxPos[1] == txList[1].toUint()
+                && exitingTxPos[2] == txList[2].toUint(), "exiting transcation must be the first input of the challenging transaction");
+
+
+        childBlock storage blk = childChain[challengingTxPos[0]];
+
+        bytes32 merkleHash = sha256(txBytes);
+        require(merkleHash.checkMembership(challengingTxPos[1], blk.root, proof, blk.numTxns));
+
+        uint256 position = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[0];
+        exit storage e = txExits[position];
+        require(e.state == ExitState.Pending, "exit must be pending");
+
+        uint256 feeAmount = txList[16].toUint();
+        require(e.committedFee != feeAmount, "no mismatch in committed fee");
+
+        // award the challenger the bond
+        balances[msg.sender] = balances[msg.sender].add(minExitBond);
+        totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
+
+        // delete the exit. ExitState defaults to NonExistent
+        delete txExits[position];
     }
 
     // @param depositNonce     the nonce of the deposit trying to exit
@@ -311,8 +342,7 @@ contract RootChain is Ownable {
         public
     {
         RLPReader.RLPItem[] memory txList;
-        RLPReader.RLPItem[] memory sigList;
-        (txList, sigList, ) = decodeTransaction(txBytes);
+        (txList, , ) = decodeTransaction(txBytes);
 
         // ensure that the txBytes is a direct spend of the deposit
         require(nonce == txList[3].toUint() || nonce == txList[9].toUint(), "challenging transaction is not a direct spend");
@@ -404,12 +434,12 @@ contract RootChain is Ownable {
         private
     {
         // getMin will fail if nothing is in the queue
-        if (queue.currentSize() == 0) {
+        if (queue.length == 0) {
             return;
         }
 
         // retrieve the lowest priority and the appropriate exit struct
-        uint256 priority = queue.getMin();
+        uint256 priority = queue[0];
         exit memory currentExit;
         uint256 position;
         if (isDeposits) {
@@ -429,7 +459,7 @@ contract RootChain is Ownable {
         *   3. Funds must exist for the exit to withdraw
         */
         uint256 amountToAdd;
-        while (queue.currentSize() > 0 &&
+        while (queue.length > 0 &&
                (block.timestamp - currentExit.createdAt) > 1 weeks &&
                currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance &&
                gasleft() > 80000) {
@@ -438,7 +468,8 @@ contract RootChain is Ownable {
             if (currentExit.state != ExitState.Pending) {
                 queue.delMin();
             } else {
-                amountToAdd = currentExit.amount.add(minExitBond);
+                // reimburse the bond but remove fee allocated for the operator
+                amountToAdd = currentExit.amount.add(minExitBond).sub(currentExit.committedFee);
                 balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
                 totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
 
@@ -454,12 +485,12 @@ contract RootChain is Ownable {
                 queue.delMin();
             }
 
-            if (queue.currentSize() == 0) {
+            if (queue.length == 0) {
                 return;
             }
 
             // move onto the next oldest exit
-            priority = queue.getMin();
+            priority = queue[0];
             if (isDeposits) {
                 currentExit = depositExits[priority];
             } else {

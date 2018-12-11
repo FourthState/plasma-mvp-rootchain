@@ -9,7 +9,7 @@ contract PriorityQueue_Test {
     uint256[] heapList;
 
     function insert(uint256 k) public { heapList.insert(k); }
-    function getMin() public view returns (uint256) { return heapList.getMin(); }
+    function getMin() public view returns (uint256) { require(heapList.length > 0, "empty queue"); return heapList[0]; }
     function delMin() public { heapList.delMin(); }
-    function currentSize() public view returns (uint256) { return heapList.currentSize(); }
+    function currentSize() public view returns (uint256) { return heapList.length; }
 }
