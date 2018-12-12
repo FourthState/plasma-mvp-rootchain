@@ -29,11 +29,13 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         instance = await PlasmaMVP.new({from: authority});
 
         depositNonce = (await instance.depositNonce.call()).toNumber();
-        await instance.deposit(authority, {from: authority, value: amount});
+        await instance.deposit(authority, {from: authority, value: amount*2});
 
-        // deposit is the first input. authority sends entire deposit to accounts[1]
+        // deposit is the first input. authority creates two outputs. half to accounts[1], rest back to itself
         let txList = Array(17).fill(0);
-        txList[3] = depositNonce; txList[12] = accounts[1]; txList[13] = amount;
+        txList[3] = depositNonce;
+        txList[12] = accounts[1]; txList[13] = amount;
+        txList[14] = authority; txList[15] = amount;
         let txHash = web3.sha3(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
 
         let sigs = [toHex(await web3.eth.sign(authority, txHash)), toHex(Buffer.alloc(65).toString('hex'))];
@@ -241,6 +243,67 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
 
         feeExit = await instance.txExits.call(position);
         assert.equal(feeExit[4].toNumber(), 3, "Fee exit state is not Finalized");
+    });
+
+    it("Allows authority to challenge only a incorrect committed fee", async () => {
+        // spend accounts[1]/authority (2 different inputs!!) => accounts[2] with a fee. fee should only come from the first input
+        // Both outputs spend total of 2*amount
+        let txList2 = Array(17).fill(0);
+        txList2[16] = 5; // fee
+        txList2[0] = txPos[0]; txList2[1] = txPos[1]; txList2[2] = txPos[2];
+        txList2[6] = txPos[0]; txList2[7] = txPos[1]; txList2[8] = 1;
+        txList2[12] = accounts[2]; txList2[13] = amount - 5;
+        txList2[14] = accounts[1]; txList2[15] = amount;
+        let txHash2 = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+
+        let sigs2 = [toHex(await web3.eth.sign(accounts[1], txHash2)), toHex(await web3.eth.sign(authority, txHash2))];
+        let txBytes2 = [txList2, sigs2];
+        txBytes2 = RLP.encode(txBytes2).toString('hex');
+
+        // submit the block
+        let merkleHash2 = sha256String(txBytes2);
+        let merkleRoot2;
+        [merkleRoot2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
+        let blockNum2 = (await instance.lastCommittedBlock.call()).toNumber() + 1;
+        // 5 in fee
+        await instance.submitBlock([toHex(merkleRoot2)], [1], [5], blockNum2, {from: authority});
+
+        let txPos2 = [blockNum2, 0, 0];
+
+        // accounts[1] will start an exit not committing to the fee
+        await instance.startTransactionExit(txPos, toHex(txBytes), toHex(proof),
+            toHex(confirmSignatures), 1, {from: accounts[1], value: minExitBond});
+
+        // authority will exit the second output. Second outputs do not commit fees
+        let secondOutput = [txPos[0], txPos[1], 1];
+        await instance.startTransactionExit(secondOutput, toHex(txBytes), toHex(proof),
+            toHex(confirmSignatures), 0, {from: authority, value: minExitBond});
+        
+        // operator will challenge with second output
+        let err;
+        [err] = await catchError(instance.challengeFeeMismatch(secondOutput, txPos2, toHex(txBytes2), proof2));
+        if (!err)
+            assert.fail("operator challenged with the second input");
+
+        // operator will challenge the exit
+        await instance.challengeFeeMismatch(txPos, txPos2, toHex(txBytes2), proof2);
+
+        let exit = await instance.txExits.call(1000000*txPos[0] + 10*txPos[1]);
+        assert.equal(exit[4].toNumber(), 0, "exit with incorrect fee not deleted");
+
+        // should not be able to challenge an exit which does not exist
+        [err] = await catchError(instance.challengeFeeMismatch(txPos, txPos2, toHex(txBytes2), proof2));
+        if (!err)
+            assert.fail("operator challenged an exit which does not exist");
+
+        // accounts[1] will exit with the correct committed fee
+        await instance.startTransactionExit(txPos, toHex(txBytes), toHex(proof),
+            toHex(confirmSignatures), 5, {from: accounts[1], value: minExitBond});
+
+        // operator will challenge the exit and will fail
+        [err] = await catchError(instance.challengeFeeMismatch(txPos, txPos2, toHex(txBytes2), proof2));
+        if (!err)
+            assert.fail("operator challenged an exit with the correct committed fee");
     });
 
     it("Can challenge a fee withdrawal exit", async () => {

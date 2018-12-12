@@ -26,7 +26,7 @@ contract PlasmaMVP {
     event BlockSubmitted(bytes32 root, uint256 blockNumber, uint256 numTxns, uint256 feeAmount);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce, uint256 ethBlockNum);
 
-    event StartedTransactionExit(uint256[3] position, address owner, uint256 amount, bytes confirmSignatures);
+    event StartedTransactionExit(uint256[3] position, address owner, uint256 amount, bytes confirmSignatures, uint256 committedFee);
     event StartedDepositExit(uint256 nonce, address owner, uint256 amount);
 
     event ChallengedExit(uint256[4] position, address owner, uint256 amount);
@@ -118,7 +118,6 @@ contract PlasmaMVP {
         onlyOperator
     {
         require(blockNum == lastCommittedBlock + 1, "inconsistent block number ordering");
-        require(headers.length > 0, "no headers present");
         require(headers.length == txnsPerBlock.length && headers.length == feesPerBlock.length, "mismatch in the number of headers, txn numbers, and fees");
 
         for (uint i = 0; i < headers.length; i++) {
@@ -223,7 +222,7 @@ contract PlasmaMVP {
             state: ExitState.Pending
         });
 
-        emit StartedTransactionExit(txPos, msg.sender, amount, confirmSignatures);
+        emit StartedTransactionExit(txPos, msg.sender, amount, confirmSignatures, committedFee);
     }
 
     // @returns amount of the exiting transaction
@@ -316,7 +315,7 @@ contract PlasmaMVP {
         });
 
         // pass in empty bytes for confirmSignatures for StartedTransactionExit event.
-        emit StartedTransactionExit([blockNumber, txIndex, 0], msg.sender, feeAmount, "");
+        emit StartedTransactionExit([blockNumber, txIndex, 0], msg.sender, feeAmount, "", 0);
     }
 
     // @param exitedTxPos transaction position of the exit with an invalid committed fee
@@ -333,12 +332,11 @@ contract PlasmaMVP {
         require(exitingTxPos[0] == txList[0].toUint() && exitingTxPos[1] == txList[1].toUint()
                 && exitingTxPos[2] == txList[2].toUint(), "exiting transcation must be the first input of the challenging transaction");
 
-
         childBlock memory plasmaBlock = childChain[challengingTxPos[0]];
-        require(sha256(txBytes).checkMembership(challengingTxPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns));
+        require(sha256(txBytes).checkMembership(challengingTxPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns), "incorrect merkle proof");
 
-        uint256 position = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[0];
-        require(txExits[position].state == ExitState.Pending, "exit must be pending");
+        uint256 position = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
+        require(txExits[position].state == ExitState.Pending, "an exit must be pending");
 
         uint256 feeAmount = txList[16].toUint();
         require(txExits[position].committedFee != feeAmount, "no mismatch in committed fee");
