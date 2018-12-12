@@ -1,24 +1,24 @@
 let RLP = require('rlp');
 let assert = require('chai').assert;
 
-let RootChain = artifacts.require("RootChain");
+let PlasmaMVP = artifacts.require("PlasmaMVP");
 
 let { fastForward, proof, zeroHashes, sha256String, generateMerkleRootAndProof } = require('./rootchain_helpers.js');
 let { catchError, toHex } = require('../utilities.js');
 
-contract('[RootChain] Deposits', async (accounts) => {
-    let rootchain;
+contract('[PlasmaMVP] Deposits', async (accounts) => {
+    let instance;
     let one_week = 604800; // in seconds
     let minExitBond = 10000;
 
     let authority = accounts[0];
     beforeEach(async () => {
-        rootchain = await RootChain.new({from: authority});
+        instance = await PlasmaMVP.new({from: authority});
     });
 
     it("Catches Deposit event", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        let tx = await rootchain.deposit(accounts[1], {from: accounts[1], value: 100});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        let tx = await instance.deposit(accounts[1], {from: accounts[1], value: 100});
         // check Deposit event
         assert.equal(tx.logs[0].args.depositor, accounts[1], "incorrect deposit owner");
         assert.equal(tx.logs[0].args.amount.toNumber(), 100, "incorrect deposit amount");
@@ -26,49 +26,49 @@ contract('[RootChain] Deposits', async (accounts) => {
     });
 
     it("Allows deposits of funds into a different address", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        let tx = await rootchain.deposit(accounts[2], {from: accounts[1], value: 100});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        let tx = await instance.deposit(accounts[2], {from: accounts[1], value: 100});
 
         // check Deposit event
         assert.equal(tx.logs[0].args.depositor, accounts[2], "incorrect deposit owner");
         assert.equal(tx.logs[0].args.amount.toNumber(), 100, "incorrect deposit amount");
         assert.equal(tx.logs[0].args.depositNonce, nonce, "incorrect deposit nonce");
 
-        // check rootchain deposit mapping
-        let deposit = await rootchain.deposits.call(nonce);
+        // check instance deposit mapping
+        let deposit = await instance.deposits.call(nonce);
         assert.equal(deposit[0], accounts[2], "incorrect deposit owner");
         assert.equal(deposit[1], 100, "incorrect deposit amount");
     });
 
     it("Only allows deposit owner to start a deposit exit", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        await rootchain.deposit(accounts[2], {from: accounts[1], value: 100});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[1], value: 100});
         let err;
 
         // accounts[1] cannot start exit because it's not the owner
-        [err] = await catchError(rootchain.startDepositExit(nonce, {from: accounts[1], value: minExitBond}));
+        [err] = await catchError(instance.startDepositExit(nonce, {from: accounts[1], value: minExitBond}));
         if (!err)
             assert.fail("Non deposit owner allowed to start an exit");
 
         //accounts[2] should be able to start exit
-        await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
     });
 
     it("Rejects exiting a deposit twice", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
-        await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[2], value: 100});
+        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
 
         let err;
-        [err] = await catchError(rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond}));
+        [err] = await catchError(instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond}));
         if (!err)
             assert.fail("Started an exit for the same deposit twice.");
     });
 
     it("Catches StartedDepositExit event", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
-        let tx = await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[2], value: 100});
+        let tx = await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
 
         assert.equal(tx.logs[0].args.nonce.toNumber(), nonce, "StartedDepositExit event emits incorrect nonce");
         assert.equal(tx.logs[0].args.owner, accounts[2], "StartedDepositExit event emits incorrect owner");
@@ -76,58 +76,58 @@ contract('[RootChain] Deposits', async (accounts) => {
     });
 
     it("Requires sufficient bond and refunds excess if overpayed", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
         let err;
-        [err] = await catchError(rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond-10}));
+        [err] = await catchError(instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond-10}));
         if (!err)
             assert.fail("started exit with insufficient bond");
 
-        await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond+10});
+        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond+10});
 
-        let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
+        let balance = (await instance.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, 10, "excess for overpayed bond not refunded to sender");
     });
 
     it("Can start and finalize a deposit exit. Child chain balance should reflect accordingly", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
-        let childChainBalance = (await rootchain.childChainBalance.call()).toNumber();
+        let childChainBalance = (await instance.childChainBalance.call()).toNumber();
         assert.equal(childChainBalance, 100);
 
-        await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
         await fastForward(one_week + 100);
-        await rootchain.finalizeDepositExits();
+        await instance.finalizeDepositExits();
 
-        childChainBalance = (await rootchain.childChainBalance.call()).toNumber();
+        childChainBalance = (await instance.childChainBalance.call()).toNumber();
         assert.equal(childChainBalance, 0);
 
-        let balance = (await rootchain.balanceOf.call(accounts[2])).toNumber();
+        let balance = (await instance.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, 100 + minExitBond, "deposit exit not finalized after a week");
 
-        let exit = await rootchain.depositExits.call(nonce);
-        assert.equal(exit[3], 3, "exit's state not set to finalized");
+        let exit = await instance.depositExits.call(nonce);
+        assert.equal(exit[4], 3, "exit's state not set to finalized");
     });
 
     it("Cannot reopen a finalized deposit exit", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
-        await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[2], value: 100});
+        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
 
         await fastForward(one_week + 100);
 
-        await rootchain.finalizeDepositExits();
+        await instance.finalizeDepositExits();
         let err;
-        [err] = await catchError(rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond}));
+        [err] = await catchError(instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond}));
         if (!err)
             assert.fail("reopened a finalized deposit exit");
     });
 
     it("Correctly challenge a spent deposit", async () => {
-        let nonce = (await rootchain.depositNonce.call()).toNumber();
-        await rootchain.deposit(accounts[2], {from: accounts[2], value: 100});
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
         // construct transcation with first input as the deposit
         let msg = Array(17).fill(0);
@@ -153,35 +153,35 @@ contract('[RootChain] Deposits', async (accounts) => {
         let root;
         [root, proof] = generateMerkleRootAndProof([merkleHash], 0);
 
-        let blockNum = (await rootchain.lastCommittedBlock.call()).toNumber() + 1;
-        await rootchain.submitBlock(toHex(root), [1], [0], blockNum, {from: authority});
+        let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
+        await instance.submitBlock([toHex(root)], [1], [0], blockNum, {from: authority});
 
         // create the confirm sig
         let confirmHash = sha256String(merkleHash + root.slice(2));
         let confirmSig = await web3.eth.sign(accounts[2], confirmHash);
 
         // start the malicious exit
-        await rootchain.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
 
         // checks matching inputs
         let err;
-        [err] = await catchError(rootchain.challengeDepositExit(nonce-1, [blockNum, 0, 0],
+        [err] = await catchError(instance.challengeDepositExit(nonce-1, [blockNum, 0, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("did not check against matching inputs");
 
         // correctly challenge
-        await rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
+        await instance.challengeDepositExit(nonce, [blockNum, 0, 0],
             toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[3]});
 
-        let balance = (await rootchain.balanceOf.call(accounts[3])).toNumber();
+        let balance = (await instance.balanceOf.call(accounts[3])).toNumber();
         assert.equal(balance, minExitBond, "challenger not awarded exit bond");
 
-        let exit = await rootchain.depositExits.call(nonce);
-        assert.equal(exit[3], 2, "exit state not changed to challenged");
+        let exit = await instance.depositExits.call(nonce);
+        assert.equal(exit[4], 2, "exit state not changed to challenged");
 
         // Cannot challenge twice
-        [err] = await catchError(rootchain.challengeDepositExit(nonce, [blockNum, 0, 0],
+        [err] = await catchError(instance.challengeDepositExit(nonce, [blockNum, 0, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("Allowed a challenge for an exit already challenged");
