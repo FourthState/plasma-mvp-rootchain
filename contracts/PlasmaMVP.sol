@@ -335,52 +335,20 @@ contract PlasmaMVP {
         childBlock memory plasmaBlock = childChain[challengingTxPos[0]];
         require(sha256(txBytes).checkMembership(challengingTxPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns), "incorrect merkle proof");
 
-        exit storage e = exitingTxPos[3] == 0 ? 
+        exit storage exit_ = exitingTxPos[3] == 0 ? 
             txExits[blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2]] : depositExits[exitingTxPos[3]];
-        require(e.state == ExitState.Pending, "an exit must be pending");
+        require(exit_.state == ExitState.Pending, "an exit must be pending");
 
         uint256 feeAmount = txList[16].toUint();
-        require(e.committedFee != feeAmount, "no mismatch in committed fee");
+        require(exit_.committedFee != feeAmount, "no mismatch in committed fee");
 
         // award the challenger the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
         totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
 
         // mark the exit as NonExistent. Can be reopened
-        e.state = ExitState.NonExistent;
-    }
-
-    // @param depositNonce     the nonce of the deposit trying to exit
-    // @param newTxPos         position of the transaction with this deposit as an input [blkNum, txIndex, outputIndex]
-    // @param txBytes          bytes of this transcation
-    // @param proof            merkle proof of inclusion
-    // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
-    function challengeDepositExit(uint256 nonce, uint256[3] newTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
-        public
-    {
-        RLPReader.RLPItem[] memory txList;
-        (txList, , ) = decodeTransaction(txBytes);
-
-        // ensure that the txBytes is a direct spend of the deposit
-        require(nonce == txList[3].toUint() || nonce == txList[9].toUint(), "challenging transaction is not a direct spend");
-
-        exit memory exit_ = depositExits[nonce];
-        require(exit_.state == ExitState.Pending, "no pending exit to challenge");
-
-        // check for inclusion in the side chain
-        childBlock storage blk = childChain[newTxPos[0]];
-
-        bytes32 merkleHash = sha256(txBytes);
-        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.root));
-        require(exit_.owner == confirmationHash.recover(confirmSignature), "mismatch in exit owner and confirm signature");
-        require(merkleHash.checkMembership(newTxPos[1], blk.root, proof, blk.numTxns), "incorrect merkle proof");
-
-        // exit successfully challenged
-        balances[msg.sender] = balances[msg.sender].add(minExitBond);
-        totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
-
-        depositExits[nonce].state = ExitState.Challenged;
-        emit ChallengedExit(exit_.position, exit_.owner, exit_.amount);
+        exit_.state = ExitState.NonExistent;
+        emit ChallengedExit(exitingTxPos, exit_.owner, exit_.amount - exit_.committedFee);
     }
 
     // @param exitingTxPos     position of the invalid exiting transaction [blkNum, txIndex, outputIndex]
@@ -388,7 +356,7 @@ contract PlasmaMVP {
     // @param txBytes          raw transaction bytes of the challenging transaction
     // @param proof            proof of inclusion for this merkle hash
     // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
-    function challengeTransactionExit(uint256[3] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
+    function challengeExit(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
         public
     {
         RLPReader.RLPItem[] memory txList;
@@ -399,12 +367,12 @@ contract PlasmaMVP {
         require(ensureMatchingInputs(exitingTxPos, txList), "challenging transaction is not a direct spend");
 
         // transaction to be challenged should have a pending exit
-        uint256 position = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
-        exit memory exit_ = txExits[position];
+        exit storage exit_ = exitingTxPos[3] == 0 ? 
+            txExits[blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2]] : depositExits[exitingTxPos[3]];
         require(exit_.state == ExitState.Pending, "no pending exit to challenge");
 
         // confirm challenging transcation's inclusion and confirm signature
-        childBlock storage blk = childChain[challengingTxPos[0]];
+        childBlock memory blk = childChain[challengingTxPos[0]];
 
         bytes32 merkleHash = sha256(txBytes);
         bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.root));
@@ -417,14 +385,14 @@ contract PlasmaMVP {
         emit AddedToBalances(msg.sender, minExitBond);
 
         // reflect challenged state
-        txExits[position].state = ExitState.Challenged;
-        emit ChallengedExit(exit_.position, exit_.owner, exit_.amount);
+        exit_.state = ExitState.Challenged;
+        emit ChallengedExit(exit_.position, exit_.owner, exit_.amount - exit_.committedFee);
     }
 
     // When challenging an exiting transcation located at `exitingTxPos`, we must make sure that the challenging
     // transcation posted is either a direct spend of the exit if the confirm signature was not included in the txBytes of
     // the exiting transaction
-    function ensureMatchingInputs(uint256[3] exitingTxPos, RLPReader.RLPItem[] memory challengingTxList)
+    function ensureMatchingInputs(uint256[4] exitingTxPos, RLPReader.RLPItem[] memory challengingTxList)
         private
         pure
         returns (bool)
@@ -434,7 +402,8 @@ contract PlasmaMVP {
 
         if (exitingTxPos[0] == challengingTxList[0 + 6*i].toUint()
             && exitingTxPos[1] == challengingTxList[1 + 6*i].toUint()
-            && exitingTxPos[2] == challengingTxList[2 + 6*i].toUint())
+            && exitingTxPos[2] == challengingTxList[2 + 6*i].toUint()
+            && exitingTxPos[3] == challengingTxList[3 + 6*i].toUint())
             return true;
 
         return false;

@@ -126,7 +126,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
             toHex(txBytes), toHex(proof), toHex(confirmSigs), 0, {from: newOwner, value: minExitBond});
 
         // challenge the exit above
-        await instance.challengeTransactionExit(txPos, newTxPostxPos,
+        await instance.challengeExit([...txPos, 0], newTxPostxPos,
             toHex(newTxBytes), toHex(newProof), toHex(newConfirmSigs),
             {from: accounts[2]});
 
@@ -365,7 +365,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         assert.equal(feeExit[4].toNumber(), 1, "Fee exit state is not Pending");
 
         // challenge fee exit
-        await instance.challengeTransactionExit([blockNum, Math.pow(2, 16) - 1, 0], [blockNum2, 0, 0],
+        await instance.challengeExit([blockNum, Math.pow(2, 16) - 1, 0, 0], [blockNum2, 0, 0],
             toHex(newTxBytes2), toHex(proof2), toHex(newConfirmSignatures2),
             {from: accounts[2]});
 
@@ -466,14 +466,14 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
             assert.fail("started exit when the child has a pending exit");
 
         // matching input required
-        [err] = await catchError(instance.challengeTransactionExit([txPos[0], 0, 1], [blockNum, 0, 0],
+        [err] = await catchError(instance.challengeExit([txPos[0], 0, 1, 0], [blockNum, 0, 0],
             toHex(newTxBytes), toHex(proof2), toHex(newConfirmSignatures.substring(0,65),
             {from: accounts[2]})));
         if (!err)
             assert.fail("challenged with transaction that is not a direct child");
 
         // challenge
-        await instance.challengeTransactionExit(txPos, [blockNum, 0, 0],
+        await instance.challengeExit([...txPos, 0], [blockNum, 0, 0],
             toHex(newTxBytes), toHex(proof2), toHex(newConfirmSignatures),
             {from: accounts[2]});
 
@@ -573,7 +573,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
 
         // try to challenge with the spend of the first output
         let err;
-        [err] = await catchError(instance.challengeTransactionExit([blockNum1, 0, 1], [blockNum2, 0, 0],
+        [err] = await catchError(instance.challengeExit([blockNum1, 0, 1, 0], [blockNum2, 0, 0],
             toHex(txBytes2), toHex(proof2), toHex(confirmSigs2)))
         if (!err)
             assert.fail("Challenged with incorrect transaction")

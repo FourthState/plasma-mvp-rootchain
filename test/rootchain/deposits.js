@@ -165,13 +165,13 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
 
         // checks matching inputs
         let err;
-        [err] = await catchError(instance.challengeDepositExit(nonce-1, [blockNum, 0, 0],
+        [err] = await catchError(instance.challengeExit([0,0,0,nonce-1], [blockNum, 0, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("did not check against matching inputs");
 
         // correctly challenge
-        await instance.challengeDepositExit(nonce, [blockNum, 0, 0],
+        await instance.challengeExit([0,0,0,nonce], [blockNum, 0, 0],
             toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[3]});
 
         let balance = (await instance.balanceOf.call(accounts[3])).toNumber();
@@ -181,7 +181,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         assert.equal(exit[4], 2, "exit state not changed to challenged");
 
         // Cannot challenge twice
-        [err] = await catchError(instance.challengeDepositExit(nonce, [blockNum, 0, 0],
+        [err] = await catchError(instance.challengeExit([0,0,0,nonce], [blockNum, 0, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("Allowed a challenge for an exit already challenged");
