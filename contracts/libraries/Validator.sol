@@ -4,6 +4,8 @@ import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 import "./BytesUtil.sol";
 
 library Validator {
+    using BytesUtil for bytes;
+
     // @param txHash      transaction hash
     // @param rootHash    block header of the merkle tree
     // @param input1      indicator for the second input
@@ -22,8 +24,8 @@ library Validator {
             address recoveredAddr0 = recover(txHash, sig0);
             address recoveredAddr1 = recover(txHash, sig1);
 
-            return recoveredAddr0 == recover(confirmationHash, BytesUtil.slice(confirmSignatures, 0, 65))
-                   && recoveredAddr1 == recover(confirmationHash, BytesUtil.slice(confirmSignatures, 65, 65))
+            return recoveredAddr0 == recover(confirmationHash, confirmSignatures.slice(0, 65))
+                   && recoveredAddr1 == recover(confirmationHash, confirmSignatures.slice(65, 65))
                    && recoveredAddr0 != address(0) && recoveredAddr1 != address(0);
         }
 

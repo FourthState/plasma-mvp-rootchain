@@ -449,10 +449,7 @@ contract PlasmaMVP {
     function finalize(uint256[] storage queue, bool isDeposits)
         private
     {
-        // getMin will fail if nothing is in the queue
-        if (queue.length == 0) {
-            return;
-        }
+        if (queue.length == 0) return;
 
         // retrieve the lowest priority and the appropriate exit struct
         uint256 priority = queue[0];
@@ -475,8 +472,7 @@ contract PlasmaMVP {
         *   3. Funds must exist for the exit to withdraw
         */
         uint256 amountToAdd;
-        while (queue.length > 0 &&
-               (block.timestamp - currentExit.createdAt) > 1 weeks &&
+        while ((block.timestamp - currentExit.createdAt) > 1 weeks &&
                currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance &&
                gasleft() > 80000) {
 
