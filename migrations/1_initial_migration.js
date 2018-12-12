@@ -7,15 +7,17 @@ let Validator = artifacts.require("Validator");
 let Validator_Test = artifacts.require("Validator_Test");
 
 let TMSimpleMerkleTree = artifacts.require("TMSimpleMerkleTree");
+let TMSimpleMerkleTree_Test = artifacts.require("TMSimpleMerkleTree_Test");
 
-let RootChain = artifacts.require("RootChain");
+let PlasmaMVP = artifacts.require("PlasmaMVP");
 
 module.exports = function(deployer, network, accounts) {
     deployer.deploy(Migrations);
-    // deploy libraries which have no internal functions
+
+    // deploy and link libraries
     deployer.deploy([PriorityQueue, TMSimpleMerkleTree, Validator], {from: accounts[0]}).then(() => {
-        deployer.link(PriorityQueue, [PriorityQueue_Test, RootChain]);
-        deployer.link(Validator, [Validator_Test, RootChain]);
-        deployer.link(TMSimpleMerkleTree, [RootChain]);
+        deployer.link(PriorityQueue, [PriorityQueue_Test, PlasmaMVP]);
+        deployer.link(Validator, [Validator_Test, PlasmaMVP]);
+        deployer.link(TMSimpleMerkleTree, [TMSimpleMerkleTree_Test, PlasmaMVP]);
     });
 };
