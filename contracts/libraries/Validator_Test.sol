@@ -9,7 +9,7 @@ import "./Validator.sol";
 contract Validator_Test {
   using Validator for bytes32;
 
-  function checkSigs(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sig0, bytes sig1, bytes confirmSignatures)
+  function checkSignatures(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sig0, bytes sig1, bytes confirmSignatures)
       public
       pure
       returns (bool)

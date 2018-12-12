@@ -14,6 +14,15 @@ library PriorityQueue {
             percUp(heapList, heapList.length.sub(1));
     }
 
+    function getMin(uint256[] storage heapList)
+        public
+        view
+        returns (uint256)
+    {
+        require(heapList.length > 0, "empty queue");
+        return heapList[0];
+    }
+
     function delMin(uint256[] storage heapList)
         public
         returns (uint256)

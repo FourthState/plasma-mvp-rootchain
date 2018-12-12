@@ -2,13 +2,14 @@ pragma solidity ^0.4.24;
 
 // external modules
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 import "solidity-rlp/contracts/RLPReader.sol";
 
-import "../libraries/Validator.sol";
-import "../libraries/TMSimpleMerkleTree.sol";
-import "../libraries/PriorityQueue.sol";
+import "./libraries/TMSimpleMerkleTree.sol";
+import "./libraries/Validator.sol";
+import "./libraries/PriorityQueue.sol";
 
-contract RootChain {
+contract PlasmaMVP {
     using PriorityQueue for uint256[];
     using RLPReader for bytes;
     using RLPReader for RLPReader.RLPItem;
@@ -302,7 +303,8 @@ contract RootChain {
         uint256 position = blockIndexFactor*blockNumber + txIndexFactor*txIndex;
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
-        //txExitQueue.insert(Math.max(childChain[blockNumber].createdAt + 1 weeks, block.timestamp) << 128 | position);
+        txExitQueue.insert(max(childChain[blockNumber].createdAt + 1 weeks, block.timestamp) << 128 | position);
+
         uint256 feeAmount = childChain[blockNumber].feeAmount;
         txExits[position] = exit({
             owner: msg.sender,
@@ -562,7 +564,7 @@ contract RootChain {
     */
 
     function max(uint256 a, uint256 b)
-        internal
+        private
         pure
         returns (uint256)
     {
