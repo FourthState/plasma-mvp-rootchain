@@ -25,7 +25,7 @@ library TMSimpleMerkleTree {
 
     // helper function as described in the tendermint docs
     function computeHashFromAunts(uint256 index, uint256 total, bytes32 leaf, bytes innerHashes)
-        internal
+        private
         pure
         returns (bytes32)
     {

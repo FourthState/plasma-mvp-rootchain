@@ -44,7 +44,7 @@ library PriorityQueue {
     }
 
     function minChild(uint256[] storage heapList, uint256 i)
-        internal
+        private
         view
         returns (uint256)
     {
@@ -58,7 +58,7 @@ library PriorityQueue {
     }
 
     function percUp(uint256[] storage heapList, uint256 i)
-        internal
+        private
     {
         uint256 position = i;
         uint256 value = heapList[i];
@@ -74,7 +74,7 @@ library PriorityQueue {
     }
 
     function percDown(uint256[] storage heapList, uint256 i)
-        internal
+        private
     {
         uint position = i;
         uint value = heapList[i];
