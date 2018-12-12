@@ -12,7 +12,7 @@ library Validator {
     // @param sigs        transaction signatures
     // @notice            when one input is present, we require it to be the first input by convention
     function checkSignatures(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sig0, bytes sig1, bytes confirmSignatures)
-        public
+        internal
         pure
         returns (bool)
     {
@@ -37,7 +37,7 @@ library Validator {
     }
 
     function recover(bytes32 hash, bytes sig)
-        public
+        internal
         pure
         returns (address)
     {

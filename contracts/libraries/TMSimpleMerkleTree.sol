@@ -12,7 +12,7 @@ library TMSimpleMerkleTree {
     // @param proof    sequence of 32-byte hashes from the leaf up to, but excluding, the root
     // @paramt total   total # of leafs in the tree
     function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof, uint256 total)
-        public
+        internal
         pure
         returns (bool)
     {
@@ -25,7 +25,7 @@ library TMSimpleMerkleTree {
 
     // helper function as described in the tendermint docs
     function computeHashFromAunts(uint256 index, uint256 total, bytes32 leaf, bytes innerHashes)
-        private
+        internal
         pure
         returns (bytes32)
     {
