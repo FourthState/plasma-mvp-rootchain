@@ -275,7 +275,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
             toHex(confirmSignatures), 1, {from: accounts[1], value: minExitBond});
 
         // authority will exit the second output. Second outputs do not commit fees
-        let secondOutput = [txPos[0], txPos[1], 1];
+        let secondOutput = [txPos[0], txPos[1], 1, 0];
         await instance.startTransactionExit(secondOutput, toHex(txBytes), toHex(proof),
             toHex(confirmSignatures), 0, {from: authority, value: minExitBond});
         
@@ -286,13 +286,13 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
             assert.fail("operator challenged with the second input");
 
         // operator will challenge the exit
-        await instance.challengeFeeMismatch(txPos, txPos2, toHex(txBytes2), proof2);
+        await instance.challengeFeeMismatch([txPos[0], txPos[1], txPos[2], 0], txPos2, toHex(txBytes2), proof2);
 
         let exit = await instance.txExits.call(1000000*txPos[0] + 10*txPos[1]);
         assert.equal(exit[4].toNumber(), 0, "exit with incorrect fee not deleted");
 
         // should not be able to challenge an exit which does not exist
-        [err] = await catchError(instance.challengeFeeMismatch(txPos, txPos2, toHex(txBytes2), proof2));
+        [err] = await catchError(instance.challengeFeeMismatch([txPos[0], txPos[1], txPos[2], 0], txPos2, toHex(txBytes2), proof2));
         if (!err)
             assert.fail("operator challenged an exit which does not exist");
 
@@ -301,7 +301,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
             toHex(confirmSignatures), 5, {from: accounts[1], value: minExitBond});
 
         // operator will challenge the exit and will fail
-        [err] = await catchError(instance.challengeFeeMismatch(txPos, txPos2, toHex(txBytes2), proof2));
+        [err] = await catchError(instance.challengeFeeMismatch([txPos[0], txPos[1], txPos[2], 0], txPos2, toHex(txBytes2), proof2));
         if (!err)
             assert.fail("operator challenged an exit with the correct committed fee");
     });
@@ -416,7 +416,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
     });
 
     it("Cannot exit a utxo with an input pending an exit", async () => {
-        await instance.startDepositExit(depositNonce, {from: authority, value: minExitBond});
+        await instance.startDepositExit(depositNonce, 0, {from: authority, value: minExitBond});
 
         let err;
         [err] = await catchError(instance.startTransactionExit(txPos,

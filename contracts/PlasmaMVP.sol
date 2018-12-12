@@ -142,7 +142,7 @@ contract PlasmaMVP {
     }
 
     // @param depositNonce the nonce of the specific deposit
-    function startDepositExit(uint256 nonce)
+    function startDepositExit(uint256 nonce, uint256 committedFee)
         public
         payable
         isBonded
@@ -156,7 +156,7 @@ contract PlasmaMVP {
         depositExits[nonce] = exit({
             owner: owner,
             amount: amount,
-            committedFee: 0,
+            committedFee: committedFee,
             createdAt: block.timestamp,
             position: [0,0,0,nonce],
             state: ExitState.Pending
@@ -318,11 +318,11 @@ contract PlasmaMVP {
         emit StartedTransactionExit([blockNumber, txIndex, 0], msg.sender, feeAmount, "", 0);
     }
 
-    // @param exitedTxPos transaction position of the exit with an invalid committed fee
-    // @param challengingTxPos transaction posision of the inc
+    // @param exitedTxPos transaction position(full position, including deposit nonce) of the exit with an invalid committed fee.
+    // @param challengingTxPos transaction position(only utxo position) of the challenging transcation.
     // @param txBytes raw bytes of the transcation
     // @param proof merkle proof of the included transaction
-    function challengeFeeMismatch(uint256[3] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof)
+    function challengeFeeMismatch(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof)
         public
     {
         RLPReader.RLPItem[] memory txList;
@@ -335,18 +335,19 @@ contract PlasmaMVP {
         childBlock memory plasmaBlock = childChain[challengingTxPos[0]];
         require(sha256(txBytes).checkMembership(challengingTxPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns), "incorrect merkle proof");
 
-        uint256 position = blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2];
-        require(txExits[position].state == ExitState.Pending, "an exit must be pending");
+        exit storage e = exitingTxPos[3] == 0 ? 
+            txExits[blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2]] : depositExits[exitingTxPos[3]];
+        require(e.state == ExitState.Pending, "an exit must be pending");
 
         uint256 feeAmount = txList[16].toUint();
-        require(txExits[position].committedFee != feeAmount, "no mismatch in committed fee");
+        require(e.committedFee != feeAmount, "no mismatch in committed fee");
 
         // award the challenger the bond
         balances[msg.sender] = balances[msg.sender].add(minExitBond);
         totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
 
-        // delete the exit. ExitState defaults to NonExistent
-        delete txExits[position];
+        // mark the exit as NonExistent. Can be reopened
+        e.state = ExitState.NonExistent;
     }
 
     // @param depositNonce     the nonce of the deposit trying to exit

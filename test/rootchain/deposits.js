@@ -46,21 +46,21 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         let err;
 
         // accounts[1] cannot start exit because it's not the owner
-        [err] = await catchError(instance.startDepositExit(nonce, {from: accounts[1], value: minExitBond}));
+        [err] = await catchError(instance.startDepositExit(nonce, 0, {from: accounts[1], value: minExitBond}));
         if (!err)
             assert.fail("Non deposit owner allowed to start an exit");
 
         //accounts[2] should be able to start exit
-        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
     });
 
     it("Rejects exiting a deposit twice", async () => {
         let nonce = (await instance.depositNonce.call()).toNumber();
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
-        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
 
         let err;
-        [err] = await catchError(instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond}));
+        [err] = await catchError(instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond}));
         if (!err)
             assert.fail("Started an exit for the same deposit twice.");
     });
@@ -68,7 +68,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
     it("Catches StartedDepositExit event", async () => {
         let nonce = (await instance.depositNonce.call()).toNumber();
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
-        let tx = await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        let tx = await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
 
         assert.equal(tx.logs[0].args.nonce.toNumber(), nonce, "StartedDepositExit event emits incorrect nonce");
         assert.equal(tx.logs[0].args.owner, accounts[2], "StartedDepositExit event emits incorrect owner");
@@ -80,11 +80,11 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
         let err;
-        [err] = await catchError(instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond-10}));
+        [err] = await catchError(instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond-10}));
         if (!err)
             assert.fail("started exit with insufficient bond");
 
-        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond+10});
+        await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond+10});
 
         let balance = (await instance.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, 10, "excess for overpayed bond not refunded to sender");
@@ -97,7 +97,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         let childChainBalance = (await instance.childChainBalance.call()).toNumber();
         assert.equal(childChainBalance, 100);
 
-        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
         await fastForward(one_week + 100);
         await instance.finalizeDepositExits();
 
@@ -114,13 +114,13 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
     it("Cannot reopen a finalized deposit exit", async () => {
         let nonce = (await instance.depositNonce.call()).toNumber();
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
-        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
 
         await fastForward(one_week + 100);
 
         await instance.finalizeDepositExits();
         let err;
-        [err] = await catchError(instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond}));
+        [err] = await catchError(instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond}));
         if (!err)
             assert.fail("reopened a finalized deposit exit");
     });
@@ -161,7 +161,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         let confirmSig = await web3.eth.sign(accounts[2], confirmHash);
 
         // start the malicious exit
-        await instance.startDepositExit(nonce, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
 
         // checks matching inputs
         let err;
@@ -185,5 +185,40 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("Allowed a challenge for an exit already challenged");
+    });
+
+    it("Allows operator to challenge a deposit spend committing to an incorrect fee", async () => {
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[2], value: 100});
+
+        let txList = Array(17).fill(0);
+        txList[4] = nonce; txList[16] = 5; // fee
+        txList[12] = accounts[1]; txList[13] = 100;
+        let txHash = web3.sha3(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
+        let sigs = [toHex(await web3.eth.sign(accounts[2], txHash)), toHex(Buffer.alloc(65).toString('hex'))];
+
+        let txBytes = [txList, sigs];
+        txBytes = RLP.encode(txBytes).toString('hex');
+
+        // submit the block
+        let merkleHash = sha256String(txBytes);
+        let [merkleRoot, proof] = generateMerkleRootAndProof([merkleHash], 0);
+        let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
+        await instance.submitBlock([toHex(merkleRoot)], [1], [5], blockNum, {from: authority});
+
+        // exit the deposit not committing to the fee
+        await instance.startDepositExit(nonce, 1, {from: accounts[2], value: minExitBond});
+
+        // challenge the exit
+        await instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0, 0], toHex(txBytes), toHex(proof));
+
+        // start the exit again with the correct committed fee
+        await instance.startDepositExit(nonce, 5, {from: accounts[2], value: minExitBond});
+
+        // try challenge the exit
+        let err;
+        [err] = await catchError(instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0, 0], toHex(txBytes), toHex(proof)));
+        if (!err)
+            assert.fail("operator challenged exit with correct committed fee");
     });
 });
