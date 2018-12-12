@@ -3,7 +3,7 @@ let assert = require('chai').assert;
 let TMSimpleMerkleTree_Test = artifacts.require("TMSimpleMerkleTree_Test");
 
 let { catchError, toHex } = require('../utilities.js');
-let { generateMerkleRootAndProof } = require('../rootchain/rootchain_helpers.js');
+let { generateMerkleRootAndProof } = require('../plasmamvp/plasmamvp_helpers.js');
 
 contract('TMSimpleMerkleTree', async (accounts) => {
     let instance;

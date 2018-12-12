@@ -3,7 +3,7 @@ let assert = require('chai').assert;
 
 let PlasmaMVP = artifacts.require("PlasmaMVP");
 
-let { fastForward, proof, zeroHashes, sha256String, generateMerkleRootAndProof } = require('./rootchain_helpers.js');
+let { fastForward, proof, zeroHashes, sha256String, generateMerkleRootAndProof } = require('./plasmamvp_helpers.js');
 let { catchError, toHex } = require('../utilities.js');
 
 contract('[PlasmaMVP] Deposits', async (accounts) => {

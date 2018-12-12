@@ -2,7 +2,7 @@ let assert = require('chai').assert;
 
 let Validator_Test = artifacts.require("Validator_Test");
 let { catchError, toHex } = require('../utilities.js');
-let { generateMerkleRootAndProof } = require('../rootchain/rootchain_helpers.js');
+let { generateMerkleRootAndProof } = require('../plasmamvp/plasmamvp_helpers.js');
 
 contract('Validator', async (accounts) => {
     let instance;

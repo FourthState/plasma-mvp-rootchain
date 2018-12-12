@@ -7,7 +7,7 @@ let {
     fastForward,
     sha256String,
     generateMerkleRootAndProof
-} = require('./rootchain_helpers.js');
+} = require('./plasmamvp_helpers.js');
 
 let { toHex, catchError } = require('../utilities.js');
 
