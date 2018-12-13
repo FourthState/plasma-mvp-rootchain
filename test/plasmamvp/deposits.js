@@ -212,6 +212,9 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         // challenge the exit
         await instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0, 0], toHex(txBytes), toHex(proof));
 
+        let exit = await instance.depositExits.call(nonce);
+        assert.equal(exit[4].toNumber(), 0, "exit state not changed to non existent");
+
         // start the exit again with the correct committed fee
         await instance.startDepositExit(nonce, 5, {from: accounts[2], value: minExitBond});
 
