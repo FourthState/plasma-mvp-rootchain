@@ -85,7 +85,7 @@ committed fee. If there is a mismatch, the exit is invalidated and the bond is a
 ```solidity
 function challengeExit(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
 ```
-`challengingTxPos` follows the convention - `[blockNumber, transcationIndex, outputIndex]`
+`challengingTxPos` follows the convention - `[blockNumber, transcationIndex, outputIndex]`  
 `exitingTxPos` follows the convention - `[blockNumber, transactionIndex, outputIndex, depositNonce`]
 
 A uxto that has starting an exit phase but was already spent on the child chain can be challenged using this function call. A successfull challenge awards the caller with the exit bond.
