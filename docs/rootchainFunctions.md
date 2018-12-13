@@ -89,7 +89,7 @@ function challengeExit(uint256[4] exitingTxPos, uint256[3] challengingTxPos, byt
 `exitingTxPos` follows the convention - `[blockNumber, transactionIndex, outputIndex, depositNonce`]
 
 A uxto that has starting an exit phase but was already spent on the child chain can be challenged using this function call. A successful challenge awards the caller with the exit bond.
-The `exitingTxPos` locates the malicious utxo and is used to calculate the priority. `challengingTxPos` locates the transaction that is the parent (offending transaction is an input into this tx).
+The `exitingTxPos` locates the malicious utxo and is used to calculate the priority. `challengingTxPos` locates the transaction that is the child (offending transaction is an input into this tx).
 The `proof`, `txBytes` and `sigs` is sufficient for a proof of inclusion in the child chain of the parent transaction. The `confirmSignature`, signed by the owner of the malicious transaction,
 acknowledges the inclusion of it's parent in the plasma chain and allows anyone with this confirm signature to challenge a malicious exit of the child.
 
