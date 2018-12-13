@@ -83,7 +83,7 @@ committed fee. If there is a mismatch, the exit is invalidated and the bond is a
 <br />
 
 ```solidity
-function challengeExit(uint256[3] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
+function challengeExit(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
 ```
 `challengingTxPos` follows the convention - `[blockNumber, transcationIndex, outputIndex]`
 `exitingTxPos` follows the convention - `[blockNumber, transactionIndex, outputIndex, depositNonce`]
