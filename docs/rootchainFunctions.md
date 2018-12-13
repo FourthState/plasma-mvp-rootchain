@@ -78,7 +78,7 @@ Note that if the validator attempts to start an exit for a fee-UTXO that has alr
 function challengeFeeMismatch(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof)
 ```
 An exit which posts an invalid committed fee can be challenged with this function. The `txBytes` of `challengingTxPos` which includes the correct fee, along with it's merkle `proof` of inclusion is checked against the exiter's claimed
-committed fee. If there is a mismatch, the exit is invalidated and the bond is awarded ot the challenger. `exitingTxPos` must be the first input of `challengingTxPos`. `exitingTxPos` is the full position including the deposit nonce.
+committed fee. If there is a mismatch, the exit is invalidated and the bond is awarded to the challenger. `exitingTxPos` must be the first input of `challengingTxPos`. `exitingTxPos` is the full position including the deposit nonce.
 
 <br />
 
