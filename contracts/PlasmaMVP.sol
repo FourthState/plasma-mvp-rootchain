@@ -365,7 +365,9 @@ contract PlasmaMVP {
         (txList, sigList, ) = decodeTransaction(txBytes);
 
         // must be a direct spend
-        require(ensureMatchingInputs(exitingTxPos, txList), "challenging transaction is not a direct spend");
+        require((exitingTxPos[0] == txList[0].toUint() && exitingTxPos[1] == txList[1].toUint()&& exitingTxPos[2] == txList[2].toUint() && exitingTxPos[3] == txList[3].toUint())
+            || (exitingTxPos[0] == txList[6].toUint() && exitingTxPos[1] == txList[7].toUint()&& exitingTxPos[2] == txList[8].toUint() && exitingTxPos[3] == txList[9].toUint()),
+            "challenging transaction is not a direct spend");
 
         // transaction to be challenged should have a pending exit
         exit storage exit_ = exitingTxPos[3] == 0 ? 
@@ -388,26 +390,6 @@ contract PlasmaMVP {
         // reflect challenged state
         exit_.state = ExitState.Challenged;
         emit ChallengedExit(exit_.position, exit_.owner, exit_.amount - exit_.committedFee);
-    }
-
-    // When challenging an exiting transcation located at `exitingTxPos`, we must make sure that the challenging
-    // transcation posted is either a direct spend of the exit if the confirm signature was not included in the txBytes of
-    // the exiting transaction
-    function ensureMatchingInputs(uint256[4] exitingTxPos, RLPReader.RLPItem[] memory challengingTxList)
-        private
-        pure
-        returns (bool)
-    {
-        // indicator for which input to check int the challenging transaction
-        uint i = exitingTxPos[0] == challengingTxList[0].toUint() ? 0 : 1;
-
-        if (exitingTxPos[0] == challengingTxList[0 + 6*i].toUint()
-            && exitingTxPos[1] == challengingTxList[1 + 6*i].toUint()
-            && exitingTxPos[2] == challengingTxList[2 + 6*i].toUint()
-            && exitingTxPos[3] == challengingTxList[3 + 6*i].toUint())
-            return true;
-
-        return false;
     }
 
     function finalizeDepositExits() public { finalize(depositExitQueue, true); }
