@@ -318,9 +318,9 @@ contract PlasmaMVP {
         emit StartedTransactionExit([blockNumber, txIndex, 0], msg.sender, feeAmount, "", 0);
     }
 
-    // @param exitedTxPos transaction position(full position, including deposit nonce) of the exit with an invalid committed fee.
-    // @param challengingTxPos transaction position(only (blockNum, txIndex)) of the challenging transcation.
-    // @param txBytes raw bytes of the transcation
+    // @param exitedTxPos transaction position. Full position - [blkNum, txIndex, outputIndex, depositNonce]
+    // @param challengingTxPos transaction position [blkNum, txIndex]
+    // @param txBytes raw bytes of the transaction
     // @param proof merkle proof of the included transaction
     function challengeFeeMismatch(uint256[4] exitingTxPos, uint256[2] challengingTxPos, bytes txBytes, bytes proof)
         public
@@ -353,11 +353,11 @@ contract PlasmaMVP {
     }
 
     // @param exitingTxPos     position of the invalid exiting transaction [blkNum, txIndex, outputIndex]
-    // @param challengingTxPos position of the challenging transaction [blkNum, txIndex, outputIndex]
+    // @param challengingTxPos position of the challenging transaction [blkNum, txIndex]
     // @param txBytes          raw transaction bytes of the challenging transaction
     // @param proof            proof of inclusion for this merkle hash
     // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
-    function challengeExit(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
+    function challengeExit(uint256[4] exitingTxPos, uint256[2] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
         public
     {
         RLPReader.RLPItem[] memory txList;

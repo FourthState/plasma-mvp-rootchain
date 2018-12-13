@@ -165,13 +165,13 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
 
         // checks matching inputs
         let err;
-        [err] = await catchError(instance.challengeExit([0,0,0,nonce-1], [blockNum, 0, 0],
+        [err] = await catchError(instance.challengeExit([0,0,0,nonce-1], [blockNum, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("did not check against matching inputs");
 
         // correctly challenge
-        await instance.challengeExit([0,0,0,nonce], [blockNum, 0, 0],
+        await instance.challengeExit([0,0,0,nonce], [blockNum, 0],
             toHex(txBytes), toHex(proof), toHex(confirmSig), {from: accounts[3]});
 
         let balance = (await instance.balanceOf.call(accounts[3])).toNumber();
@@ -181,7 +181,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         assert.equal(exit[4], 2, "exit state not changed to challenged");
 
         // Cannot challenge twice
-        [err] = await catchError(instance.challengeExit([0,0,0,nonce], [blockNum, 0, 0],
+        [err] = await catchError(instance.challengeExit([0,0,0,nonce], [blockNum, 0],
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("Allowed a challenge for an exit already challenged");
@@ -192,7 +192,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
         let txList = Array(17).fill(0);
-        txList[4] = nonce; txList[16] = 5; // fee
+        txList[3] = nonce; txList[16] = 5; // fee
         txList[12] = accounts[1]; txList[13] = 100;
         let txHash = web3.sha3(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
         let sigs = [toHex(await web3.eth.sign(accounts[2], txHash)), toHex(Buffer.alloc(65).toString('hex'))];
@@ -210,7 +210,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         await instance.startDepositExit(nonce, 1, {from: accounts[2], value: minExitBond});
 
         // challenge the exit
-        await instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0, 0], toHex(txBytes), toHex(proof));
+        await instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0], toHex(txBytes), toHex(proof));
 
         let exit = await instance.depositExits.call(nonce);
         assert.equal(exit[4].toNumber(), 0, "exit state not changed to non existent");
@@ -220,7 +220,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
 
         // try challenge the exit
         let err;
-        [err] = await catchError(instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0, 0], toHex(txBytes), toHex(proof)));
+        [err] = await catchError(instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0], toHex(txBytes), toHex(proof)));
         if (!err)
             assert.fail("operator challenged exit with correct committed fee");
     });
