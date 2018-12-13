@@ -75,8 +75,10 @@ Note that if the validator attempts to start an exit for a fee-UTXO that has alr
 <br />
 
 ```solidity
-function challengeFeeMismatch(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof)
+function challengeFeeMismatch(uint256[4] exitingTxPos, uint256[2] challengingTxPos, bytes txBytes, bytes proof)
 ```
+The output of the `challengingTxPos` is not needed for a successful challenge. Only `(blockNum, txIndex)` for a merkle proof.
+
 An exit which posts an invalid committed fee can be challenged with this function. The `txBytes` of `challengingTxPos` which includes the correct fee, along with it's merkle `proof` of inclusion is checked against the exiter's claimed
 committed fee. If there is a mismatch, the exit is invalidated and the bond is awarded to the challenger. `exitingTxPos` must be the first input of `challengingTxPos`. `exitingTxPos` is the full position including the deposit nonce.
 

@@ -319,10 +319,10 @@ contract PlasmaMVP {
     }
 
     // @param exitedTxPos transaction position(full position, including deposit nonce) of the exit with an invalid committed fee.
-    // @param challengingTxPos transaction position(only utxo position) of the challenging transcation.
+    // @param challengingTxPos transaction position(only (blockNum, txIndex)) of the challenging transcation.
     // @param txBytes raw bytes of the transcation
     // @param proof merkle proof of the included transaction
-    function challengeFeeMismatch(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof)
+    function challengeFeeMismatch(uint256[4] exitingTxPos, uint256[2] challengingTxPos, bytes txBytes, bytes proof)
         public
     {
         RLPReader.RLPItem[] memory txList;
@@ -330,7 +330,8 @@ contract PlasmaMVP {
 
         // exitingTxPos must be the first input of the challenging transaction
         require(exitingTxPos[0] == txList[0].toUint() && exitingTxPos[1] == txList[1].toUint()
-                && exitingTxPos[2] == txList[2].toUint(), "exiting transcation must be the first input of the challenging transaction");
+                && exitingTxPos[2] == txList[2].toUint() && exitingTxPos[3] == txList[3].toUint(),
+                "exiting transcation must be the first input of the challenging transaction");
 
         childBlock memory plasmaBlock = childChain[challengingTxPos[0]];
         require(sha256(txBytes).checkMembership(challengingTxPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns), "incorrect merkle proof");
