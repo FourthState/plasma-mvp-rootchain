@@ -1,6 +1,6 @@
 # Rootchain Documentation
 
-The transcation bytes, `txBytes`, in the contract follow the convention:  
+The transaction bytes, `txBytes`, in the contract follow the convention:  
 ```
 RLP_ENCODE ([
   [Blknum1, TxIndex1, Oindex1, DepositNonce1, Owner1, Input1ConfirmSig,
@@ -59,7 +59,7 @@ A valid exit satisfies the following properties:
 function startDepositExit(uint256 nonce, uint256 committedFee)
 ```
 Exit procedure for deposits that have not been spent. Deposits are purely identified by their `nonce`. The caller's address must match the owner of the deposit.
-A valid exit must satisfy the same constraints listed above for normal utxo exits except confirm signatures. Deposits exits are also collected into their own seperate queue from normal transcations.
+A valid exit must satisfy the same constraints listed above for normal utxo exits except confirm signatures. Deposits exits are also collected into their own seperate queue from normal transactions.
 This is because of the differing priority calculation. The priority of a deposit is purely it's nonce while the priority of a utxo is calculated from it's location in the child chain. The owner of the exit must
 commit to any fee, `committedFee`.
 
@@ -85,10 +85,10 @@ committed fee. If there is a mismatch, the exit is invalidated and the bond is a
 ```solidity
 function challengeExit(uint256[4] exitingTxPos, uint256[3] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
 ```
-`challengingTxPos` follows the convention - `[blockNumber, transcationIndex, outputIndex]`  
+`challengingTxPos` follows the convention - `[blockNumber, transactionIndex, outputIndex]`  
 `exitingTxPos` follows the convention - `[blockNumber, transactionIndex, outputIndex, depositNonce`]
 
-A uxto that has starting an exit phase but was already spent on the child chain can be challenged using this function call. A successfull challenge awards the caller with the exit bond.
+A uxto that has starting an exit phase but was already spent on the child chain can be challenged using this function call. A successful challenge awards the caller with the exit bond.
 The `exitingTxPos` locates the malicious utxo and is used to calculate the priority. `challengingTxPos` locates the transaction that is the parent (offending transaction is an input into this tx).
 The `proof`, `txBytes` and `sigs` is sufficient for a proof of inclusion in the child chain of the parent transaction. The `confirmSignature`, signed by the owner of the malicious transaction,
 acknowledges the inclusion of it's parent in the plasma chain and allows anyone with this confirm signature to challenge a malicious exit of the child.
