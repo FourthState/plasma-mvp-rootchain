@@ -441,7 +441,7 @@ contract PlasmaMVP {
                 else
                     txExits[position].state = ExitState.Finalized;
 
-                emit FinalizedExit(currentExit.position, currentExit.owner, amountToAdd); 
+                emit FinalizedExit(currentExit.position, currentExit.owner, amountToAdd);
                 emit AddedToBalances(currentExit.owner, amountToAdd);
 
                 // move onto the next oldest exit
