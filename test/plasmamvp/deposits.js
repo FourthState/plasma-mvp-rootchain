@@ -259,8 +259,6 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         let depositExits = await instance.finalizeDepositExits({from: authority});
         assert.equal(depositExits.logs[0].args.position.toString(), [0, 0, 0, nonce_2].toString(), "nonce_2 was not finalized first");
         
-        //fastForward(one_week);
-        //depositExits = await instance.finalizeDepositExits({from: authority});
         assert.equal(depositExits.logs[2].args.position.toString(), [0, 0, 0, nonce_0].toString(), "nonce_0 was not finalized second");
         assert.equal(depositExits.logs[4].args.position.toString(), [0, 0, 0, nonce_1].toString(), "nonce_1 was not finalized last");
     });
