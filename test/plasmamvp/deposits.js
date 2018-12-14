@@ -244,20 +244,24 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         // exit nonce_2 
         await instance.startDepositExit(nonce_2, 0, {from: accounts[2], value: minExitBond});
         
+        // first exit should be in a different eth block
+        fastForward(10);
+        
         // exit nonce_1 then nonce_0 in the same ethereum block
-        function exits(nonce_1, nonce_0) {
-            instance.startDepositExit(nonce_1, 0, {from: accounts[2], value: minExitBond});
-            instance.startDepositExit(nonce_0, 0, {from: accounts[2], value: minExitBond});
-        };
-        exits(nonce_1, nonce_0);
+        async function exits(nonce_1, nonce_0) {
+            let p1 = instance.startDepositExit(nonce_1, 0, {from: accounts[2], value: minExitBond});
+            let p2 = instance.startDepositExit(nonce_0, 0, {from: accounts[2], value: minExitBond});
+            return Promise.all([p1, p2]);
+        }
+        await exits(nonce_1, nonce_0);
        
         fastForward(one_week);
         let depositExits = await instance.finalizeDepositExits({from: authority});
         assert.equal(depositExits.logs[0].args.position.toString(), [0, 0, 0, nonce_2].toString(), "nonce_2 was not finalized first");
         
-        fastForward(one_week);
-        depositExits = await instance.finalizeDepositExits({from: authority});
-        assert.equal(depositExits.logs[0].args.position.toString(), [0, 0, 0, nonce_0].toString(), "nonce_0 was not finalized second");
-        assert.equal(depositExits.logs[2].args.position.toString(), [0, 0, 0, nonce_1].toString(), "nonce_1 was not finalized last");
+        //fastForward(one_week);
+        //depositExits = await instance.finalizeDepositExits({from: authority});
+        assert.equal(depositExits.logs[2].args.position.toString(), [0, 0, 0, nonce_0].toString(), "nonce_0 was not finalized second");
+        assert.equal(depositExits.logs[4].args.position.toString(), [0, 0, 0, nonce_1].toString(), "nonce_1 was not finalized last");
     });
 });
