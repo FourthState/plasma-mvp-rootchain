@@ -784,10 +784,12 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         let balance = (await instance.balanceOf.call(accounts[1])).toNumber();
         assert.equal(balance, 2 * (amount + minExitBond));
 
+        // Verify that txn1 has been exited
         let position = 1000000*txPos[0];
         let exit = await instance.txExits.call(position);
         assert.equal(exit[4].toNumber(), 3, "exit's state not set to finalized");
 
+        // Verify that txn2 has been exited
         position = 1000000*txPos2[0];
         exit = await instance.txExits.call(position);
         assert.equal(exit[4].toNumber(), 3, "exit has been challenged or finalized");
