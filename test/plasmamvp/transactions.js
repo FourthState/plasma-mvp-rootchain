@@ -278,7 +278,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         let secondOutput = [txPos[0], txPos[1], 1, 0];
         await instance.startTransactionExit(secondOutput, toHex(txBytes), toHex(proof),
             toHex(confirmSignatures), 0, {from: authority, value: minExitBond});
-        
+
         // operator will challenge with second output
         let err;
         [err] = await catchError(instance.challengeFeeMismatch(secondOutput, txPos2, toHex(txBytes2), proof2));
@@ -777,10 +777,10 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
 
         fastForward(one_week + 1000);
 
-        // Only provide enough gas for 1 txn to be finalized
+        // Provide enough gas for both txns to be finalized
         await instance.finalizeTransactionExits({gas: 200000});
 
-        // The first utxo should have been exited correctly
+        // The both utxo should have been exited correctly
         let balance = (await instance.balanceOf.call(accounts[1])).toNumber();
         assert.equal(balance, 2 * (amount + minExitBond));
 
