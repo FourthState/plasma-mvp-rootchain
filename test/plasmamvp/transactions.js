@@ -792,6 +792,6 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         // Verify that txn2 has been exited
         position = 1000000*txPos2[0];
         exit = await instance.txExits.call(position);
-        assert.equal(exit[4].toNumber(), 3, "exit has been challenged or finalized");
+        assert.equal(exit[4].toNumber(), 3, "exit's state not set to finalized");
     });
 });
