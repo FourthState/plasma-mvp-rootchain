@@ -148,6 +148,7 @@ contract PlasmaMVP {
         isBonded
     {
         require(deposits[nonce].owner == msg.sender, "mismatch in owner");
+        require(deposits[nonce].amount >= committedFee, "committedFee out of bounds of the deposit amount");
         require(depositExits[nonce].state == ExitState.NonExistent, "exit for this deposit already exists");
 
         uint amount = deposits[nonce].amount;
@@ -207,6 +208,7 @@ contract PlasmaMVP {
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
         uint256 amount = startTransactionExitHelper(txPos, txBytes, proof, confirmSignatures);
+        require(amount >= committedFee, "committedFee out of bounds of the transaction amount");
 
         // calculate the priority of the transaction taking into account the withdrawal delay attack
         // withdrawal delay attack: https://github.com/FourthState/plasma-mvp-rootchain/issues/42

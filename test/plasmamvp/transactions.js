@@ -62,6 +62,15 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         await instance.finalizeTransactionExits();
     });
 
+    it("Will reject an exit with a committedFee larger than the transaction amount", async () => {
+        let err;
+        [err] = await catchError(instance.startTransactionExit(txPos,
+            toHex(txBytes), toHex(proof), toHex(confirmSignatures), amount+1, {from: accounts[1], value: minExitBond}));
+
+        if (!err)
+            assert.fail("Started a transaction exit with a committed fee larger than the tx amount");
+    });
+
     it("Allows only the utxo owner to start an exit (hardcoded)", async () => {
         instance = await PlasmaMVP.new({from: authority});
 
