@@ -58,9 +58,9 @@ contract PlasmaMVP {
     }
 
     // exits
-    uint256 minExitBond;
-    uint256[] txExitQueue;
-    uint256[] depositExitQueue;
+    uint256 public minExitBond;
+    uint256[] public txExitQueue;
+    uint256[] public depositExitQueue;
     mapping(uint256 => exit) public txExits;
     mapping(uint256 => exit) public depositExits;
     enum ExitState { NonExistent, Pending, Challenged, Finalized }
@@ -169,8 +169,8 @@ contract PlasmaMVP {
     }
 
     // Transaction encoding:
-    // [[Blknum1, TxIndex1, Oindex1, DepositNonce1, Input1ConfirmSig,
-    //   Blknum2, TxIndex2, Oindex2, DepositNonce2, Input2ConfirmSig,
+    // [[Blknum1, TxIndex1, Oindex1, Owner1, DepositNonce1, Input1ConfirmSig,
+    //   Blknum2, TxIndex2, Oindex2, Owner2, DepositNonce2, Input2ConfirmSig,
     //   NewOwner, Denom1, NewOwner, Denom2, Fee],
     //  [Signature1, Signature2]]
     //
@@ -185,7 +185,7 @@ contract PlasmaMVP {
         require(spendMsg.length == 2, "incorrect encoding of the transcation");
 
         txList = spendMsg[0].toList();
-        require(txList.length == 15, "incorrect number of items in the transaction list");
+        require(txList.length == 17, "incorrect number of items in the transaction list");
 
         sigList = spendMsg[1].toList();
         require(sigList.length == 2, "two signatures must be present");
@@ -214,7 +214,7 @@ contract PlasmaMVP {
         // calculate the priority of the transaction taking into account the withdrawal delay attack
         // withdrawal delay attack: https://github.com/FourthState/plasma-mvp-rootchain/issues/42
         uint256 createdAt = childChain[txPos[0]].createdAt;
-        txExitQueue.insert(max(createdAt + 1 weeks, block.timestamp) << 128 | position);
+        txExitQueue.insert(SafeMath.max(createdAt + 1 weeks, block.timestamp) << 128 | position);
 
         // write exit to storage
         txExits[position] = exit({
@@ -306,7 +306,7 @@ contract PlasmaMVP {
         uint256 position = blockIndexFactor*blockNumber + txIndexFactor*txIndex;
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
-        txExitQueue.insert(max(childChain[blockNumber].createdAt + 1 weeks, block.timestamp) << 128 | position);
+        txExitQueue.insert(SafeMath.max(childChain[blockNumber].createdAt + 1 weeks, block.timestamp) << 128 | position);
 
         uint256 feeAmount = childChain[blockNumber].feeAmount;
         txExits[position] = exit({
@@ -330,7 +330,9 @@ contract PlasmaMVP {
         public
     {
         RLPReader.RLPItem[] memory txList;
-        (txList, , ) = decodeTransaction(txBytes);
+        RLPReader.RLPItem[] memory sigList;
+        bytes32 txHash;
+        (txList, sigList, txHash) = decodeTransaction(txBytes);
 
         // exitingTxPos must be the first input of the challenging transaction
         require(exitingTxPos[0] == txList[0].toUint() && exitingTxPos[1] == txList[1].toUint()
@@ -339,6 +341,11 @@ contract PlasmaMVP {
 
         childBlock memory plasmaBlock = childChain[challengingTxPos[0]];
         require(sha256(txBytes).checkMembership(challengingTxPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns), "incorrect merkle proof");
+
+        // check transaction signatures
+        require(txList[4].toAddress() == txHash.recover(sigList[0].toBytes()), "mismatch in the first signature");
+        if (txList[6].toUint() > 0 || txList[9].toUint() > 0) // existence of the first input
+            require(txList[10].toAddress() == txHash.recover(sigList[1].toBytes()), "mismatch in the second signature");
 
         exit storage exit_ = exitingTxPos[3] == 0 ? 
             txExits[blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2]] : depositExits[exitingTxPos[3]];
@@ -503,17 +510,5 @@ contract PlasmaMVP {
         returns (uint256)
     {
         return balances[_address];
-    }
-
-    /*
-    * Utils
-    */
-
-    function max(uint256 a, uint256 b)
-        private
-        pure
-        returns (uint256)
-    {
-        return a >= b ? a : b;
     }
 }
