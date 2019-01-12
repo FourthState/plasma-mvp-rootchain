@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 import "./BytesUtil.sol";
 
@@ -11,7 +11,7 @@ library TMSimpleMerkleTree {
     // @param rootHash block header of the merkle tree
     // @param proof    sequence of 32-byte hashes from the leaf up to, but excluding, the root
     // @paramt total   total # of leafs in the tree
-    function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof, uint256 total)
+    function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes memory proof, uint256 total)
         internal
         pure
         returns (bool)
@@ -24,7 +24,7 @@ library TMSimpleMerkleTree {
     }
 
     // helper function as described in the tendermint docs
-    function computeHashFromAunts(uint256 index, uint256 total, bytes32 leaf, bytes innerHashes)
+    function computeHashFromAunts(uint256 index, uint256 total, bytes32 leaf, bytes memory innerHashes)
         private
         pure
         returns (bytes32)
@@ -50,9 +50,9 @@ library TMSimpleMerkleTree {
             mstore8(memPtr, 0x20)
         }
 
+        uint innerHashesMemOffset = innerHashes.length - 32;
         if (index < numLeft) {
-            bytes32 leftHash = computeHashFromAunts(index, numLeft, leaf, innerHashes.slice( 0, innerHashes.length - 32));
-            uint innerHashesMemOffset = innerHashes.length - 32;
+            bytes32 leftHash = computeHashFromAunts(index, numLeft, leaf, innerHashes.slice(0, innerHashes.length - 32));
             assembly {
                 // get the last 32-byte hash from innerHashes array
                 proofElement := mload(add(add(innerHashes, 0x20), innerHashesMemOffset))
@@ -61,7 +61,6 @@ library TMSimpleMerkleTree {
             return sha256(abi.encodePacked(b, leftHash, b, proofElement));
         } else {
             bytes32 rightHash = computeHashFromAunts(index-numLeft, total-numLeft, leaf, innerHashes.slice(0, innerHashes.length - 32));
-            innerHashesMemOffset = innerHashes.length - 32;
             assembly {
                     // get the last 32-byte hash from innerHashes array
                     proofElement := mload(add(add(innerHashes, 0x20), innerHashesMemOffset))

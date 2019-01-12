@@ -1,10 +1,11 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 // external modules
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 import "solidity-rlp/contracts/RLPReader.sol";
 
+// libraries
+import "./libraries/SafeMath.sol";
+import "./libraries/ECDSA.sol";
 import "./libraries/TMSimpleMerkleTree.sol";
 import "./libraries/Validator.sol";
 import "./libraries/PriorityQueue.sol";
@@ -14,9 +15,9 @@ contract PlasmaMVP {
     using RLPReader for bytes;
     using RLPReader for RLPReader.RLPItem;
     using SafeMath for uint256;
-
     using Validator for bytes32;
     using TMSimpleMerkleTree for bytes32;
+    using ECDSA for bytes32;
 
     /*
      * Events
@@ -113,7 +114,7 @@ contract PlasmaMVP {
     // @param txnsPerBlock number of transactions per block
     // @param feesPerBlock amount of fees the validator has collected per block
     // @param blockNum     the block number of the first header
-    function submitBlock(bytes32[] headers, uint256[] txnsPerBlock, uint256[] feesPerBlock, uint256 blockNum)
+    function submitBlock(bytes32[] memory headers, uint256[] memory txnsPerBlock, uint256[] memory feesPerBlock, uint256 blockNum)
         public
         onlyOperator
     {
@@ -127,7 +128,7 @@ contract PlasmaMVP {
             emit BlockSubmitted(headers[i], blockNum + i, txnsPerBlock[i], feesPerBlock[i]);
         }
 
-        lastCommittedBlock = lastCommittedBlock.add(headers.length);
+        lastCommittedBlock = lastCommittedBlock.add(uint256(headers.length));
    }
 
     // @param owner owner of this deposit
@@ -138,7 +139,7 @@ contract PlasmaMVP {
         deposits[depositNonce] = depositStruct(owner, msg.value, block.timestamp, block.number);
         emit Deposit(owner, msg.value, depositNonce, block.number);
 
-        depositNonce = depositNonce.add(1);
+        depositNonce = depositNonce.add(uint256(1));
     }
 
     // @param depositNonce the nonce of the specific deposit
@@ -151,8 +152,8 @@ contract PlasmaMVP {
         require(deposits[nonce].amount > committedFee, "committedFee out of bounds of the deposit amount");
         require(depositExits[nonce].state == ExitState.NonExistent, "exit for this deposit already exists");
 
-        uint amount = deposits[nonce].amount;
         address owner = deposits[nonce].owner;
+        uint256 amount = deposits[nonce].amount;
         uint256 priority = block.timestamp << 128 | nonce;
         depositExitQueue.insert(priority);
         depositExits[nonce] = exit({
@@ -168,14 +169,14 @@ contract PlasmaMVP {
     }
 
     // Transaction encoding:
-    // [[Blknum1, TxIndex1, Oindex1, DepositNonce1, Owner1, Input1ConfirmSig,
-    //   Blknum2, TxIndex2, Oindex2, DepositNonce2, Owner2, Input2ConfirmSig,
+    // [[Blknum1, TxIndex1, Oindex1, DepositNonce1, Input1ConfirmSig,
+    //   Blknum2, TxIndex2, Oindex2, DepositNonce2, Input2ConfirmSig,
     //   NewOwner, Denom1, NewOwner, Denom2, Fee],
     //  [Signature1, Signature2]]
     //
     // @param txBytes rlp encoded transaction
     // @notice this function will revert if the txBytes are malformed
-    function decodeTransaction(bytes txBytes)
+    function decodeTransaction(bytes memory txBytes)
         internal
         pure
         returns (RLPReader.RLPItem[] memory txList, RLPReader.RLPItem[] memory sigList, bytes32 txHash)
@@ -184,7 +185,7 @@ contract PlasmaMVP {
         require(spendMsg.length == 2, "incorrect encoding of the transcation");
 
         txList = spendMsg[0].toList();
-        require(txList.length == 17, "incorrect number of items in the transaction list");
+        require(txList.length == 15, "incorrect number of items in the transaction list");
 
         sigList = spendMsg[1].toList();
         require(sigList.length == 2, "two signatures must be present");
@@ -199,7 +200,7 @@ contract PlasmaMVP {
     // @param confirmSignatures confirm signatures sent by the owners of the inputs acknowledging the spend.
     // @notice `confirmSignatures` and `ConfirmSig0`/`ConfirmSig1` are unrelated to each other.
     // @notice `confirmSignatures` is either 65 or 130 bytes in length dependent on if input2 is used.
-    function startTransactionExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes confirmSignatures, uint256 committedFee)
+    function startTransactionExit(uint256[3] memory txPos, bytes memory txBytes, bytes memory proof, bytes memory confirmSignatures, uint256 committedFee)
         public
         payable
         isBonded
@@ -230,7 +231,7 @@ contract PlasmaMVP {
 
     // @returns amount of the exiting transaction
     // @notice the purpose of this helper was to work around the capped evm stack frame
-    function startTransactionExitHelper(uint256[3] txPos, bytes txBytes, bytes proof, bytes confirmSignatures)
+    function startTransactionExitHelper(uint256[3] memory txPos, bytes memory txBytes, bytes memory proof, bytes memory confirmSignatures)
         private
         view
         returns (uint256)
@@ -325,7 +326,7 @@ contract PlasmaMVP {
     // @param challengingTxPos transaction position [blkNum, txIndex]
     // @param txBytes raw bytes of the transaction
     // @param proof merkle proof of the included transaction
-    function challengeFeeMismatch(uint256[4] exitingTxPos, uint256[2] challengingTxPos, bytes txBytes, bytes proof)
+    function challengeFeeMismatch(uint256[4] memory exitingTxPos, uint256[2] memory challengingTxPos, bytes memory txBytes, bytes memory proof)
         public
     {
         RLPReader.RLPItem[] memory txList;
@@ -360,7 +361,7 @@ contract PlasmaMVP {
     // @param txBytes          raw transaction bytes of the challenging transaction
     // @param proof            proof of inclusion for this merkle hash
     // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
-    function challengeExit(uint256[4] exitingTxPos, uint256[2] challengingTxPos, bytes txBytes, bytes proof, bytes confirmSignature)
+    function challengeExit(uint256[4] memory exitingTxPos, uint256[2] memory challengingTxPos, bytes memory txBytes, bytes memory proof, bytes memory confirmSignature)
         public
     {
         RLPReader.RLPItem[] memory txList;

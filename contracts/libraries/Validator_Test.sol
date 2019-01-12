@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 import "./Validator.sol";
 
@@ -9,19 +9,11 @@ import "./Validator.sol";
 contract Validator_Test {
   using Validator for bytes32;
 
-  function checkSignatures(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes sig0, bytes sig1, bytes confirmSignatures)
+  function checkSignatures(bytes32 txHash, bytes32 confirmationHash, bool input1, bytes memory sig0, bytes memory sig1, bytes memory confirmSignatures)
       public
       pure
       returns (bool)
   {
       return txHash.checkSignatures(confirmationHash, input1, sig0, sig1, confirmSignatures);
-  }
-
-  function recover(bytes32 hash, bytes sig)
-      public
-      pure
-      returns (address)
-  {
-      return hash.recover(sig);
   }
 }
