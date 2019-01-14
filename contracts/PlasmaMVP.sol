@@ -7,15 +7,13 @@ import "solidity-rlp/contracts/RLPReader.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/ECDSA.sol";
 import "./libraries/TMSimpleMerkleTree.sol";
-import "./libraries/Validator.sol";
-import "./libraries/PriorityQueue.sol";
+import "./libraries/MinPriorityQueue.sol";
 
 contract PlasmaMVP {
-    using PriorityQueue for uint256[];
+    using MinPriorityQueue for uint256[];
     using RLPReader for bytes;
     using RLPReader for RLPReader.RLPItem;
     using SafeMath for uint256;
-    using Validator for bytes32;
     using TMSimpleMerkleTree for bytes32;
     using ECDSA for bytes32;
 
@@ -27,8 +25,9 @@ contract PlasmaMVP {
     event BlockSubmitted(bytes32 root, uint256 blockNumber, uint256 numTxns, uint256 feeAmount);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce, uint256 ethBlockNum);
 
-    event StartedTransactionExit(uint256[3] position, address owner, uint256 amount, bytes confirmSignatures, uint256 committedFee);
-    event StartedDepositExit(uint256 nonce, address owner, uint256 amount);
+    event StartedTransactionExit(uint256[3] position, address owner, uint256 amount,
+                                 bytes confirmSignature0, bytes confirmSignature1, uint256 committedFee);
+    event StartedDepositExit(uint256 nonce, address owner, uint256 amount, uint256 committedFee);
 
     event ChallengedExit(uint256[4] position, address owner, uint256 amount);
     event FinalizedExit(uint256[4] position, address owner, uint256 amount);
@@ -165,12 +164,12 @@ contract PlasmaMVP {
             state: ExitState.Pending
         });
 
-        emit StartedDepositExit(nonce, owner, amount);
+        emit StartedDepositExit(nonce, owner, amount, committedFee);
     }
 
     // Transaction encoding:
-    // [[Blknum1, TxIndex1, Oindex1, Owner1, DepositNonce1, Input1ConfirmSig,
-    //   Blknum2, TxIndex2, Oindex2, Owner2, DepositNonce2, Input2ConfirmSig,
+    // [[Blknum1, TxIndex1, Oindex1, DepositNonce1, Input1ConfirmSig,
+    //   Blknum2, TxIndex2, Oindex2, DepositNonce2, Input2ConfirmSig,
     //   NewOwner, Denom1, NewOwner, Denom2, Fee],
     //  [Signature1, Signature2]]
     //
@@ -185,7 +184,7 @@ contract PlasmaMVP {
         require(spendMsg.length == 2, "incorrect encoding of the transcation");
 
         txList = spendMsg[0].toList();
-        require(txList.length == 17, "incorrect number of items in the transaction list");
+        require(txList.length == 15, "incorrect number of items in the transaction list");
 
         sigList = spendMsg[1].toList();
         require(sigList.length == 2, "two signatures must be present");
@@ -197,10 +196,12 @@ contract PlasmaMVP {
     // @param txPos             location of the transaction [blkNum, txIndex, outputIndex]
     // @param txBytes           raw transaction bytes
     // @param proof             merkle proof of inclusion in the child chain
-    // @param confirmSignatures confirm signatures sent by the owners of the inputs acknowledging the spend.
+    // @param confSig0          confirm signatures sent by the owners of the first input acknowledging the spend.
+    // @param confSig1          confirm signatures sent by the owners of the second input acknowledging the spend (if applicable).
     // @notice `confirmSignatures` and `ConfirmSig0`/`ConfirmSig1` are unrelated to each other.
     // @notice `confirmSignatures` is either 65 or 130 bytes in length dependent on if input2 is used.
-    function startTransactionExit(uint256[3] memory txPos, bytes memory txBytes, bytes memory proof, bytes memory confirmSignatures, uint256 committedFee)
+    function startTransactionExit(uint256[3] memory txPos, bytes memory txBytes, bytes memory proof,
+                                  bytes memory confSig0, bytes memory confSig1, uint256 committedFee)
         public
         payable
         isBonded
@@ -208,7 +209,7 @@ contract PlasmaMVP {
         uint256 position = blockIndexFactor*txPos[0] + txIndexFactor*txPos[1] + txPos[2];
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
-        uint256 amount = startTransactionExitHelper(txPos, txBytes, proof, confirmSignatures);
+        uint256 amount = startTransactionExitHelper(txPos, txBytes, proof, confSig0, confSig1);
         require(amount > committedFee, "committedFee out of bounds of the transaction amount");
 
         // calculate the priority of the transaction taking into account the withdrawal delay attack
@@ -226,12 +227,13 @@ contract PlasmaMVP {
             state: ExitState.Pending
         });
 
-        emit StartedTransactionExit(txPos, msg.sender, amount, confirmSignatures, committedFee);
+        emit StartedTransactionExit(txPos, msg.sender, amount, confSig0, confSig1, committedFee);
     }
 
     // @returns amount of the exiting transaction
     // @notice the purpose of this helper was to work around the capped evm stack frame
-    function startTransactionExitHelper(uint256[3] memory txPos, bytes memory txBytes, bytes memory proof, bytes memory confirmSignatures)
+    function startTransactionExitHelper(uint256[3] memory txPos, bytes memory txBytes, bytes memory proof,
+                                        bytes memory confSig0, bytes memory confSig1)
         private
         view
         returns (uint256)
@@ -241,16 +243,22 @@ contract PlasmaMVP {
         RLPReader.RLPItem[] memory sigList;
         (txList, sigList, txHash) = decodeTransaction(txBytes);
 
-        require(msg.sender == txList[12 + 2*txPos[2]].toAddress(), "mismatch in utxo owner");
+        require(msg.sender == txList[10 + 2*txPos[2]].toAddress(), "mismatch in utxo owner");
 
         childBlock memory plasmaBlock = childChain[txPos[0]];
 
         // check signatures
         bytes32 merkleHash = sha256(txBytes);
-        require(txHash.checkSignatures(sha256(abi.encodePacked(merkleHash, plasmaBlock.root)), // confirmation hash -- sha256(merkleHash, root)
-                         // we always assume the first input is always present in a transaction. The second input is optional
-                         txList[6].toUint() > 0 || txList[9].toUint() > 0,
-                         sigList[0].toBytes(), sigList[1].toBytes(), confirmSignatures), "signature mismatch");
+        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, plasmaBlock.root));
+        bytes memory sig = sigList[0].toBytes();
+        require(sig.length == 65 && confSig0.length == 65, "first input's signatures must be 65 bytes in length");
+        require(txHash.recover(sig) == confirmationHash.recover(confSig0), "signature mismatch in the first input");
+        // a deposit input does not have confirm signatures so we only check for the existence of a transactional input
+        if (txList[5].toUint() > 0) {
+            sig = sigList[1].toBytes();
+            require(sig.length == 65 && confSig1.length == 65, "second input's signatures must be 65 bytes in length");
+            require(txHash.recover(sig) == confirmationHash.recover(confSig1), "signature mismatch in the second input");
+        }
 
         // check proof
         require(merkleHash.checkMembership(txPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns), "invalid merkle proof");
@@ -258,7 +266,7 @@ contract PlasmaMVP {
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList), "an input is pending an exit or has been finalized");
 
-        return txList[13 + 2*txPos[2]].toUint();
+        return txList[11 + 2*txPos[2]].toUint();
     }
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
@@ -270,11 +278,11 @@ contract PlasmaMVP {
     {
         for (uint256 i = 0; i < 2; i++) {
             ExitState state;
-            uint depositNonce_ = txList[6*i + 3].toUint();
+            uint depositNonce_ = txList[5*i + 3].toUint();
             if (depositNonce_ == 0) {
-                uint256 blkNum = txList[6*i + 0].toUint();
-                uint256 inputIndex = txList[6*i + 1].toUint();
-                uint256 outputIndex = txList[6*i + 2].toUint();
+                uint256 blkNum = txList[5*i + 0].toUint();
+                uint256 inputIndex = txList[5*i + 1].toUint();
+                uint256 outputIndex = txList[5*i + 2].toUint();
                 uint256 position = blockIndexFactor*blkNum + txIndexFactor*inputIndex + outputIndex;
                 state = txExits[position].state;
             } else
@@ -319,19 +327,20 @@ contract PlasmaMVP {
         });
 
         // pass in empty bytes for confirmSignatures for StartedTransactionExit event.
-        emit StartedTransactionExit([blockNumber, txIndex, 0], msg.sender, feeAmount, "", 0);
+        emit StartedTransactionExit([blockNumber, txIndex, 0], msg.sender, feeAmount, "", "", 0);
     }
 
     // @param exitedTxPos transaction position. Full position - [blkNum, txIndex, outputIndex, depositNonce]
     // @param challengingTxPos transaction position [blkNum, txIndex]
     // @param txBytes raw bytes of the transaction
     // @param proof merkle proof of the included transaction
+    // @notice The exiting transaction bytes are needed to ensure the exiting output is the signer of the challenging transaction
     function challengeFeeMismatch(uint256[4] memory exitingTxPos, uint256[2] memory challengingTxPos, bytes memory txBytes, bytes memory proof)
         public
     {
+        bytes32 txHash;
         RLPReader.RLPItem[] memory txList;
         RLPReader.RLPItem[] memory sigList;
-        bytes32 txHash;
         (txList, sigList, txHash) = decodeTransaction(txBytes);
 
         // exitingTxPos must be the first input of the challenging transaction
@@ -339,19 +348,20 @@ contract PlasmaMVP {
                 && exitingTxPos[2] == txList[2].toUint() && exitingTxPos[3] == txList[3].toUint(),
                 "exiting transcation must be the first input of the challenging transaction");
 
+        // merkle proofs for both transactions
         childBlock memory plasmaBlock = childChain[challengingTxPos[0]];
-        require(sha256(txBytes).checkMembership(challengingTxPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns), "incorrect merkle proof");
-
-        // check transaction signatures
-        require(txList[4].toAddress() == txHash.recover(sigList[0].toBytes()), "mismatch in the first signature");
-        if (txList[6].toUint() > 0 || txList[9].toUint() > 0) // existence of the first input
-            require(txList[10].toAddress() == txHash.recover(sigList[1].toBytes()), "mismatch in the second signature");
+        require(sha256(txBytes).checkMembership(challengingTxPos[1], plasmaBlock.root, proof, plasmaBlock.numTxns),
+                "incorrect merkle proof for the challenging transaction");
 
         exit storage exit_ = exitingTxPos[3] == 0 ? 
             txExits[blockIndexFactor*exitingTxPos[0] + txIndexFactor*exitingTxPos[1] + exitingTxPos[2]] : depositExits[exitingTxPos[3]];
         require(exit_.state == ExitState.Pending, "an exit must be pending");
 
-        uint256 feeAmount = txList[16].toUint();
+        // check the first input's signature.
+        // this prevent's the operator from forging a transaction to challenge any valid exit.
+        require(exit_.owner == txHash.recover(sigList[0].toBytes()), "incorrect first signature");
+
+        uint256 feeAmount = txList[14].toUint();
         require(exit_.committedFee != feeAmount, "no mismatch in committed fee");
 
         // award the challenger the bond
@@ -377,7 +387,7 @@ contract PlasmaMVP {
 
         // must be a direct spend
         require((exitingTxPos[0] == txList[0].toUint() && exitingTxPos[1] == txList[1].toUint()&& exitingTxPos[2] == txList[2].toUint() && exitingTxPos[3] == txList[3].toUint())
-            || (exitingTxPos[0] == txList[6].toUint() && exitingTxPos[1] == txList[7].toUint()&& exitingTxPos[2] == txList[8].toUint() && exitingTxPos[3] == txList[9].toUint()),
+            || (exitingTxPos[0] == txList[5].toUint() && exitingTxPos[1] == txList[6].toUint()&& exitingTxPos[2] == txList[7].toUint() && exitingTxPos[3] == txList[8].toUint()),
             "challenging transaction is not a direct spend");
 
         // transaction to be challenged should have a pending exit

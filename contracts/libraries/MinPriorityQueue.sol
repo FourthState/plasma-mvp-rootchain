@@ -3,28 +3,20 @@ pragma solidity ^0.5.0;
 // external modules
 import "./SafeMath.sol";
 
-library PriorityQueue {
+// MinPriorityQueue for only positive integers
+library MinPriorityQueue {
     using SafeMath for uint256;
 
     function insert(uint256[] storage heapList, uint256 k)
-        internal
+        public
     {
         heapList.push(k);
         if (heapList.length > 1)
             percUp(heapList, heapList.length.sub(1));
     }
 
-    function getMin(uint256[] storage heapList)
-        internal
-        view
-        returns (uint256)
-    {
-        require(heapList.length > 0, "empty queue");
-        return heapList[0];
-    }
-
     function delMin(uint256[] storage heapList)
-        internal
+        public
         returns (uint256)
     {
         require(heapList.length > 0, "empty queue");

@@ -12,7 +12,7 @@ library TMSimpleMerkleTree {
     // @param proof    sequence of 32-byte hashes from the leaf up to, but excluding, the root
     // @paramt total   total # of leafs in the tree
     function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes memory proof, uint256 total)
-        internal
+        public
         pure
         returns (bool)
     {
