@@ -9,15 +9,10 @@
     "coverage": "./node_modules/.bin/solidity-coverage"
   },
   "devDependencies": {
-    "chai": "^4.2.0",
-    "coveralls": "^3.0.2",
-    "solidity-coverage": "^0.5.11"
-  },
-  "dependencies": {
-    "solidity-rlp": "^1.2.0"
-  },
-  "devDependencies": {
     "ethereumjs-util": "^6.0.0",
     "rlp": "^2.2.1"
+  },
+  "dependencies": {
+    "solidity-rlp": "^1.2.1"
   }
 }
