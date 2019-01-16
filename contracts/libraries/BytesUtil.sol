@@ -11,7 +11,7 @@ library BytesUtil {
         pure
         returns (bytes memory)
     {
-        require(_bytes.length - start >= len, "slice out of bounds");
+        require(_bytes.length - start >= len);
 
         if (_bytes.length == len)
             return _bytes;
