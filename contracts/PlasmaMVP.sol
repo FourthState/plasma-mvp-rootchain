@@ -260,7 +260,7 @@ contract PlasmaMVP {
 
         childBlock memory plasmaBlock = childChain[txPos[0]];
 
-        // check signatures if the output is not a fee transaction
+        // check signatures and inputs if the output is not a fee transaction
         // no confirm signatures are present for a fee exit
         bytes32 merkleHash = sha256(txBytes);
         if (txPos[1] < plasmaBlock.numTxns.sub(1)) { // fee index is the last of the block
@@ -273,13 +273,13 @@ contract PlasmaMVP {
                 require(sig.length == 65 && confirmSignatures.length == 130);
                 require(txHash.recover(sig) == confirmationHash.recover(confirmSignatures.slice(65, 65)));
             }
+
+            // check that the UTXO's two direct inputs have not been previously exited
+            require(validateTransactionExitInputs(txList));
         }
 
         // check proof
         require(merkleHash.checkMembership(txPos[1], plasmaBlock.header, proof, plasmaBlock.numTxns));
-
-        // check that the UTXO's two direct inputs have not been previously exited
-        require(validateTransactionExitInputs(txList));
 
         return txList[11 + 2*txPos[2]].toUint();
     }
