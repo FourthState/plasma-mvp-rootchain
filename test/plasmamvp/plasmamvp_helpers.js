@@ -6,21 +6,26 @@ let { toHex } = require('../utilities.js');
 // Fast forward 1 week
 let fastForward = async function(time) {
     let oldTime = (await web3.eth.getBlock("latest")).timestamp;
-    let noOpCallback = function(err, result) {}
 
     // fast forward
-    web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [time], id: 0}, noOpCallback);
-    web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0}, noOpCallback);
-
-    // try at most 10 times to from evm_increaseTime to take effect due to the asynchrony
-    let currTime;
-    for (let i = 0; i < 20; i++) {
-        web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0}, noOpCallback);
-        currTime = (await web3.eth.getBlock("latest")).timestamp;
-        if (currTime - oldTime >= time) break;
+    try {
+        await sendRPC({jsonrpc: "2.0", method: "evm_increaseTime", params: [time], id: 0});
+        await sendRPC({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
+    } catch (err) {
+        assert.fail("failed to increase the evm time");
     }
 
-    assert.isAtLeast(currTime - oldTime, time, `Block time was not fast forwarded by at least ${time} seconds`);
+    let newTime = (await web3.eth.getBlock("latest")).timestamp;
+    assert.isAtLeast(newTime - oldTime, time, `Did not fast forward at least ${time} seconds`);
+}
+
+let sendRPC = async function(payload) {
+    return new Promise((resolve, reject) => {
+        web3.currentProvider.send(payload, (err, result) => {
+            if (err) reject(err)
+            else resolve(result)
+        })
+    })
 }
 
 // SHA256 hash the input and returns it in string form.
@@ -89,5 +94,6 @@ let generateMerkleRootAndProof = function(leaves, index) {
 module.exports = {
     fastForward,
     sha256String,
+    sendRPC,
     generateMerkleRootAndProof
 };

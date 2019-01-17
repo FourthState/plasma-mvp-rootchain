@@ -210,7 +210,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
             assert.fail("Allowed a challenge for an exit already challenged");
     });
 
-    it("Challenge an invalid first input exit fee mismatch", async () => {
+    it("Challenge an invalid first input exit fee mismatch and exit the fee", async () => {
         let nonce = (await instance.depositNonce.call()).toNumber();
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
         let nonce2 = (await instance.depositNonce.call()).toNumber();
@@ -235,6 +235,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
 
         // submit the block
         let [merkleRoot, proof] = generateMerkleRootAndProof([sha256String(txBytes), sha256String(feeTxBytes)], 0);
+        [merkleRoot, feeProof] = generateMerkleRootAndProof([sha256String(txBytes), sha256String(feeTxBytes)], 1);
         let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
         await instance.submitBlock([toHex(merkleRoot)], [2], blockNum, {from: authority});
 
@@ -263,6 +264,10 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         [err] = await catchError(instance.challengeExit([0,0,0,nonce], [blockNum, 0], toHex(txBytes), toHex(proof), toHex("")));
         if (!err)
             assert.fail("operator challenged exit with correct committed fee");
+
+
+        // successfully exit the fee output
+        await instance.startTransactionExit([blockNum, 1, 0], toHex(feeTxBytes), toHex(feeProof), toHex(""), 0, {from: authority, value: minExitBond});
     });
 
     it("Attempts a withdrawal delay attack on exiting deposits", async () => {
@@ -285,20 +290,15 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
 
         // exit nonce_2 
         await instance.startDepositExit(nonce_2, 0, {from: accounts[2], value: minExitBond});
-        
-        // first exit should be in a different eth block
         await fastForward(10);
-        
+
         // exit nonce_1 then nonce_0 in the same ethereum block
-        async function exits(nonce_1, nonce_0) {
-            let p1 = instance.startDepositExit(nonce_1, 0, {from: accounts[2], value: minExitBond});
-            let p2 = instance.startDepositExit(nonce_0, 0, {from: accounts[2], value: minExitBond});
-            return Promise.all([p1, p2]);
-        }
-        await exits(nonce_1, nonce_0);
-       
-        await fastForward(oneWeek);
+        await instance.startDepositExit(nonce_0, 0, {from: accounts[2], value: minExitBond});
+        await instance.startDepositExit(nonce_1, 0, {from: accounts[2], value: minExitBond});
+
+        await fastForward(oneWeek + 10);
         let depositExits = await instance.finalizeDepositExits({from: authority});
+        // every even index to skip the `AddedToBalances` event
         assert.equal(depositExits.logs[0].args.position.toString(), [0, 0, 0, nonce_2].toString(), "nonce_2 was not finalized first");
         assert.equal(depositExits.logs[2].args.position.toString(), [0, 0, 0, nonce_0].toString(), "nonce_0 was not finalized second");
         assert.equal(depositExits.logs[4].args.position.toString(), [0, 0, 0, nonce_1].toString(), "nonce_1 was not finalized last");
