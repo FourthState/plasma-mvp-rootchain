@@ -8,12 +8,16 @@ let { catchError, toHex } = require('../utilities.js');
 
 contract('[PlasmaMVP] Deposits', async (accounts) => {
     let instance;
-    let one_week = 604800; // in seconds
+    let oneWeek = 604800; // in seconds
     let minExitBond = 10000;
 
     let authority = accounts[0];
     before(async () => {
-        instance = await PlasmaMVP.new({from: authority});
+        instance = await PlasmaMVP.deployed();
+    });
+
+    it("Will not revert finalizeDeposit on an empty queue", async () => {
+        await instance.finalizeDepositExits();
     });
 
     it("Catches Deposit event", async () => {
@@ -50,7 +54,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         if (!err)
             assert.fail("Non deposit owner allowed to start an exit");
 
-        //accounts[2] should be able to start exit
+        // accounts[2] should be able to start exit
         await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
     });
 
@@ -61,7 +65,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         let err;
         [err] = await catchError(instance.startDepositExit(nonce, 11, {from: accounts[2], value: minExitBond}));
         if (!err)
-            assert.fail("Exited a deposit with a committed fee larger than the deposit amount");
+            assert.fail("exited a deposit with a committed fee larger than the deposit amount");
     });
 
     it("Rejects exiting a deposit twice", async () => {
@@ -100,8 +104,8 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         assert.equal(balance, 10, "excess for overpayed bond not refunded to sender");
     });
 
-    it("Can start and finalize a deposit exit. Child chain balance should reflect accordingly", async () => {
-        instance = await PlasmaMVP.new({from: authority})
+    it("Can start and finalize a deposit exit", async () => {
+        instance = await PlasmaMVP.new({from: authority});
 
         let nonce = (await instance.depositNonce.call()).toNumber();
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
@@ -110,7 +114,8 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         assert.equal(childChainBalance, 100);
 
         await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
-        await fastForward(one_week + 100);
+        await fastForward(oneWeek + 100);
+
         await instance.finalizeDepositExits();
 
         childChainBalance = (await instance.childChainBalance.call()).toNumber();
@@ -128,7 +133,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
         await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
 
-        await fastForward(one_week + 100);
+        await fastForward(oneWeek + 100);
 
         await instance.finalizeDepositExits();
         let err;
@@ -142,21 +147,21 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
         // construct transcation with first input as the deposit
-        let msg = Array(17).fill(0);
-        msg[3] = nonce; msg[12] = accounts[1]; msg[13] = 100;
+        let msg = Array(15).fill(0);
+        msg[3] = nonce; msg[10] = accounts[1]; msg[11] = 100;
         let encodedMsg = RLP.encode(msg);
-        let hashedEncodedMsg = web3.sha3(encodedMsg.toString('hex'), {encoding: 'hex'});
+        let hashedEncodedMsg = web3.utils.soliditySha3(toHex(encodedMsg.toString('hex')));
 
         // create signature by deposit owner. Second signature should be zero
         let sigList = Array(2).fill(0);
-        sigList[0] = (await web3.eth.sign(accounts[2], hashedEncodedMsg));
+        sigList[0] = (await web3.eth.sign(hashedEncodedMsg, accounts[2]));
 
         let txBytes = Array(2).fill(0);
         txBytes[0] = msg; txBytes[1] = sigList;
         txBytes = RLP.encode(txBytes);
 
         // create signature by deposit owner. Second signature should be zero
-        let sigs = (await web3.eth.sign(accounts[2], hashedEncodedMsg));
+        let sigs = (await web3.eth.sign(hashedEncodedMsg, accounts[2]));
         sigs = sigs + Buffer.alloc(65).toString('hex');
 
         let merkleHash = sha256String(txBytes.toString('hex'));
@@ -166,11 +171,11 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         [root, proof] = generateMerkleRootAndProof([merkleHash], 0);
 
         let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
-        await instance.submitBlock([toHex(root)], [1], [0], blockNum, {from: authority});
+        await instance.submitBlock([toHex(root)], [1], blockNum, {from: authority});
 
         // create the confirm sig
         let confirmHash = sha256String(merkleHash + root.slice(2));
-        let confirmSig = await web3.eth.sign(accounts[2], confirmHash);
+        let confirmSig = await web3.eth.sign(confirmHash, accounts[2]);
 
         // start the malicious exit
         await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
@@ -181,6 +186,12 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
             toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig), {from: accounts[3]}));
         if (!err)
             assert.fail("did not check against matching inputs");
+
+        // invalid confirm signature
+        [err] = await catchError(instance.challengeExit([0,0,0,nonce-1], [blockNum, 0],
+            toHex(txBytes), toHex(sigs), toHex(proof), toHex(confirmSig.substring(0, 30)), {from: accounts[3]}));
+        if (!err)
+            assert.fail("challenged with an invalid signature");
 
         // correctly challenge
         await instance.challengeExit([0,0,0,nonce], [blockNum, 0],
@@ -199,46 +210,63 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
             assert.fail("Allowed a challenge for an exit already challenged");
     });
 
-    it("Allows operator to challenge a deposit spend committing to an incorrect fee", async () => {
+    it("Challenge an invalid first input exit fee mismatch", async () => {
         let nonce = (await instance.depositNonce.call()).toNumber();
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
+        let nonce2 = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
-        let txList = Array(17).fill(0);
-        txList[3] = nonce; txList[16] = 5; // fee
-        txList[12] = accounts[1]; txList[13] = 100;
-        let txHash = web3.sha3(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
-        let sigs = [toHex(await web3.eth.sign(accounts[2], txHash)), toHex(Buffer.alloc(65).toString('hex'))];
-
+        let txList = Array(15).fill(0);
+        txList[3] = nonce; txList[14] = 5; // fee
+        txList[8] = nonce2; // second input
+        txList[10] = accounts[1]; txList[11] = 100;
+        let txHash = web3.utils.soliditySha3(toHex(RLP.encode(txList).toString('hex')));
+        let sigs = [toHex(await web3.eth.sign(txHash, accounts[2])), toHex(Buffer.alloc(65).toString('hex'))];
         let txBytes = [txList, sigs];
         txBytes = RLP.encode(txBytes).toString('hex');
 
-        // submit the block
-        let merkleHash = sha256String(txBytes);
-        let [merkleRoot, proof] = generateMerkleRootAndProof([merkleHash], 0);
-        let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
-        await instance.submitBlock([toHex(merkleRoot)], [1], [5], blockNum, {from: authority});
+        // create the fee transaction
+        let feeTxList = Array(15).fill(0);
+        feeTxList[10] = authority; feeTxList[11] = 5; // total fee amount for the block
+        let feeTxHash = web3.utils.soliditySha3(toHex(RLP.encode(txList).toString('hex'), {encoding: 'hex'}));
+        let feeSigs = [toHex(await web3.eth.sign(feeTxHash, authority)), toHex(Buffer.alloc(65).toString('hex'))];
+        let feeTxBytes = [feeTxList, feeSigs];
+        feeTxBytes = RLP.encode(feeTxBytes).toString('hex');
 
-        // exit the deposit not committing to the fee
+        // submit the block
+        let [merkleRoot, proof] = generateMerkleRootAndProof([sha256String(txBytes), sha256String(feeTxBytes)], 0);
+        let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
+        await instance.submitBlock([toHex(merkleRoot)], [2], blockNum, {from: authority});
+
+        // exit the first deposit input. commit incorrect fee
         await instance.startDepositExit(nonce, 1, {from: accounts[2], value: minExitBond});
 
-        // challenge the exit
-        await instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0], toHex(txBytes), toHex(proof));
+        // exit the second deposit input
+        await instance.startDepositExit(nonce2, 0, {from: accounts[2], value: minExitBond});
+
+        // challenge the first input with a fee mismatch
+        let tx = await instance.challengeExit([0,0,0,nonce], [blockNum, 0], toHex(txBytes), toHex(proof), toHex(""));
 
         let exit = await instance.depositExits.call(nonce);
         assert.equal(exit[4].toNumber(), 0, "exit state not changed to non existent");
 
+        // second input should not be able to be challenged with a fee mismatch
+        let err;
+        [err] = await catchError(instance.challengeExit([0,0,0,nonce2], [blockNum, 0], toHex(txBytes), toHex(proof), toHex("")));
+        if (!err)
+            assert.fail("challenged second input with a fee mismatch");
+
         // start the exit again with the correct committed fee
         await instance.startDepositExit(nonce, 5, {from: accounts[2], value: minExitBond});
 
-        // try challenge the exit
-        let err;
-        [err] = await catchError(instance.challengeFeeMismatch([0,0,0,nonce], [blockNum, 0], toHex(txBytes), toHex(proof)));
+        // try challenge the exit with a fee mismatch
+        [err] = await catchError(instance.challengeExit([0,0,0,nonce], [blockNum, 0], toHex(txBytes), toHex(proof), toHex("")));
         if (!err)
             assert.fail("operator challenged exit with correct committed fee");
     });
 
     it("Attempts a withdrawal delay attack on exiting deposits", async () => {
-        
+
         /* 1. Start exit for nonce_2 (newest) 
          * 2. Start exit for nonce_1, nonce_0 in the same eth block
          * 3. Check exit ordering:  nonce_2, nonce_0, nonce_1
@@ -259,7 +287,7 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         await instance.startDepositExit(nonce_2, 0, {from: accounts[2], value: minExitBond});
         
         // first exit should be in a different eth block
-        fastForward(10);
+        await fastForward(10);
         
         // exit nonce_1 then nonce_0 in the same ethereum block
         async function exits(nonce_1, nonce_0) {
@@ -269,10 +297,9 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         }
         await exits(nonce_1, nonce_0);
        
-        fastForward(one_week);
+        await fastForward(oneWeek);
         let depositExits = await instance.finalizeDepositExits({from: authority});
         assert.equal(depositExits.logs[0].args.position.toString(), [0, 0, 0, nonce_2].toString(), "nonce_2 was not finalized first");
-        
         assert.equal(depositExits.logs[2].args.position.toString(), [0, 0, 0, nonce_0].toString(), "nonce_0 was not finalized second");
         assert.equal(depositExits.logs[4].args.position.toString(), [0, 0, 0, nonce_1].toString(), "nonce_1 was not finalized last");
     });

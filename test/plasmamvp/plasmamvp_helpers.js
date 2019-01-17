@@ -5,14 +5,20 @@ let { toHex } = require('../utilities.js');
 
 // Fast forward 1 week
 let fastForward = async function(time) {
-    await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
-    let oldTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
+    let oldTime = (await web3.eth.getBlock("latest")).timestamp;
+    let noOpCallback = function(err, result) {}
 
     // fast forward
-    await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [time], id: 0});
+    web3.currentProvider.send({jsonrpc: "2.0", method: "evm_increaseTime", params: [time], id: 0}, noOpCallback);
+    web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0}, noOpCallback);
 
-    await web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0});
-    let currTime = (await web3.eth.getBlock(await web3.eth.blockNumber)).timestamp;
+    // try at most 10 times to from evm_increaseTime to take effect due to the asynchrony
+    let currTime;
+    for (let i = 0; i < 20; i++) {
+        web3.currentProvider.send({jsonrpc: "2.0", method: "evm_mine", params: [], id: 0}, noOpCallback);
+        currTime = (await web3.eth.getBlock("latest")).timestamp;
+        if (currTime - oldTime >= time) break;
+    }
 
     assert.isAtLeast(currTime - oldTime, time, `Block time was not fast forwarded by at least ${time} seconds`);
 }
@@ -35,7 +41,7 @@ let sha256StringMultiple = function(input1, input2) {
 // For a given list of leaves, this function constructs a simple merkle tree.
 // It returns the merkle root and the merkle proof for the txn at index.
 // @param leaves The leaves for which this function generates a merkle root and proof
-// @param txIndex The leaf for which this function generates a merkle proof
+// @param index The leaf for which this function generates a merkle proof
 //
 // Simple Tree: https://tendermint.com/docs/spec/blockchain/encoding.html#merkle-trees
 let generateMerkleRootAndProof = function(leaves, index) {

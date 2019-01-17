@@ -344,19 +344,22 @@ contract PlasmaMVP {
         // OR
         // The exiting tx is a first input and commits the correct fee
         //
-        // A first input which has a mismatch in the fee amount is a valid challenge.
-        // the confirm signatures can be empty in this case
-        uint256 feeAmount = txList[14].toUint();
-        if (!firstInput || exit_.committedFee == feeAmount) {
-            bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, plasmaBlock.header));
-            require(exit_.owner == confirmationHash.recover(confirmSignature));
-        }
-
-        // if this challenge was a fee mismatch, then we check the transaction signature
+        // If this challenge was a fee mismatch, then we check the transaction signature
         // to prevent the operator from forging invalid inclusions
-        if (firstInput && exit_.committedFee != feeAmount) {
+        //
+        // For a fee mismatch, the state becomes `NonExistent` so that the exit can be reopened.
+        // Otherwise, `Challenged` so that the exit can never be opened.
+        if (!firstInput || exit_.committedFee == txList[14].toUint()) {
+            bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, plasmaBlock.header));
+            require(confirmSignature.length == 65 && exit_.owner == confirmationHash.recover(confirmSignature));
+
+            exit_.state = ExitState.Challenged;
+        } else {
             bytes memory sig = sigList[0].toBytes();
-            require(sig.length == 65 && exit_.owner == txHash.recover(sig));
+            require(sig.length == 65);
+            require(exit_.owner == txHash.recover(sig), "signature mismatch");
+
+            exit_.state = ExitState.NonExistent;
         }
 
         // exit successfully challenged. Award the sender with the bond
@@ -364,8 +367,6 @@ contract PlasmaMVP {
         totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
         emit AddedToBalances(msg.sender, minExitBond);
 
-        // reflect challenged state
-        exit_.state = ExitState.Challenged;
         emit ChallengedExit(exit_.position, exit_.owner, exit_.amount - exit_.committedFee);
     }
 
@@ -399,8 +400,8 @@ contract PlasmaMVP {
         *   3. Funds must exist for the exit to withdraw
         */
         uint256 amountToAdd;
-        while ((block.timestamp - currentExit.createdAt) > 1 weeks &&
-               currentExit.amount.add(minExitBond) <= address(this).balance - totalWithdrawBalance &&
+        while (block.timestamp.sub(currentExit.createdAt) > 1 weeks &&
+               childChainBalance() > 0 &&
                gasleft() > 80000) {
 
             // skip currentExit if it is not in 'started/pending' state.
@@ -409,6 +410,13 @@ contract PlasmaMVP {
             } else {
                 // reimburse the bond but remove fee allocated for the operator
                 amountToAdd = currentExit.amount.add(minExitBond).sub(currentExit.committedFee);
+                
+                // if malicious activity has occured and the contract funds are not sufficient, spend the rest
+                uint256 plasmaBalance = childChainBalance();
+                if (amountToAdd > plasmaBalance) {
+                    amountToAdd = plasmaBalance;
+                }
+
                 balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
                 totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
 

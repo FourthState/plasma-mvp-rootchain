@@ -29,26 +29,32 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         instance = await PlasmaMVP.new({from: authority});
 
         depositNonce = (await instance.depositNonce.call()).toNumber();
-        await instance.deposit(authority, {from: authority, value: amount*2});
+        await instance.deposit(authority, {from: authority, value: amount*2 + 10});
 
         // deposit is the first input. authority creates two outputs. half to accounts[1], rest back to itself
-        let txList = Array(17).fill(0);
+        // fee amount of 10
+        let txList = Array(15).fill(0);
         txList[3] = depositNonce;
-        txList[12] = accounts[1]; txList[13] = amount;
-        txList[14] = authority; txList[15] = amount;
-        let txHash = web3.sha3(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
-
+        txList[10] = accounts[1]; txList[11] = amount;
+        txList[12] = authority; txList[13] = amount;
+        txList[14] = 10;
+        let txHash = web3.utils.keccak256(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
         let sigs = [toHex(await web3.eth.sign(authority, txHash)), toHex(Buffer.alloc(65).toString('hex'))];
-
         txBytes = [txList, sigs];
         txBytes = RLP.encode(txBytes).toString('hex');
+
+        let feeTxList = Array(15).fill(0);
+        feeTxList[10] = authority; feeTxList[11] = 10;
+        let feeTxHash = web3.utils.keccak256(RLP.encode(feeTxList).toString('hex'), {encoding: 'hex'});
+        let feeSigs = [toHex(await web3.eth.sign(authority, feeTxHash)), toHex(Buffer.alloc(65).toString('hex'))];
+        let feeTxBytes = RLP.encode([feeTxList, feeSigs]).toString('hex');
 
         // submit the block
         let merkleHash = sha256String(txBytes);
         let merkleRoot;
-        [merkleRoot, proof] = generateMerkleRootAndProof([merkleHash], 0);
+        [merkleRoot, proof] = generateMerkleRootAndProof([merkleHash, sha256String(feeTxBytes)], 0);
         let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
-        await instance.submitBlock([toHex(merkleRoot)], [1], [0], blockNum, {from: authority});
+        await instance.submitBlock([toHex(merkleRoot)], [1], blockNum, {from: authority});
 
         // construct the confirm signature
         let confirmHash = sha256String(merkleHash + merkleRoot.slice(2));
@@ -58,7 +64,6 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
     });
 
     it("Will not revert finalizeExit with an empty queue", async () => {
-        await instance.finalizeDepositExits();
         await instance.finalizeTransactionExits();
     });
 
@@ -84,7 +89,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         let total = 2;
 
         // submit block roots
-        let root1 = web3.sha3('1234').slice(2);
+        let root1 = web3.utils.keccak256('1234').slice(2);
         // this side chain block contains 2 txns
         let root2 = "783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109";
 
@@ -119,7 +124,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         let newTotal = 1;
 
         // submit block roots
-        let root1 = web3.sha3('1234').slice(2);
+        let root1 = web3.utils.keccak256('1234').slice(2);
         // this side chain block contains 2 txns
         let root2 = "783842a0f2aacc2f988d0d9736aac13a0530f1c78d55ab468a1debcd6b42f109";
         // this side chain block contains 1 txn
@@ -224,7 +229,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList[13] = depositAmount - feeAmount;
         txList[16] = feeAmount;
 
-        let txHash = web3.sha3(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
+        let txHash = web3.utils.keccak256(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
         let sigs = [toHex(await web3.eth.sign(authority, txHash)), toHex(Buffer.alloc(65).toString('hex'))];
         let txBytes = [txList, sigs];
         txBytes = RLP.encode(txBytes).toString('hex');
@@ -263,7 +268,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList2[6] = txPos[0]; txList2[7] = txPos[1]; txList2[8] = 1;
         txList2[12] = accounts[2]; txList2[13] = amount - 5;
         txList2[14] = accounts[1]; txList2[15] = amount;
-        let txHash2 = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+        let txHash2 = web3.utils.keccak256(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
 
         let sigs2 = [toHex(await web3.eth.sign(accounts[1], txHash2)), toHex(await web3.eth.sign(authority, txHash2))];
         let txBytes2 = [txList2, sigs2];
@@ -330,7 +335,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList[13] = depositAmount - feeAmount;
         txList[16] = feeAmount;
 
-        let txHash = web3.sha3(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
+        let txHash = web3.utils.keccak256(RLP.encode(txList).toString('hex'), {encoding: 'hex'});
         let sigs = [toHex(await web3.eth.sign(authority, txHash)), toHex(Buffer.alloc(65).toString('hex'))];
         let txBytes = [txList, sigs];
         txBytes = RLP.encode(txBytes).toString('hex');
@@ -347,7 +352,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList2[12] = accounts[2]; txList2[13] = feeAmount; // first output
 
         // create signature by deposit owner. Second signature should be zero
-        let txHash2 = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+        let txHash2 = web3.utils.keccak256(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
         let sigs2 = [toHex(await web3.eth.sign(authority, txHash2)), toHex(Buffer.alloc(65).toString('hex'))]
 
         let newTxBytes2 = [txList2, sigs2];
@@ -444,7 +449,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList2[12] = accounts[2]; txList2[13] = amount; // first output
 
         // create signature by deposit owner. Second signature should be zero
-        let txHash = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+        let txHash = web3.utils.keccak256(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
         let sigs = [toHex(await web3.eth.sign(accounts[1], txHash)), toHex(Buffer.alloc(65).toString('hex'))]
 
         let newTxBytes = [txList2, sigs];
@@ -506,7 +511,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         // construct transcation with second input as the deposit
         let txList2 = Array(17).fill(0);
         txList2[9] = nonce; txList2[12] = accounts[1]; txList2[13] = 100;
-        let txHash = web3.sha3(RLP.encode(txList2, {encoding: 'hex'}));
+        let txHash = web3.utils.keccak256(RLP.encode(txList2, {encoding: 'hex'}));
 
         // create signature by deposit owner. Second signature should be zero
         let sigs = [toHex(Buffer.alloc(65).toString('hex')), toHex(await web3.eth.sign(accounts[2], txHash))];
@@ -541,7 +546,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList1[14] = accounts[1]; txList1[15] = amount/2; // second utxo
 
         // include this tx the next block
-        let txHash1 = web3.sha3(RLP.encode(txList1).toString('hex'), {encoding: 'hex'});
+        let txHash1 = web3.utils.keccak256(RLP.encode(txList1).toString('hex'), {encoding: 'hex'});
         let sigs1 = [toHex(await web3.eth.sign(accounts[1], txHash1)), toHex(Buffer.alloc(65).toString('hex'))];
 
         let txBytes1 = RLP.encode([txList1, sigs1]).toString('hex');
@@ -559,7 +564,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         // accounts[1] spends the first output to accounts[2]
         let txList2 = Array(17).fill(0);
         txList2[0] = blockNum1; txList2[12] = accounts[2]; txList2[12] = amount/2;
-        let txHash2 = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+        let txHash2 = web3.utils.keccak256(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
 
         // include this tx the next block
         let sigs2 = [toHex(await web3.eth.sign(accounts[1], txHash2)), toHex(Buffer.alloc(65).toString('hex'))];
@@ -595,7 +600,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList1[0] = txPos[0]; txList1[1] = txPos[1]; txList1[2] = txPos[2]; // first input
         txList1[12] = accounts[1]; txList1[13] = amount/2; // first output
         txList1[14] = accounts[1]; txList1[15] = amount/2; // second output
-        let txHash1 = web3.sha3(RLP.encode(txList1).toString('hex'), {encoding: 'hex'});
+        let txHash1 = web3.utils.keccak256(RLP.encode(txList1).toString('hex'), {encoding: 'hex'});
         let sigs1 = [toHex(await web3.eth.sign(accounts[1], txHash1)), toHex(Buffer.alloc(65).toString('hex'))];
         let txBytes1 = RLP.encode([txList1, sigs1]).toString('hex');
 
@@ -614,7 +619,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList2[0] = blockNum1; txList2[2] = 1; // first input
         txList2[12] = accounts[1]; txList2[13] = amount / 4; // first output
         txList2[14] = accounts[2]; txList2[15] = amount / 4; // second output
-        let txHash2 = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+        let txHash2 = web3.utils.keccak256(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
         let sigs2 = [toHex(await web3.eth.sign(accounts[1], txHash2)), toHex(Buffer.alloc(65).toString('hex'))];
         let txBytes2 = RLP.encode([txList2, sigs2]).toString('hex');
 
@@ -697,7 +702,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         // deposit is the first input. authority sends entire deposit to accounts[1]
         let txList2 = Array(17).fill(0);
         txList2[3] = depositNonce; txList2[12] = accounts[1]; txList2[13] = amount;
-        let txHash2 = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+        let txHash2 = web3.utils.keccak256(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
 
         let sigs2 = [toHex(await web3.eth.sign(authority, txHash2)), toHex(Buffer.alloc(65).toString('hex'))];
 
@@ -755,7 +760,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         // deposit is the first input. authority sends entire deposit to accounts[1]
         let txList2 = Array(17).fill(0);
         txList2[3] = depositNonce; txList2[12] = accounts[1]; txList2[13] = amount;
-        let txHash2 = web3.sha3(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
+        let txHash2 = web3.utils.keccak256(RLP.encode(txList2).toString('hex'), {encoding: 'hex'});
 
         let sigs2 = [toHex(await web3.eth.sign(authority, txHash2)), toHex(Buffer.alloc(65).toString('hex'))];
 
