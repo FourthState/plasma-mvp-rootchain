@@ -1,9 +1,10 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 // external modules
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./SafeMath.sol";
 
-library PriorityQueue {
+// MinPriorityQueue for only positive integers
+library MinPriorityQueue {
     using SafeMath for uint256;
 
     function insert(uint256[] storage heapList, uint256 k)
@@ -14,20 +15,11 @@ library PriorityQueue {
             percUp(heapList, heapList.length.sub(1));
     }
 
-    function getMin(uint256[] storage heapList)
-        internal
-        view
-        returns (uint256)
-    {
-        require(heapList.length > 0, "empty queue");
-        return heapList[0];
-    }
-
     function delMin(uint256[] storage heapList)
         internal
         returns (uint256)
     {
-        require(heapList.length > 0, "empty queue");
+        require(heapList.length > 0);
 
         uint256 min = heapList[0];
 
