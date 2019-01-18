@@ -26,7 +26,7 @@ contract PlasmaMVP {
     event ChangedOperator(address oldOperator, address newOperator);
 
     event AddedToBalances(address owner, uint256 amount);
-    event BlockSubmitted(bytes32 header, uint256 blockNumber, uint256 numTxns);
+    event BlockSubmitted(bytes32 header, uint256 blockNumber, uint256 numTxns, uint256 feeAmount);
     event Deposit(address depositor, uint256 amount, uint256 depositNonce, uint256 ethBlockNum);
 
     event StartedTransactionExit(uint256[3] position, address owner, uint256 amount, bytes confirmSignatures, uint256 committedFee);
@@ -41,14 +41,14 @@ contract PlasmaMVP {
 
     address public operator;
 
-    // child chain
     uint256 public lastCommittedBlock;
     uint256 public depositNonce;
-    mapping(uint256 => childBlock) public childChain;
+    mapping(uint256 => plasmaBlock) public plasmaChain;
     mapping(uint256 => depositStruct) public deposits;
-    struct childBlock {
+    struct plasmaBlock{
         bytes32 header;
         uint256 numTxns;
+        uint256 feeAmount;
         uint256 createdAt;
     }
     struct depositStruct {
@@ -81,6 +81,7 @@ contract PlasmaMVP {
     // constants
     uint256 constant txIndexFactor = 10;
     uint256 constant blockIndexFactor = 1000000;
+    uint256 constant feeIndex = 2**16-1;
 
     /** Modifiers **/
     modifier isBonded()
@@ -106,6 +107,7 @@ contract PlasmaMVP {
         onlyOperator
     {
         require(newOperator != address(0));
+
         emit ChangedOperator(operator, newOperator);
         operator = newOperator;
     }
@@ -116,14 +118,15 @@ contract PlasmaMVP {
 
         lastCommittedBlock = 0;
         depositNonce = 1;
-        minExitBond = 10000;
+        minExitBond = 200000;
     }
 
     // @param blocks       32 byte merkle headers appended in ascending order
     // @param txnsPerBlock number of transactions per block
     // @param feesPerBlock amount of fees the validator has collected per block
     // @param blockNum     the block number of the first header
-    function submitBlock(bytes32[] memory headers, uint256[] memory txnsPerBlock, uint256 blockNum)
+    // @notice each block is capped at 2**16-1 transactions
+    function submitBlock(bytes32[] memory headers, uint256[] memory txnsPerBlock, uint256[] memory feePerBlock, uint256 blockNum)
         public
         onlyOperator
     {
@@ -131,16 +134,17 @@ contract PlasmaMVP {
         require(headers.length == txnsPerBlock.length);
 
         for (uint i = 0; i < headers.length; i++) {
-            require(txnsPerBlock[i] > 0);
+            require(txnsPerBlock[i] > 0 && txnsPerBlock[i] < feeIndex);
 
             lastCommittedBlock = lastCommittedBlock.add(1);
-            childChain[lastCommittedBlock] = childBlock({
+            plasmaChain[lastCommittedBlock] = plasmaBlock({
                 header: headers[i],
                 numTxns: txnsPerBlock[i],
+                feeAmount: feePerBlock[i],
                 createdAt: block.timestamp
             });
 
-            emit BlockSubmitted(headers[i], lastCommittedBlock, txnsPerBlock[i]);
+            emit BlockSubmitted(headers[i], lastCommittedBlock, txnsPerBlock[i], feePerBlock[i]);
         }
    }
 
@@ -209,7 +213,7 @@ contract PlasmaMVP {
 
     // @param txPos             location of the transaction [blkNum, txIndex, outputIndex]
     // @param txBytes           raw transaction bytes
-    // @param proof             merkle proof of inclusion in the child chain
+    // @param proof             merkle proof of inclusion in the plasma chain
     // @param confSig0          confirm signatures sent by the owners of the first input acknowledging the spend.
     // @param confSig1          confirm signatures sent by the owners of the second input acknowledging the spend (if applicable).
     // @notice `confirmSignatures` and `ConfirmSig0`/`ConfirmSig1` are unrelated to each other.
@@ -228,7 +232,7 @@ contract PlasmaMVP {
 
         // calculate the priority of the transaction taking into account the withdrawal delay attack
         // withdrawal delay attack: https://github.com/FourthState/plasma-mvp-rootchain/issues/42
-        uint256 createdAt = childChain[txPos[0]].createdAt;
+        uint256 createdAt = plasmaChain[txPos[0]].createdAt;
         txExitQueue.insert(SafeMath.max(createdAt + 1 weeks, block.timestamp) << 128 | position);
 
         // write exit to storage
@@ -258,28 +262,25 @@ contract PlasmaMVP {
 
         require(msg.sender == txList[10 + 2*txPos[2]].toAddress());
 
-        childBlock memory plasmaBlock = childChain[txPos[0]];
+        plasmaBlock memory blk = plasmaChain[txPos[0]];
 
-        // check signatures and inputs if the output is not a fee transaction
-        // no confirm signatures are present for a fee exit
+        // Validation
+
         bytes32 merkleHash = sha256(txBytes);
-        if (txPos[1] < plasmaBlock.numTxns.sub(1)) { // fee index is the last of the block
-            bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, plasmaBlock.header));
-            bytes memory sig = sigList[0].toBytes();
-            require(sig.length == 65 && confirmSignatures.length % 65 == 0 && confirmSignatures.length > 0);
-            require(txHash.recover(sig) == confirmationHash.recover(confirmSignatures.slice(0, 65)));
-            if (txList[5].toUint() > 0 || txList[8].toUint() > 0) { // existence of a second input
-                sig = sigList[1].toBytes();
-                require(sig.length == 65 && confirmSignatures.length == 130);
-                require(txHash.recover(sig) == confirmationHash.recover(confirmSignatures.slice(65, 65)));
-            }
+        require(merkleHash.checkMembership(txPos[1], blk.header, proof, blk.numTxns));
 
-            // check that the UTXO's two direct inputs have not been previously exited
-            require(validateTransactionExitInputs(txList));
+        bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
+        bytes memory sig = sigList[0].toBytes();
+        require(sig.length == 65 && confirmSignatures.length % 65 == 0 && confirmSignatures.length > 0);
+        require(txHash.recover(sig) == confirmationHash.recover(confirmSignatures.slice(0, 65)));
+        if (txList[5].toUint() > 0 || txList[8].toUint() > 0) { // existence of a second input
+            sig = sigList[1].toBytes();
+            require(sig.length == 65 && confirmSignatures.length == 130);
+            require(txHash.recover(sig) == confirmationHash.recover(confirmSignatures.slice(65, 65)));
         }
 
-        // check proof
-        require(merkleHash.checkMembership(txPos[1], plasmaBlock.header, proof, plasmaBlock.numTxns));
+        // check that the UTXO's two direct inputs have not been previously exited
+        require(validateTransactionExitInputs(txList));
 
         return txList[11 + 2*txPos[2]].toUint();
     }
@@ -310,13 +311,51 @@ contract PlasmaMVP {
         return true;
     }
 
+    // Validator of any block can call this function to exit the fees collected
+    // for that particular block. The fee exit is added to exit queue with the lowest priority for that block.
+    // In case of the fee UTXO already spent, anyone can challenge the fee exit by providing
+    // the spend of the fee UTXO.
+    // @param blockNumber the block for which the validator wants to exit fees
+    function startFeeExit(uint256 blockNumber, uint256 committedFee)
+        public
+        payable
+        onlyOperator
+        isBonded
+    {
+        plasmaBlock memory blk = plasmaChain[blockNumber];
+        uint256 feeAmount = blk.feeAmount;
+
+        // nonzero fee and prevent and greater than the committed fee if spent.
+        // default value for a fee amount is zero. Will revert if a block for
+        // this number has not been committed
+        require(feeAmount > committedFee);
+
+        // a fee UTXO has explicitly defined position [blockNumber, 2**16 - 1, 0]
+        uint256 position = calcPosition([blockNumber, feeIndex, 0]);
+        require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
+
+        txExitQueue.insert(SafeMath.max(blk.createdAt + 1 weeks, block.timestamp) << 128 | position);
+
+        txExits[position] = exit({
+            owner: msg.sender,
+            amount: feeAmount,
+            committedFee: committedFee,
+            createdAt: block.timestamp,
+            position: [blockNumber, feeIndex, 0, 0],
+            state: ExitState.Pending
+        });
+
+        // pass in empty bytes for confirmSignatures for StartedTransactionExit event.
+        emit StartedTransactionExit([blockNumber, feeIndex, 0], operator, feeAmount, "", 0);
+}
+
     // @param exitingTxPos     position of the invalid exiting transaction [blkNum, txIndex, outputIndex]
     // @param challengingTxPos position of the challenging transaction [blkNum, txIndex]
     // @param txBytes          raw transaction bytes of the challenging transaction
     // @param proof            proof of inclusion for this merkle hash
     // @param confirmSignature signature used to invalidate the invalid exit. Signature is over (merkleHash, block header)
-    // @notice The operator an exit which commits an invalid fee by simply passing in empty bytes for confirm signature as they are not needed.
-    //          The committed fee is checked againt the challenging tx bytes"
+    // @notice The operator can challenge an exit which commits an invalid fee by simply passing in empty bytes for confirm signature as they are not needed.
+    //         The committed fee is checked againt the challenging tx bytes
     function challengeExit(uint256[4] memory exitingTxPos, uint256[2] memory challengingTxPos, bytes memory txBytes, bytes memory proof, bytes memory confirmSignature)
         public
     {
@@ -334,30 +373,30 @@ contract PlasmaMVP {
             txExits[calcPosition([exitingTxPos[0], exitingTxPos[1], exitingTxPos[2]])] : depositExits[exitingTxPos[3]];
         require(exit_.state == ExitState.Pending);
 
-        childBlock memory plasmaBlock = childChain[challengingTxPos[0]];
+        plasmaBlock memory blk = plasmaChain[challengingTxPos[0]];
 
         bytes32 merkleHash = sha256(txBytes);
-        require(merkleHash.checkMembership(challengingTxPos[1], plasmaBlock.header, proof, plasmaBlock.numTxns));
+        require(merkleHash.checkMembership(challengingTxPos[1], blk.header, proof, blk.numTxns));
 
         // we check for confirm signatures if:
         // The exiting tx is the second input in the challenging transaction
         // OR
         // The exiting tx is a first input and commits the correct fee
         //
-        // If this challenge was a fee mismatch, then we check the transaction signature
+        // If this challenge was a fee mismatch, then we check the first transaction signature
         // to prevent the operator from forging invalid inclusions
         //
         // For a fee mismatch, the state becomes `NonExistent` so that the exit can be reopened.
         // Otherwise, `Challenged` so that the exit can never be opened.
         if (!firstInput || exit_.committedFee == txList[14].toUint()) {
-            bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, plasmaBlock.header));
+            bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
             require(confirmSignature.length == 65 && exit_.owner == confirmationHash.recover(confirmSignature));
 
             exit_.state = ExitState.Challenged;
         } else {
+            // fee mismatch challenge and the first transaction signature need to be checked
             bytes memory sig = sigList[0].toBytes();
-            require(sig.length == 65);
-            require(exit_.owner == txHash.recover(sig), "signature mismatch");
+            require(sig.length == 65 && exit_.owner == txHash.recover(sig));
 
             exit_.state = ExitState.NonExistent;
         }
@@ -400,8 +439,9 @@ contract PlasmaMVP {
         *   3. Funds must exist for the exit to withdraw
         */
         uint256 amountToAdd;
-        while (block.timestamp.sub(currentExit.createdAt) > 1 weeks &&
-               childChainBalance() > 0 &&
+        uint256 challengePeriod = isDeposits ? 5 days : 1 weeks;
+        while (block.timestamp.sub(currentExit.createdAt) > challengePeriod &&
+               plasmaChainBalance() > 0 &&
                gasleft() > 80000) {
 
             // skip currentExit if it is not in 'started/pending' state.
@@ -412,7 +452,8 @@ contract PlasmaMVP {
                 amountToAdd = currentExit.amount.add(minExitBond).sub(currentExit.committedFee);
                 
                 // if malicious activity has occured and the contract funds are not sufficient, spend the rest
-                uint256 plasmaBalance = childChainBalance();
+                // this will be the last exit to be finalized
+                uint256 plasmaBalance = plasmaChainBalance();
                 if (amountToAdd > plasmaBalance) {
                     amountToAdd = plasmaBalance;
                 }
@@ -480,7 +521,7 @@ contract PlasmaMVP {
     * Getters
     */
 
-    function childChainBalance()
+    function plasmaChainBalance()
         public
         view
         returns (uint)

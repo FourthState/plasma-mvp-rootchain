@@ -9,7 +9,7 @@ let { catchError, toHex } = require('../utilities.js');
 contract('[PlasmaMVP] Deposits', async (accounts) => {
     let instance;
     let oneWeek = 604800; // in seconds
-    let minExitBond = 10000;
+    let minExitBond = 200000;
 
     let authority = accounts[0];
     before(async () => {
@@ -42,6 +42,16 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         let deposit = await instance.deposits.call(nonce);
         assert.equal(deposit[0], accounts[2], "incorrect deposit owner");
         assert.equal(deposit[1], 100, "incorrect deposit amount");
+    });
+
+    it("Rejects a committed fee larger than the deposit amount", async () => {
+        let nonce = (await instance.depositNonce.call()).toNumber();
+        await instance.deposit(accounts[2], {from: accounts[1], value: 100});
+
+        let err;
+        [err] = await catchError(instance.startDepositExit(nonce, 100, {from: accounts[1], value: minExitBond}))
+        if (!err)
+            assert.fail("started a deposit exit with a committed fee equal to the amount");
     });
 
     it("Only allows deposit owner to start a deposit exit", async () => {
@@ -110,16 +120,16 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         let nonce = (await instance.depositNonce.call()).toNumber();
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
-        let childChainBalance = (await instance.childChainBalance.call()).toNumber();
-        assert.equal(childChainBalance, 100);
+        let plasmaChainBalance = (await instance.plasmaChainBalance.call()).toNumber();
+        assert.equal(plasmaChainBalance, 100);
 
         await instance.startDepositExit(nonce, 0, {from: accounts[2], value: minExitBond});
         await fastForward(oneWeek + 100);
 
         await instance.finalizeDepositExits();
 
-        childChainBalance = (await instance.childChainBalance.call()).toNumber();
-        assert.equal(childChainBalance, 0);
+        plasmaChainBalance = (await instance.plasmaChainBalance.call()).toNumber();
+        assert.equal(plasmaChainBalance, 0);
 
         let balance = (await instance.balanceOf.call(accounts[2])).toNumber();
         assert.equal(balance, 100 + minExitBond, "deposit exit not finalized after a week");
@@ -147,34 +157,22 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         await instance.deposit(accounts[2], {from: accounts[2], value: 100});
 
         // construct transcation with first input as the deposit
-        let msg = Array(15).fill(0);
-        msg[3] = nonce; msg[10] = accounts[1]; msg[11] = 100;
-        let encodedMsg = RLP.encode(msg);
-        let hashedEncodedMsg = web3.utils.soliditySha3(toHex(encodedMsg.toString('hex')));
-
-        // create signature by deposit owner. Second signature should be zero
-        let sigList = Array(2).fill(0);
-        sigList[0] = (await web3.eth.sign(hashedEncodedMsg, accounts[2]));
-
-        let txBytes = Array(2).fill(0);
-        txBytes[0] = msg; txBytes[1] = sigList;
-        txBytes = RLP.encode(txBytes);
-
-        // create signature by deposit owner. Second signature should be zero
-        let sigs = (await web3.eth.sign(hashedEncodedMsg, accounts[2]));
-        sigs = sigs + Buffer.alloc(65).toString('hex');
-
-        let merkleHash = sha256String(txBytes.toString('hex'));
+        let txList = Array(15).fill(0);
+        txList[3] = nonce; txList[10] = accounts[1]; txList[11] = 100;
+        let txHash = web3.utils.soliditySha3(toHex(RLP.encode(txList).toString('hex')));
+        let sigs = [await web3.eth.sign(txHash, accounts[2]), 0];
+        let txBytes = [txList, sigs];
+        txBytes = RLP.encode(txBytes).toString('hex');
 
         // include this transaction in the next block
         let root;
-        [root, proof] = generateMerkleRootAndProof([merkleHash], 0);
+        [root, proof] = generateMerkleRootAndProof([sha256String(txBytes)], 0);
 
         let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
-        await instance.submitBlock([toHex(root)], [1], blockNum, {from: authority});
+        await instance.submitBlock([toHex(root)], [1], [0], blockNum, {from: authority});
 
         // create the confirm sig
-        let confirmHash = sha256String(merkleHash + root.slice(2));
+        let confirmHash = sha256String(sha256String(txBytes) + root.slice(2));
         let confirmSig = await web3.eth.sign(confirmHash, accounts[2]);
 
         // start the malicious exit
@@ -225,19 +223,10 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         let txBytes = [txList, sigs];
         txBytes = RLP.encode(txBytes).toString('hex');
 
-        // create the fee transaction
-        let feeTxList = Array(15).fill(0);
-        feeTxList[10] = authority; feeTxList[11] = 5; // total fee amount for the block
-        let feeTxHash = web3.utils.soliditySha3(toHex(RLP.encode(txList).toString('hex'), {encoding: 'hex'}));
-        let feeSigs = [toHex(await web3.eth.sign(feeTxHash, authority)), toHex(Buffer.alloc(65).toString('hex'))];
-        let feeTxBytes = [feeTxList, feeSigs];
-        feeTxBytes = RLP.encode(feeTxBytes).toString('hex');
-
         // submit the block
-        let [merkleRoot, proof] = generateMerkleRootAndProof([sha256String(txBytes), sha256String(feeTxBytes)], 0);
-        [merkleRoot, feeProof] = generateMerkleRootAndProof([sha256String(txBytes), sha256String(feeTxBytes)], 1);
+        let [merkleRoot, proof] = generateMerkleRootAndProof([sha256String(txBytes)], 0);
         let blockNum = (await instance.lastCommittedBlock.call()).toNumber() + 1;
-        await instance.submitBlock([toHex(merkleRoot)], [2], blockNum, {from: authority});
+        await instance.submitBlock([toHex(merkleRoot)], [1], [5], blockNum, {from: authority});
 
         // exit the first deposit input. commit incorrect fee
         await instance.startDepositExit(nonce, 1, {from: accounts[2], value: minExitBond});
@@ -265,9 +254,8 @@ contract('[PlasmaMVP] Deposits', async (accounts) => {
         if (!err)
             assert.fail("operator challenged exit with correct committed fee");
 
-
-        // successfully exit the fee output
-        await instance.startTransactionExit([blockNum, 1, 0], toHex(feeTxBytes), toHex(feeProof), toHex(""), 0, {from: authority, value: minExitBond});
+        // start a fee exit
+        await instance.startFeeExit(blockNum, 0, {from: authority, value: minExitBond});
     });
 
     it("Attempts a withdrawal delay attack on exiting deposits", async () => {
