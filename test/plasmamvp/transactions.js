@@ -173,8 +173,6 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         if (!err)
             assert.fail("started fee exit for non-existent block");
 
-        console.log('STARTING FEE EXIT')
-
         // authority can start a fee exit with sufficient exit bond
         await instance.startFeeExit(txPos[0], 0, {from: authority, value: minExitBond});
 

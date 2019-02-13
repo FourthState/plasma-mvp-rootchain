@@ -225,6 +225,7 @@ contract PlasmaMVP {
         payable
         isBonded
     {
+        require(txPos[1] < feeIndex);
         uint256 position = calcPosition(txPos);
         require(txExits[position].state == ExitState.NonExistent);
 
@@ -503,7 +504,7 @@ contract PlasmaMVP {
         pure
         returns (uint256)
     {
-        require(txPos[0] <= lastBlockNum && txPos[1] < feeIndex && txPos[2] < 2);
+        require(txPos[0] <= lastBlockNum && txPos[1] <= feeIndex && txPos[2] < 2);
 
         return txPos[0].mul(blockIndexFactor).add(txPos[1].mul(txIndexFactor)).add(txPos[2]);
     }
