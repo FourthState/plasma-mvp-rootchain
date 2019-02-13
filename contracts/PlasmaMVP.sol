@@ -81,6 +81,7 @@ contract PlasmaMVP {
     // constants
     uint256 constant txIndexFactor = 10;
     uint256 constant blockIndexFactor = 1000000;
+    uint256 constant lastBlockNum = 2**110;
     uint256 constant feeIndex = 2**16-1;
 
     /** Modifiers **/
@@ -131,9 +132,9 @@ contract PlasmaMVP {
         onlyOperator
     {
         require(blockNum == lastCommittedBlock + 1);
-        require(headers.length == txnsPerBlock.length);
+        require(headers.length == txnsPerBlock.length && txnsPerBlock.length == feePerBlock.length);
 
-        for (uint i = 0; i < headers.length; i++) {
+        for (uint i = 0; i < headers.length && lastCommittedBlock <= lastBlockNum; i++) {
             require(txnsPerBlock[i] > 0 && txnsPerBlock[i] < feeIndex);
 
             lastCommittedBlock = lastCommittedBlock.add(1);
@@ -224,6 +225,7 @@ contract PlasmaMVP {
         payable
         isBonded
     {
+        require(txPos[1] < feeIndex);
         uint256 position = calcPosition(txPos);
         require(txExits[position].state == ExitState.NonExistent);
 
@@ -269,14 +271,18 @@ contract PlasmaMVP {
         bytes32 merkleHash = sha256(txBytes);
         require(merkleHash.checkMembership(txPos[1], blk.header, proof, blk.numTxns));
 
+        address recoveredAddress;
         bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
+
         bytes memory sig = sigList[0].toBytes();
         require(sig.length == 65 && confirmSignatures.length % 65 == 0 && confirmSignatures.length > 0);
-        require(txHash.recover(sig) == confirmationHash.recover(confirmSignatures.slice(0, 65)));
+        recoveredAddress = confirmationHash.recover(confirmSignatures.slice(0, 65));
+        require(recoveredAddress != address(0) && recoveredAddress == txHash.recover(sig));
         if (txList[5].toUint() > 0 || txList[8].toUint() > 0) { // existence of a second input
             sig = sigList[1].toBytes();
             require(sig.length == 65 && confirmSignatures.length == 130);
-            require(txHash.recover(sig) == confirmationHash.recover(confirmSignatures.slice(65, 65)));
+            recoveredAddress = confirmationHash.recover(confirmSignatures.slice(65, 65));
+            require(recoveredAddress != address(0) && recoveredAddress == txHash.recover(sig));
         }
 
         // check that the UTXO's two direct inputs have not been previously exited
@@ -378,6 +384,7 @@ contract PlasmaMVP {
         bytes32 merkleHash = sha256(txBytes);
         require(merkleHash.checkMembership(challengingTxPos[1], blk.header, proof, blk.numTxns));
 
+        address recoveredAddress;
         // we check for confirm signatures if:
         // The exiting tx is the second input in the challenging transaction
         // OR
@@ -390,13 +397,15 @@ contract PlasmaMVP {
         // Otherwise, `Challenged` so that the exit can never be opened.
         if (!firstInput || exit_.committedFee == txList[14].toUint()) {
             bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
-            require(confirmSignature.length == 65 && exit_.owner == confirmationHash.recover(confirmSignature));
+            recoveredAddress = confirmationHash.recover(confirmSignature);
+            require(confirmSignature.length == 65 && recoveredAddress != address(0) && exit_.owner == recoveredAddress);
 
             exit_.state = ExitState.Challenged;
         } else {
             // fee mismatch challenge and the first transaction signature need to be checked
             bytes memory sig = sigList[0].toBytes();
-            require(sig.length == 65 && exit_.owner == txHash.recover(sig));
+            recoveredAddress = txHash.recover(sig);
+            require(sig.length == 65 && recoveredAddress != address(0) && exit_.owner == recoveredAddress);
 
             exit_.state = ExitState.NonExistent;
         }
@@ -495,7 +504,7 @@ contract PlasmaMVP {
         pure
         returns (uint256)
     {
-        require(txPos[2] < 2);
+        require(txPos[0] <= lastBlockNum && txPos[1] <= feeIndex && txPos[2] < 2);
 
         return txPos[0].mul(blockIndexFactor).add(txPos[1].mul(txIndexFactor)).add(txPos[2]);
     }

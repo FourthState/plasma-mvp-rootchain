@@ -162,6 +162,11 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         if (!err)
             assert.fail("started fee exit with insufficient bond");
 
+        // the committed fee must be less than the fee amount
+        [err] = await catchError(instance.startFeeExit(txPos[0], feeAmount+10, {from: authority, value: minExitBond}));
+        if (!err)
+            assert.fail("started fee exit with a commited fee larger than the fee amount");
+
         // cannot start a fee exit for a non-existent block
         let nonExistentBlockNum = txPos[0] + 100;
         [err] = await catchError(instance.startFeeExit(nonExistentBlockNum, 0, {from: authority, value: minExitBond}));
