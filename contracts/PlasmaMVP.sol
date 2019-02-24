@@ -546,4 +546,20 @@ contract PlasmaMVP {
     {
         return balances[_address];
     }
+
+    function txQueueLength()
+        public
+        view
+        returns (uint)
+    {
+        return txExitQueue.length;
+    }
+
+    function depositQueueLength()
+        public 
+        view
+        returns (uint)
+    {   
+        return depositExitQueue.length;
+    }
 }
