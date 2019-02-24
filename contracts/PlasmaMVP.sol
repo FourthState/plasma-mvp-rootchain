@@ -84,6 +84,8 @@ contract PlasmaMVP {
     uint256 constant lastBlockNum = 2**109;
     uint256 constant feeIndex = 2**16-1;
 
+    uint256 constant challengePeriod = 1 weeks;
+
     /** Modifiers **/
     modifier isBonded()
     {
@@ -212,8 +214,8 @@ contract PlasmaMVP {
         uint256[4] memory position;
         for (uint256 i = 0; i < 2; i++) {
             uint256 base = uint256(5).mul(i);
-            position = [txList[base].toUintStrict(), txList[base.add(uint256(1))].toUintStrict(),
-                     txList[base.add(uint256(2))].toUintStrict(), txList[base.add(uint256(3))].toUintStrict()];
+            position = [txList[base].toUintStrict(), txList[base.add(1)].toUintStrict(),
+                     txList[base.add(2)].toUintStrict(), txList[base.add(3)].toUintStrict()];
 
             require(validateInput(position));
         }
@@ -281,7 +283,7 @@ contract PlasmaMVP {
         // calculate the priority of the transaction taking into account the withdrawal delay attack
         // withdrawal delay attack: https://github.com/FourthState/plasma-mvp-rootchain/issues/42
         uint256 createdAt = plasmaChain[txPos[0]].createdAt;
-        txExitQueue.insert(SafeMath.max(createdAt + 1 weeks, block.timestamp) << 128 | position);
+        txExitQueue.insert(SafeMath.max(createdAt.add(challengePeriod), block.timestamp) << 128 | position);
 
         // write exit to storage
         txExits[position] = exit({
@@ -346,11 +348,12 @@ contract PlasmaMVP {
     {
         for (uint256 i = 0; i < 2; i++) {
             ExitState state;
-            uint depositNonce_ = txList[5*i + 3].toUint();
+            uint256 base = uint256(5).mul(i);
+            uint depositNonce_ = txList[base.add(3)].toUint();
             if (depositNonce_ == 0) {
-                uint256 blkNum = txList[5*i + 0].toUint();
-                uint256 txIndex = txList[5*i + 1].toUint();
-                uint256 outputIndex = txList[5*i + 2].toUint();
+                uint256 blkNum = txList[base].toUint();
+                uint256 txIndex = txList[base.add(1)].toUint();
+                uint256 outputIndex = txList[base.add(2)].toUint();
                 uint256 position = calcPosition([blkNum, txIndex, outputIndex]);
                 state = txExits[position].state;
             } else
@@ -388,7 +391,7 @@ contract PlasmaMVP {
         uint256 position = calcPosition([blockNumber, feeIndex, 0]);
         require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
 
-        txExitQueue.insert(SafeMath.max(blk.createdAt + 1 weeks, block.timestamp) << 128 | position);
+        txExitQueue.insert(SafeMath.max(blk.createdAt.add(challengePeriod), block.timestamp) << 128 | position);
 
         txExits[position] = exit({
             owner: msg.sender,
@@ -433,7 +436,7 @@ contract PlasmaMVP {
         plasmaBlock memory blk = plasmaChain[challengingTxPos[0]];
 
         bytes32 merkleHash = sha256(txBytes);
-        require(merkleHash.checkMembership(challengingTxPos[1], blk.header, proof, blk.numTxns));
+        require(blk.header != bytes32(0) && merkleHash.checkMembership(challengingTxPos[1], blk.header, proof, blk.numTxns));
 
         address recoveredAddress;
         // we check for confirm signatures if:
@@ -456,6 +459,12 @@ contract PlasmaMVP {
             bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
             recoveredAddress = confirmationHash.recover(confirmSignature);
             require(confirmSignature.length == 65 && recoveredAddress != address(0) && exit_.owner == recoveredAddress);
+
+            if (firstInput)
+                recoveredAddress = txHash.recover(sigList[0].toBytes());
+            else
+                recoveredAddress = txHash.recover(sigList[1].toBytes());
+            require(recoveredAddress != address(0) && exit_.owner == recoveredAddress);
 
             exit_.state = ExitState.Challenged;
         }
@@ -498,7 +507,7 @@ contract PlasmaMVP {
         *   3. Funds must exist for the exit to withdraw
         */
         uint256 amountToAdd;
-        uint256 challengePeriod = isDeposits ? 5 days : 1 weeks;
+        uint256 challengePeriod = isDeposits ? 5 days : challengePeriod;
         while (block.timestamp.sub(currentExit.createdAt) > challengePeriod &&
                plasmaChainBalance() > 0 &&
                gasleft() > 80000) {
