@@ -81,7 +81,7 @@ contract PlasmaMVP {
     // constants
     uint256 constant txIndexFactor = 10;
     uint256 constant blockIndexFactor = 1000000;
-    uint256 constant lastBlockNum = 2**110;
+    uint256 constant lastBlockNum = 2**109;
     uint256 constant feeIndex = 2**16-1;
 
     /** Modifiers **/
@@ -135,7 +135,7 @@ contract PlasmaMVP {
         require(headers.length == txnsPerBlock.length && txnsPerBlock.length == feePerBlock.length);
 
         for (uint i = 0; i < headers.length && lastCommittedBlock <= lastBlockNum; i++) {
-            require(txnsPerBlock[i] > 0 && txnsPerBlock[i] < feeIndex);
+            require(headers[i] != bytes32(0) && txnsPerBlock[i] > 0 && txnsPerBlock[i] < feeIndex);
 
             lastCommittedBlock = lastCommittedBlock.add(1);
             plasmaChain[lastCommittedBlock] = plasmaBlock({
@@ -329,6 +329,8 @@ contract PlasmaMVP {
         isBonded
     {
         plasmaBlock memory blk = plasmaChain[blockNumber];
+        require(blk.header != bytes32(0));
+
         uint256 feeAmount = blk.feeAmount;
 
         // nonzero fee and prevent and greater than the committed fee if spent.
@@ -501,10 +503,10 @@ contract PlasmaMVP {
     // @notice will revert if the output index is out of bounds
     function calcPosition(uint256[3] memory txPos)
         private
-        pure
+        view
         returns (uint256)
     {
-        require(txPos[0] <= lastBlockNum && txPos[1] <= feeIndex && txPos[2] < 2);
+        require(txPos[0] <= lastCommittedBlock && txPos[1] <= plasmaChain[txPos[0]].numTxns && txPos[2] < 2);
 
         return txPos[0].mul(blockIndexFactor).add(txPos[1].mul(txIndexFactor)).add(txPos[2]);
     }
