@@ -125,13 +125,15 @@ function plasmaChainBalance() returns (uint256 funds)
 Query the total funds of the plasma chain
 
 <br />
+
 ```solidity
 function txQueueLength() returns (uint256 length)
 ```
-Getter for length of the transaction exit queue
+Getter for the length of the transaction exit queue
 
 <br />
+
 ```solidity
 function depositQueueLength() returns (uint256 length)
 ```
-Getter for length of the deposit exit queue
+Getter for the length of the deposit exit queue
