@@ -196,7 +196,7 @@ contract PlasmaMVP {
     // @notice this function will revert if the txBytes are malformed
     function decodeTransaction(bytes memory txBytes)
         internal
-        pure
+        view
         returns (RLPReader.RLPItem[] memory txList, RLPReader.RLPItem[] memory sigList, bytes32 txHash)
     {
         RLPReader.RLPItem[] memory spendMsg = txBytes.toRlpItem().toList();
@@ -208,12 +208,58 @@ contract PlasmaMVP {
         sigList = spendMsg[1].toList();
         require(sigList.length == 2);
 
+        // validate inputs
+        uint256[4] memory position;
+        for (uint256 i = 0; i < 2; i++) {
+            uint256 base = uint256(5).mul(i);
+            position = [txList[base].toUintStrict(), txList[base.add(uint256(1))].toUintStrict(),
+                     txList[base.add(uint256(2))].toUintStrict(), txList[base.add(uint256(3))].toUintStrict()];
+
+            require(validateInput(position));
+        }
+
         // bytes the signatures are over
         txHash = keccak256(spendMsg[0].toRlpBytes());
     }
 
+    function validateInput(uint256[4] memory position)
+        private
+        view
+        returns (bool)
+    {
+        uint256 blkNum = position[0];
+        uint256 txIndex = position[1];
+        uint256 oIndex = position[2];
+        uint256 depNonce = position[3];
+
+        if (blkNum > 0) { // utxo input
+            // uncommitted block
+            if (blkNum > lastCommittedBlock)
+                return false;
+            // txIndex out of bounds for the block
+            if (txIndex >= plasmaChain[blkNum].numTxns)
+                return false;
+            // deposit nonce must be zero
+            if (depNonce > 0)
+                return false;
+            // only two outputs
+            if (oIndex > 1)
+                return false;
+        } else { // deposit or fee input
+            // fee input must have a zero output index and deposit nonce
+            if (txIndex == feeIndex && (oIndex > 0 || depNonce > 0))
+                return false;
+            // deposit input must be zero'd output position
+            // `blkNum` is not checked as it will fail above
+            if (depNonce > 0 && (txIndex > 0 || oIndex > 0))
+                return false;
+        }
+
+        return true;
+    }
+
     // @param txPos             location of the transaction [blkNum, txIndex, outputIndex]
-    // @param txBytes           raw transaction bytes
+    // @param txBytes           transaction bytes containing the exiting output
     // @param proof             merkle proof of inclusion in the plasma chain
     // @param confSig0          confirm signatures sent by the owners of the first input acknowledging the spend.
     // @param confSig1          confirm signatures sent by the owners of the second input acknowledging the spend (if applicable).
@@ -372,6 +418,9 @@ contract PlasmaMVP {
         RLPReader.RLPItem[] memory sigList;
         (txList, sigList, txHash) = decodeTransaction(txBytes);
 
+        // `challengingTxPos` is sequentially after `exitingTxPost`
+        require(exitingTxPos[0] < challengingTxPos[0] || (exitingTxPos[0] == challengingTxPos[0] && exitingTxPos[1] < challengingTxPos[1]));
+
         // must be a direct spend
         bool firstInput = exitingTxPos[0] == txList[0].toUint() && exitingTxPos[1] == txList[1].toUint() && exitingTxPos[2] == txList[2].toUint() && exitingTxPos[3] == txList[3].toUint();
         require(firstInput || exitingTxPos[0] == txList[5].toUint() && exitingTxPos[1] == txList[6].toUint() && exitingTxPos[2] == txList[7].toUint() && exitingTxPos[3] == txList[8].toUint());
@@ -388,28 +437,27 @@ contract PlasmaMVP {
 
         address recoveredAddress;
         // we check for confirm signatures if:
-        // The exiting tx is the second input in the challenging transaction
-        // OR
         // The exiting tx is a first input and commits the correct fee
+        // OR
+        // The exiting tx is the second input in the challenging transaction
         //
         // If this challenge was a fee mismatch, then we check the first transaction signature
         // to prevent the operator from forging invalid inclusions
         //
         // For a fee mismatch, the state becomes `NonExistent` so that the exit can be reopened.
         // Otherwise, `Challenged` so that the exit can never be opened.
-        if (!firstInput || exit_.committedFee == txList[14].toUint()) {
-            bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
-            recoveredAddress = confirmationHash.recover(confirmSignature);
-            require(confirmSignature.length == 65 && recoveredAddress != address(0) && exit_.owner == recoveredAddress);
-
-            exit_.state = ExitState.Challenged;
-        } else {
-            // fee mismatch challenge and the first transaction signature need to be checked
+        if (firstInput && exit_.committedFee != txList[14].toUintStrict()) {
             bytes memory sig = sigList[0].toBytes();
             recoveredAddress = txHash.recover(sig);
             require(sig.length == 65 && recoveredAddress != address(0) && exit_.owner == recoveredAddress);
 
             exit_.state = ExitState.NonExistent;
+        } else {
+            bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
+            recoveredAddress = confirmationHash.recover(confirmSignature);
+            require(confirmSignature.length == 65 && recoveredAddress != address(0) && exit_.owner == recoveredAddress);
+
+            exit_.state = ExitState.Challenged;
         }
 
         // exit successfully challenged. Award the sender with the bond
@@ -499,7 +547,7 @@ contract PlasmaMVP {
         view
         returns (uint256)
     {
-        require(txPos[0] <= lastCommittedBlock && txPos[1] <= plasmaChain[txPos[0]].numTxns && txPos[2] < 2);
+        require(txPos[0] <= lastCommittedBlock && txPos[1] < plasmaChain[txPos[0]].numTxns && txPos[2] < 2);
 
         return txPos[0].mul(blockIndexFactor).add(txPos[1].mul(txIndexFactor)).add(txPos[2]);
     }
