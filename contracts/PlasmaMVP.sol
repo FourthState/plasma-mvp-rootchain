@@ -462,13 +462,6 @@ contract PlasmaMVP {
                 // reimburse the bond but remove fee allocated for the operator
                 amountToAdd = currentExit.amount.add(minExitBond).sub(currentExit.committedFee);
                 
-                // if malicious activity has occured and the contract funds are not sufficient, spend the rest
-                // this will be the last exit to be finalized
-                uint256 plasmaBalance = plasmaChainBalance();
-                if (amountToAdd > plasmaBalance) {
-                    amountToAdd = plasmaBalance;
-                }
-
                 balances[currentExit.owner] = balances[currentExit.owner].add(amountToAdd);
                 totalWithdrawBalance = totalWithdrawBalance.add(amountToAdd);
 
