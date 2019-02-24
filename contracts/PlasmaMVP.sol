@@ -323,10 +323,10 @@ contract PlasmaMVP {
         bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
 
         bytes memory sig = sigList[0].toBytes();
-        require(sig.length == 65 && confirmSignatures.length % 65 == 0 && confirmSignatures.length > 0);
+        require(sig.length == 65 && confirmSignatures.length % 65 == 0 && confirmSignatures.length > 0 && confirmSignatures.length <= 130);
         recoveredAddress = confirmationHash.recover(confirmSignatures.slice(0, 65));
         require(recoveredAddress != address(0) && recoveredAddress == txHash.recover(sig));
-        if (txList[5].toUint() > 0 || txList[8].toUint() > 0) { // existence of a second input
+        if (txList[5].toUintStrict() > 0 || txList[8].toUintStrict() > 0) { // existence of a second input
             sig = sigList[1].toBytes();
             require(sig.length == 65 && confirmSignatures.length == 130);
             recoveredAddress = confirmationHash.recover(confirmSignatures.slice(65, 65));
@@ -336,7 +336,7 @@ contract PlasmaMVP {
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList));
 
-        return txList[11 + 2*txPos[2]].toUint();
+        return txList[11 + 2*txPos[2]].toUintStrict();
     }
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
@@ -349,11 +349,11 @@ contract PlasmaMVP {
         for (uint256 i = 0; i < 2; i++) {
             ExitState state;
             uint256 base = uint256(5).mul(i);
-            uint depositNonce_ = txList[base.add(3)].toUint();
+            uint depositNonce_ = txList[base.add(3)].toUintStrict();
             if (depositNonce_ == 0) {
-                uint256 blkNum = txList[base].toUint();
-                uint256 txIndex = txList[base.add(1)].toUint();
-                uint256 outputIndex = txList[base.add(2)].toUint();
+                uint256 blkNum = txList[base].toUintStrict();
+                uint256 txIndex = txList[base.add(1)].toUintStrict();
+                uint256 outputIndex = txList[base.add(2)].toUintStrict();
                 uint256 position = calcPosition([blkNum, txIndex, outputIndex]);
                 state = txExits[position].state;
             } else
@@ -425,8 +425,8 @@ contract PlasmaMVP {
         require(exitingTxPos[0] < challengingTxPos[0] || (exitingTxPos[0] == challengingTxPos[0] && exitingTxPos[1] < challengingTxPos[1]));
 
         // must be a direct spend
-        bool firstInput = exitingTxPos[0] == txList[0].toUint() && exitingTxPos[1] == txList[1].toUint() && exitingTxPos[2] == txList[2].toUint() && exitingTxPos[3] == txList[3].toUint();
-        require(firstInput || exitingTxPos[0] == txList[5].toUint() && exitingTxPos[1] == txList[6].toUint() && exitingTxPos[2] == txList[7].toUint() && exitingTxPos[3] == txList[8].toUint());
+        bool firstInput = exitingTxPos[0] == txList[0].toUintStrict() && exitingTxPos[1] == txList[1].toUintStrict() && exitingTxPos[2] == txList[2].toUintStrict() && exitingTxPos[3] == txList[3].toUintStrict();
+        require(firstInput || exitingTxPos[0] == txList[5].toUintStrict() && exitingTxPos[1] == txList[6].toUintStrict() && exitingTxPos[2] == txList[7].toUintStrict() && exitingTxPos[3] == txList[8].toUintStrict());
 
         // transaction to be challenged should have a pending exit
         exit storage exit_ = exitingTxPos[3] == 0 ? 
@@ -556,7 +556,7 @@ contract PlasmaMVP {
         view
         returns (uint256)
     {
-        require(txPos[0] <= lastCommittedBlock && txPos[1] < plasmaChain[txPos[0]].numTxns && txPos[2] < 2);
+        require(txPos[0] <= lastCommittedBlock && (txPos[1] < plasmaChain[txPos[0]].numTxns || txPos[1] == feeIndex) && txPos[2] < 2);
 
         return txPos[0].mul(blockIndexFactor).add(txPos[1].mul(txIndexFactor)).add(txPos[2]);
     }

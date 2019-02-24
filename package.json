@@ -14,6 +14,6 @@
     "rlp": "^2.2.2"
   },
   "dependencies": {
-    "solidity-rlp": "^1.2.3"
+    "solidity-rlp": "^2.0.0"
   }
 }
