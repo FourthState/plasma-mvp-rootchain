@@ -131,7 +131,7 @@ contract PlasmaMVP {
         public
         onlyOperator
     {
-        require(blockNum == lastCommittedBlock + 1);
+        require(blockNum == lastCommittedBlock.add(1));
         require(headers.length == txnsPerBlock.length && txnsPerBlock.length == feePerBlock.length);
 
         for (uint i = 0; i < headers.length && lastCommittedBlock <= lastBlockNum; i++) {
@@ -192,6 +192,9 @@ contract PlasmaMVP {
     //   NewOwner, Denom1, NewOwner, Denom2, Fee],
     //  [Signature1, Signature2]]
     //
+    // All integers are padded to 32 bytes. Input's confirm signatures are 130 bytes for each input.
+    // Zero bytes if unapplicable (deposit/fee inputs) Signatures are 65 bytes in length
+    //
     // @param txBytes rlp encoded transaction
     // @notice this function will revert if the txBytes are malformed
     function decodeTransaction(bytes memory txBytes)
@@ -199,6 +202,7 @@ contract PlasmaMVP {
         pure
         returns (RLPReader.RLPItem[] memory txList, RLPReader.RLPItem[] memory sigList, bytes32 txHash)
     {
+        // entire byte length of the rlp encoded transaction.
         require(txBytes.length == 811);
 
         RLPReader.RLPItem[] memory spendMsg = txBytes.toRlpItem().toList();
@@ -265,7 +269,8 @@ contract PlasmaMVP {
         RLPReader.RLPItem[] memory sigList;
         (txList, sigList, txHash) = decodeTransaction(txBytes);
 
-        require(msg.sender == txList[10 + 2*txPos[2]].toAddress());
+        uint base = txPos[2].mul(2);
+        require(msg.sender == txList[base.add(10)].toAddress());
 
         plasmaBlock memory blk = plasmaChain[txPos[0]];
 
@@ -291,7 +296,7 @@ contract PlasmaMVP {
         // check that the UTXO's two direct inputs have not been previously exited
         require(validateTransactionExitInputs(txList));
 
-        return txList[11 + 2*txPos[2]].toUintStrict();
+        return txList[base.add(11)].toUintStrict();
     }
 
     // For any attempted exit of an UTXO, validate that the UTXO's two inputs have not
@@ -376,7 +381,7 @@ contract PlasmaMVP {
         RLPReader.RLPItem[] memory sigList;
         (txList, sigList, txHash) = decodeTransaction(txBytes);
 
-        // `challengingTxPos` is sequentially after `exitingTxPost`
+        // `challengingTxPos` is sequentially after `exitingTxPos`
         require(exitingTxPos[0] < challengingTxPos[0] || (exitingTxPos[0] == challengingTxPos[0] && exitingTxPos[1] < challengingTxPos[1]));
 
         // must be a direct spend
