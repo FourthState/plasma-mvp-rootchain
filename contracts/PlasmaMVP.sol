@@ -84,8 +84,6 @@ contract PlasmaMVP {
     uint256 constant lastBlockNum = 2**109;
     uint256 constant feeIndex = 2**16-1;
 
-    uint256 constant challengePeriod = 1 weeks;
-
     /** Modifiers **/
     modifier isBonded()
     {
@@ -198,9 +196,11 @@ contract PlasmaMVP {
     // @notice this function will revert if the txBytes are malformed
     function decodeTransaction(bytes memory txBytes)
         internal
-        view
+        pure
         returns (RLPReader.RLPItem[] memory txList, RLPReader.RLPItem[] memory sigList, bytes32 txHash)
     {
+        require(txBytes.length == 811);
+
         RLPReader.RLPItem[] memory spendMsg = txBytes.toRlpItem().toList();
         require(spendMsg.length == 2);
 
@@ -210,55 +210,10 @@ contract PlasmaMVP {
         sigList = spendMsg[1].toList();
         require(sigList.length == 2);
 
-        // validate inputs
-        uint256[4] memory position;
-        for (uint256 i = 0; i < 2; i++) {
-            uint256 base = uint256(5).mul(i);
-            position = [txList[base].toUintStrict(), txList[base.add(1)].toUintStrict(),
-                     txList[base.add(2)].toUintStrict(), txList[base.add(3)].toUintStrict()];
-
-            require(validateInput(position));
-        }
-
         // bytes the signatures are over
         txHash = keccak256(spendMsg[0].toRlpBytes());
     }
 
-    function validateInput(uint256[4] memory position)
-        private
-        view
-        returns (bool)
-    {
-        uint256 blkNum = position[0];
-        uint256 txIndex = position[1];
-        uint256 oIndex = position[2];
-        uint256 depNonce = position[3];
-
-        if (blkNum > 0) { // utxo input
-            // uncommitted block
-            if (blkNum > lastCommittedBlock)
-                return false;
-            // txIndex out of bounds for the block
-            if (txIndex >= plasmaChain[blkNum].numTxns)
-                return false;
-            // deposit nonce must be zero
-            if (depNonce > 0)
-                return false;
-            // only two outputs
-            if (oIndex > 1)
-                return false;
-        } else { // deposit or fee input
-            // fee input must have a zero output index and deposit nonce
-            if (txIndex == feeIndex && (oIndex > 0 || depNonce > 0))
-                return false;
-            // deposit input must be zero'd output position
-            // `blkNum` is not checked as it will fail above
-            if (depNonce > 0 && (txIndex > 0 || oIndex > 0))
-                return false;
-        }
-
-        return true;
-    }
 
     // @param txPos             location of the transaction [blkNum, txIndex, outputIndex]
     // @param txBytes           transaction bytes containing the exiting output
@@ -275,7 +230,7 @@ contract PlasmaMVP {
     {
         require(txPos[1] < feeIndex);
         uint256 position = calcPosition(txPos);
-        require(txExits[position].state == ExitState.NonExistent);
+        require(txExits[position].state == ExitState.NonExistent, "state");
 
         uint256 amount = startTransactionExitHelper(txPos, txBytes, proof, confirmSignatures);
         require(amount > committedFee);
@@ -283,7 +238,7 @@ contract PlasmaMVP {
         // calculate the priority of the transaction taking into account the withdrawal delay attack
         // withdrawal delay attack: https://github.com/FourthState/plasma-mvp-rootchain/issues/42
         uint256 createdAt = plasmaChain[txPos[0]].createdAt;
-        txExitQueue.insert(SafeMath.max(createdAt.add(challengePeriod), block.timestamp) << 128 | position);
+        txExitQueue.insert(SafeMath.max(createdAt.add(1 weeks), block.timestamp) << 128 | position);
 
         // write exit to storage
         txExits[position] = exit({
@@ -389,9 +344,9 @@ contract PlasmaMVP {
 
         // a fee UTXO has explicitly defined position [blockNumber, 2**16 - 1, 0]
         uint256 position = calcPosition([blockNumber, feeIndex, 0]);
-        require(txExits[position].state == ExitState.NonExistent, "this exit has already been started, challenged, or finalized");
+        require(txExits[position].state == ExitState.NonExistent);
 
-        txExitQueue.insert(SafeMath.max(blk.createdAt.add(challengePeriod), block.timestamp) << 128 | position);
+        txExitQueue.insert(SafeMath.max(blk.createdAt.add(1 weeks), block.timestamp) << 128 | position);
 
         txExits[position] = exit({
             owner: msg.sender,
@@ -460,12 +415,6 @@ contract PlasmaMVP {
             recoveredAddress = confirmationHash.recover(confirmSignature);
             require(confirmSignature.length == 65 && recoveredAddress != address(0) && exit_.owner == recoveredAddress);
 
-            if (firstInput)
-                recoveredAddress = txHash.recover(sigList[0].toBytes());
-            else
-                recoveredAddress = txHash.recover(sigList[1].toBytes());
-            require(recoveredAddress != address(0) && exit_.owner == recoveredAddress);
-
             exit_.state = ExitState.Challenged;
         }
 
@@ -507,7 +456,7 @@ contract PlasmaMVP {
         *   3. Funds must exist for the exit to withdraw
         */
         uint256 amountToAdd;
-        uint256 challengePeriod = isDeposits ? 5 days : challengePeriod;
+        uint256 challengePeriod = isDeposits ? 5 days : 1 weeks;
         while (block.timestamp.sub(currentExit.createdAt) > challengePeriod &&
                plasmaChainBalance() > 0 &&
                gasleft() > 80000) {
@@ -556,9 +505,45 @@ contract PlasmaMVP {
         view
         returns (uint256)
     {
-        require(txPos[0] <= lastCommittedBlock && (txPos[1] < plasmaChain[txPos[0]].numTxns || txPos[1] == feeIndex) && txPos[2] < 2);
+        require(validatePostion([txPos[0], txPos[1], txPos[2], 0]));
 
         return txPos[0].mul(blockIndexFactor).add(txPos[1].mul(txIndexFactor)).add(txPos[2]);
+    }
+
+    function validatePostion(uint256[4] memory position)
+        private
+        view
+        returns (bool)
+    {
+        uint256 blkNum = position[0];
+        uint256 txIndex = position[1];
+        uint256 oIndex = position[2];
+        uint256 depNonce = position[3];
+
+        if (blkNum > 0) { // utxo input
+            // uncommitted block
+            if (blkNum > lastCommittedBlock)
+                return false;
+            // txIndex out of bounds for the block
+            if (txIndex >= plasmaChain[blkNum].numTxns && txIndex != feeIndex)
+                return false;
+            // fee input must have a zero output index
+            if (txIndex == feeIndex && oIndex > 0)
+                return false;
+            // deposit nonce must be zero
+            if (depNonce > 0)
+                return false;
+            // only two outputs
+            if (oIndex > 1)
+                return false;
+        } else { // deposit or fee input
+            // deposit input must be zero'd output position
+            // `blkNum` is not checked as it will fail above
+            if (depNonce > 0 && (txIndex > 0 || oIndex > 0))
+                return false;
+        }
+
+        return true;
     }
 
     function withdraw()

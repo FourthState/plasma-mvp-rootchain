@@ -6,7 +6,8 @@ let PlasmaMVP = artifacts.require('PlasmaMVP');
 let {
     fastForward,
     sha256String,
-    generateMerkleRootAndProof
+    generateMerkleRootAndProof,
+    fillTxList,
 } = require('./plasmamvp_helpers.js');
 
 let { toHex, catchError } = require('../utilities.js');
@@ -38,10 +39,12 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList[10] = authority; txList[11] = amount;
         txList[12] = authority; txList[13] = amount;
         txList[14] = feeAmount;
+        txList = fillTxList(txList);
         let txHash = web3.utils.soliditySha3(toHex(RLP.encode(txList).toString('hex')));
         let sigs = [toHex(await web3.eth.sign(txHash, authority)), toHex(Buffer.alloc(65).toString('hex'))];
         txBytes = [txList, sigs];
         txBytes = RLP.encode(txBytes).toString('hex');
+
         let merkleHash = sha256String(txBytes);
 
         // submit the block
@@ -83,8 +86,9 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         let txList = Array(15).fill(0);
         txList[0] = txPos[0]; txList[1] = txPos[1]; txList[2] = txPos[2];
         txList[10] = authority; txList[11] = amount;
+        txList = fillTxList(txList);
         txHash = web3.utils.soliditySha3(toHex(RLP.encode(txList).toString('hex')));
-        let sigs = [await web3.eth.sign(txHash, authority), 0];
+        let sigs = [await web3.eth.sign(txHash, authority), toHex(Buffer.alloc(65).toString('hex'))];
         let challengingTxBytes = [txList, sigs];
         challengingTxBytes = RLP.encode(challengingTxBytes).toString('hex');
         let merkleHash = sha256String(challengingTxBytes);
@@ -208,6 +212,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList2[10] = authority; txList2[11] = amount - 5;
         txList2[12] = authority; txList2[13] = amount;
         txList2[14] = 5; // fee
+        txList2 = fillTxList(txList2);
         let txHash2 = web3.utils.soliditySha3(toHex(RLP.encode(txList2).toString('hex')));
         let sigs2 = [toHex(await web3.eth.sign(txHash2, authority)), toHex(await web3.eth.sign(txHash2, authority))];
         let txBytes2 = [txList2, sigs2];
@@ -263,6 +268,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList2[10] = authority; txList2[11] = amount - 5;
         txList2[12] = authority; txList2[13] = amount;
         txList2[14] = 5; // fee
+        txList2 = fillTxList(txList2);
         let txHash2 = web3.utils.soliditySha3(toHex(RLP.encode(txList2).toString('hex')));
         // incorrect sig
         let sigs2 = [toHex(await web3.eth.sign(txHash2, accounts[1])), toHex(await web3.eth.sign(txHash2, authority))];
@@ -291,8 +297,9 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         let txList = Array(15).fill(0);
         txList[0] = txPos[0]; txList[1] = Math.pow(2, 16) - 1;
         txList[10] = authority; txList[11] = feeAmount;
+        txList = fillTxList(txList);
         let txHash = sha256String(toHex(RLP.encode(txList).toString('hex')));
-        let sigs = [await web3.eth.sign(txHash, authority), 0];
+        let sigs = [await web3.eth.sign(txHash, authority), toHex(Buffer.alloc(65).toString('hex'))];
         let txBytes = [txList, sigs];
         txBytes = RLP.encode(txBytes).toString('hex');
 
@@ -364,6 +371,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         txList2[0] = txPos[0]; txList2[2] = 1; // first input
         txList2[10] = authority; txList2[11] = amount / 2; // first output
         txList2[12] = accounts[1]; txList2[13] = amount / 2; // second output
+        txList2 = fillTxList(txList2);
         let txHash2 = web3.utils.soliditySha3(toHex(RLP.encode(txList2).toString('hex')));
         let sigs2 = [toHex(await web3.eth.sign(txHash2, authority)), toHex(Buffer.alloc(65).toString('hex'))];
         let txBytes2 = RLP.encode([txList2, sigs2]).toString('hex');
@@ -469,6 +477,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         let txList = Array(15).fill(0);
         txList[0] = txPos[0]; txList[5] = txPos[0]; txList[8] = 1;
         txList[10] = authority; txList[11] = amount*2;
+        txList = fillTxList(txList);
         let txHash = web3.utils.soliditySha3(toHex(RLP.encode(txList).toString('hex')));
         let sig = toHex(await web3.eth.sign(txHash, authority));
         let sigs = [sig, sig];
