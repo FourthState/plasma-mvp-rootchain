@@ -234,7 +234,7 @@ contract PlasmaMVP {
     {
         require(txPos[1] < feeIndex);
         uint256 position = calcPosition(txPos);
-        require(txExits[position].state == ExitState.NonExistent, "state");
+        require(txExits[position].state == ExitState.NonExistent);
 
         uint256 amount = startTransactionExitHelper(txPos, txBytes, proof, confirmSignatures);
         require(amount > committedFee);

@@ -394,7 +394,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
             toHex(txBytes2), toHex(proof2), toHex(confirmSigs2), 0, {from: accounts[1], value: minExitBond});
 
         // increase time slightly, so exit by accounts[1] has better priority than authority
-        fastForward(10);
+        await fastForward(10);
 
         // start exit for authority utxo
         await instance.startTransactionExit([blockNum2, 0, 0],
