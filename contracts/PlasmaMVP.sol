@@ -513,7 +513,7 @@ contract PlasmaMVP {
         require(validatePostion([txPos[0], txPos[1], txPos[2], 0]));
 
         uint256 position = txPos[0].mul(blockIndexFactor).add(txPos[1].mul(txIndexFactor)).add(txPos[2]);
-        require(position < 2**128-1); // check for an overflow
+        require(position <= 2**128-1); // check for an overflow
 
         return position;
     }
