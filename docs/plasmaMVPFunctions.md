@@ -1,6 +1,6 @@
 # PlasmaMVP Documentation
 
-The transaction bytes, `txBytes`, in the contract follow the convention:  
+The transaction bytes, `txBytes`, in the contract follows the convention:  
 
 All fields in the transaction bytes must be padded to the EVM data type byte length.
 i.e addresses must be 20 bytes, and integers must be padded to 32 bytes. Both input confirm singatures must be 130 bytes in length.
