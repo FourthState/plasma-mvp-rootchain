@@ -6,7 +6,7 @@ All fields in the transaction bytes must be padded to the EVM data type byte len
 i.e addresses must be 20 bytes, and integers must be padded to 32 bytes. Both input confirm singatures must be 130 bytes in length.
 One signature(65 bytes) for each possible "grandfather" input concatted together. If not applicable, 130 zero bytes.
 
-The final RLP encoding of the txBytes will be **811** bytes in length.
+The final RLP encoded txBytes will be **811** bytes in length.
 ```
 RLP_ENCODE ([
   [Blknum1, TxIndex1, Oindex1, DepositNonce1, Owner1, Input1ConfirmSig,
