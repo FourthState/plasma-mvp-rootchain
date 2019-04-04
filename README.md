@@ -36,7 +36,7 @@ See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob
 2. ``cd plasma-mvp-rootchain``
 3. ``npm install``
 4. ``npm install -g truffle ganache-cli``  // if not installed already
-5. ``ganache-cli`` // run as a background process
+5. ``ganache-cli`` // run as a background process in a separate terminal
 6. ``npm test``
 
 ### Running
