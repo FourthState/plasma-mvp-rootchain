@@ -29,7 +29,7 @@ The signatures are over the hash of the transaction list (first list) signed by 
 
 ### Documentation
 
-See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/docs/rootchainFunctions.md) for a more detailed description of the smart contract functions.
+See our [documentation](https://github.com/FourthState/plasma-mvp-rootchain/blob/master/docs/plasmaMVPFunctions.md) for a more detailed description of the smart contract functions.
 
 ### Testing
 1. ``git clone https://github.com/fourthstate/plasma-mvp-rootchain``
