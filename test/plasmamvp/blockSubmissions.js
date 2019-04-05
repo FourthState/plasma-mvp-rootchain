@@ -84,5 +84,12 @@ contract('[PlasmaMVP] Block Submissions', async (accounts) => {
         
         assert.equal((await instance.plasmaChain.call(1))[4].toNumber(), ethBlockNum, "incorrect ethereum block logged");
         assert.equal((await instance.plasmaChain.call(2))[4].toNumber(), ethBlockNum, "incorrect ethereum block logged");
+
+        let header3 = web3.utils.keccak256("header3").slice(2)
+
+        await instance.submitBlock([toHex(header3)], [1], [0], 3, {from: authority});
+        ethBlockNum = (await web3.eth.getBlock("latest")).number
+        
+        assert.equal((await instance.plasmaChain.call(3))[4].toNumber(), ethBlockNum, "incorrect ethereum block logged");
     });
 });
