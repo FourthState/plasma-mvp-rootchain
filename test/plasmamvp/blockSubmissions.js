@@ -14,6 +14,7 @@ contract('[PlasmaMVP] Block Submissions', async (accounts) => {
 
     it("Submit block from authority", async () => {
         let header = web3.utils.keccak256('1234');
+
         let tx = await instance.submitBlock([header], [1], [0], 1, {from: authority});
 
         // BlockSubmitted event
@@ -67,5 +68,21 @@ contract('[PlasmaMVP] Block Submissions', async (accounts) => {
         [err] = await catchError(instance.submitBlock([header], [0], [0], 1, {from: authority}))
         if (!err)
             assert.fail("block size capacity not enforced");
+    });
+
+    it("Logs correct ethereum block number", async () => {
+        let header1 = web3.utils.keccak256("header1").slice(2)
+        let header2 = web3.utils.keccak256("header2").slice(2)
+        
+        await instance.submitBlock([toHex(header1), toHex(header2)], [1,2], [0,0], 1, {from: authority});
+
+        let ethBlockNum = (await web3.eth.getBlock("latest")).number
+
+        assert.equal((await instance.lastCommittedBlock.call()).toNumber(), 2, "lastCommittedBlock not incremented correctly")
+        assert.equal((await instance.plasmaChain.call(1))[0], toHex(header1), "mismatch in block header");
+        assert.equal((await instance.plasmaChain.call(2))[0], toHex(header2), "mismatch in block header");
+        
+        assert.equal((await instance.plasmaChain.call(1))[4].toNumber(), ethBlockNum, "incorrect ethereum block logged");
+        assert.equal((await instance.plasmaChain.call(2))[4].toNumber(), ethBlockNum, "incorrect ethereum block logged");
     });
 });
