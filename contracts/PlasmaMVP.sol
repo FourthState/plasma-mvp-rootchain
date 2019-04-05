@@ -399,6 +399,9 @@ contract PlasmaMVP {
         require(blk.header != bytes32(0) && merkleHash.checkMembership(challengingTxPos[1], blk.header, proof, blk.numTxns));
 
         address recoveredAddress;
+        uint256 amount = exit_.amount;
+        uint256 committedFee = exit_.committedFee;
+        uint256[4] memory position = exit_.position;
         // we check for confirm signatures if:
         // The exiting tx is a first input and commits the correct fee
         // OR
@@ -409,12 +412,18 @@ contract PlasmaMVP {
         //
         // For a fee mismatch, the state becomes `NonExistent` so that the exit can be reopened.
         // Otherwise, `Challenged` so that the exit can never be opened.
-        if (firstInput && exit_.committedFee != txList[14].toUintStrict()) {
+        if (firstInput && exit_.committedFee != txList[14].toUintStrict() && confirmSignature.length == 0) {
             bytes memory sig = sigList[0].toBytes();
             recoveredAddress = txHash.recover(sig);
             require(sig.length == 65 && recoveredAddress != address(0) && exit_.owner == recoveredAddress);
 
-            exit_.state = ExitState.NonExistent;
+            delete exit_.amount;
+            delete exit_.committedFee;
+            delete exit_.createdAt;
+            delete exit_.owner;
+            delete exit_.position;
+            delete exit_.state;
+
         } else {
             bytes32 confirmationHash = sha256(abi.encodePacked(merkleHash, blk.header));
             recoveredAddress = confirmationHash.recover(confirmSignature);
@@ -428,7 +437,7 @@ contract PlasmaMVP {
         totalWithdrawBalance = totalWithdrawBalance.add(minExitBond);
         emit AddedToBalances(msg.sender, minExitBond);
 
-        emit ChallengedExit(exit_.position, exit_.owner, exit_.amount - exit_.committedFee);
+        emit ChallengedExit(position, recoveredAddress, amount - committedFee);
     }
 
     function finalizeDepositExits() public { finalize(depositExitQueue, true); }

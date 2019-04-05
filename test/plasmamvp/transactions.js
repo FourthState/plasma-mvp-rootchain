@@ -243,7 +243,12 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         await instance.challengeExit([...txPos, 0], [blockNum2, 0], toHex(txBytes2), toHex(proof2), toHex(""));
 
         let exit = await instance.txExits.call(1000000*txPos[0] + 10*txPos[1]);
-        assert.equal(exit[4].toNumber(), 0, "exit with incorrect fee not changed to non existent after challenge");
+        assert.equal(exit.state.toNumber(), 0, "exit with incorrect fee not changed to non existent after challenge");
+        assert.equal(exit.amount.toNumber(), 0, "exit amount not reset to default value after successful committed fee challenge");
+        assert.equal(exit.committedFee.toNumber(), 0, "exit committed fee not reset to default value after successful committed fee challenge");
+        assert.equal(exit.createdAt.toNumber(), 0, "exit created at time not reset to default value after successful committed fee challenge");
+        assert.equal(exit.owner, toHex(Buffer.alloc(20).toString('hex')), "exit owner not reset to default value after successful committed fee challenge");
+        //assert.equal(exit.position, [0,0,0,0], "exit position not reset to default value after successful committed fee challenge");
 
         // should not be able to challenge an exit which does not exist
         [err] = await catchError(instance.challengeExit([...txPos, 0], [blockNum2, 0], toHex(txBytes2), toHex(proof2), toHex("")));
@@ -508,4 +513,59 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         await instance.startTransactionExit([blockNum, 0, 0], toHex(txBytes), toHex(proof),
             toHex(confirmSig + confirmSig), 0, {from: authority, value: minExitBond});
     });
+
+     it("Challenging with a direct spend overrides challenging incorrect committed fee", async () => {
+        // If an exit commits to the wrong fee and there exists a direct spend of it,
+        // then challenging with a direct spend be the default usage
+        // rather than invalidating the exit with the incorrect fee
+
+        // spend both inputs with a fee. fee should only come from the first input
+        txList2 = Array(15).fill(0);
+        txList2[0] = txPos[0]; txList2[1] = txPos[1]; txList2[2] = txPos[2];
+        txList2[5] = txPos[0]; txList2[6] = txPos[1]; txList2[7] = 1;
+        txList2[10] = authority; txList2[11] = amount - 5;
+        txList2[12] = authority; txList2[13] = amount;
+        txList2[14] = 5; // fee
+        txList2 = fillTxList(txList2);
+        let txHash2 = web3.utils.soliditySha3(toHex(RLP.encode(txList2).toString('hex')));
+        let sigs2 = [toHex(await web3.eth.sign(txHash2, authority)), toHex(await web3.eth.sign(txHash2, authority))];
+        let txBytes2 = [txList2, sigs2];
+        txBytes2 = RLP.encode(txBytes2).toString('hex');
+        
+        // submit the block and claim the fee
+        let merkleHash2 = sha256String(txBytes2);
+        let [merkleRoot2, proof2] = generateMerkleRootAndProof([merkleHash2], 0);
+        let blockNum2 = (await instance.lastCommittedBlock.call()).toNumber() + 1;
+        await instance.submitBlock([toHex(merkleRoot2)], [1], [5], blockNum2, {from: authority});
+
+        // first input exits without committing to the fee
+        await instance.startTransactionExit(txPos, toHex(txBytes), toHex(proof),
+            toHex(confirmSignatures), 1, {from: authority, value: minExitBond});
+        
+        // second input will exit (not forced to commit the fee)
+        let secondOutput = [txPos[0], txPos[1], 1];
+        await instance.startTransactionExit(secondOutput, toHex(txBytes), toHex(proof),
+            toHex(confirmSignatures), 0, {from: authority, value: minExitBond});
+
+        // operator will try incorrectly challenge with second output
+        let err;
+        [err] = await catchError(instance.challengeExit([...secondOutput, 0], [blockNum2, 0], toHex(txBytes2), toHex(proof2), toHex("")));
+        if (!err)
+            assert.fail("operator challenged with the second input");
+
+        let confirmHash = sha256String(merkleHash2 + merkleRoot2.slice(2));
+        let confirmSig = (await web3.eth.sign(confirmHash, authority)).slice(2);
+
+        // operator will challenge the exit with the first input with confirmation signatures
+        await instance.challengeExit([...txPos, 0], [blockNum2, 0], toHex(txBytes2), toHex(proof2), toHex(confirmSig));
+
+        let exit = await instance.txExits.call(1000000*txPos[0] + 10*txPos[1]);
+        assert.equal(exit[4].toNumber(), 2, "exit with direct spend did not have state changed to challenged after challenge");
+
+        // should not be able to challenge an exit which has been challenged
+        [err] = await catchError(instance.challengeExit([...txPos, 0], [blockNum2, 0], toHex(txBytes2), toHex(proof2), toHex("")));
+        if (!err)
+            assert.fail("operator challenged an exit which does not exist");
+
+    }); 
 });
