@@ -2,6 +2,7 @@
 ### Changed
 - [\#121](https://github.com/FourthState/plasma-mvp-rootchain/pull/121) Incorrect committed fee challenges are now zeroed out
 - [\#121](https://github.com/FourthState/plasma-mvp-rootchain/pull/121) Challenges default to challenging with direct spend when possible
+- [\#120](https://github.com/FourthState/plasma-mvp-rootchain/pull/120) Updated plasma blocks to include ethereum block number
 
 # v1.0.0
 

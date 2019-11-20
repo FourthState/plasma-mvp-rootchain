@@ -22,7 +22,7 @@ RLP_ENCODE ([
 function submitBlock(bytes32[] blocks, uint256[] txnsPerBlock, uint256[] feesPerBlock, uint256 blockNum)
 ```
 The validator submits an array of block headers in ascending order. Each block can be of variable block size(capped at 2^16 txns per block). The total number of transactions per block must be passed in through `txnsPerBlock`. The amount of transaction fees collected by the validator per block must be passed in through `feesPerBlock`.
-`blockNum` must be the intended block number of the first header in this call. Ordering is enforced on each call. `blockNum == lastCommittedBlock + 1`.
+`blockNum` must be the intended block number of the first header in this call. Ordering is enforced on each call. `blockNum == lastCommittedBlock + 1`. Every plasma block contains the timestamp and ethereum block number it was included in. 
 
 <br >
 
