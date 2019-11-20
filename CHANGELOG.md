@@ -1,3 +1,7 @@
+## [Unreleased]
+### Changed
+- [\#120](https://github.com/FourthState/plasma-mvp-rootchain/pull/120) Updated plasma blocks to include ethereum block number
+
 # v1.0.0
 
 First release of the Plasma MVP specification using ETH as the native currency. The contract allows for users to deposit funds which are assigned to a unique nonce.
