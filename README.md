@@ -6,6 +6,13 @@
 
 Implementation of [Minimum Viable Plasma](https://ethresear.ch/t/minimal-viable-plasma/426)
 
+**Note:** The develop branch contains the current development for v2 of the rootchain contract.
+
+## Project Status
+There is very little development occuring for this project.
+We will continue to maintain this repository by thoroughly reviewing any open source contributions.
+We will provide support and guidance for anyone looking to continue development.
+
 ## Overview
 Plasma is a layer 2 scaling solution which conducts transaction processing off chain and allows for only merkle roots of each block to be reported to a root chain. This allows for users to benefit from off chain scaling while still relying on decentralized security.
 
