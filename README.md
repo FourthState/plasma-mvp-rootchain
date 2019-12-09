@@ -6,6 +6,8 @@
 
 Implementation of [Minimum Viable Plasma](https://ethresear.ch/t/minimal-viable-plasma/426)
 
+**Note:** The develop branch contains the current development for v2 of the rootchain contract.
+
 ## Project Status
 There is very little development occuring for this project.
 We will continue to maintain this repository by thoroughly reviewing any open source contributions.
