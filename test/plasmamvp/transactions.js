@@ -457,7 +457,7 @@ contract('[PlasmaMVP] Transactions', async (accounts) => {
         await fastForward(oneWeek + 1000);
 
         // Only provide enough gas for 1 txn to be finalized
-        await instance.finalizeTransactionExits({gas: 120000});
+        await instance.finalizeTransactionExits({gas: 150000});
 
         // The first utxo should have been exited correctly
         let balance = (await instance.balanceOf.call(authority)).toNumber();
