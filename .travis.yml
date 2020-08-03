@@ -7,7 +7,7 @@ before_script:
   - npm install
 
 script:
-  - ganache-cli -m "they only media any modify banner suffer pole tag rule creek harvest" > /dev/null &
+  - ganache-cli --port 7545 --networkId 5777 -m "they only media any modify banner suffer pole tag rule creek harvest" > /dev/null &
   - sleep 5
   - truffle migrate
   - truffle test
