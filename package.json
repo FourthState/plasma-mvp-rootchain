@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "chai": "^4.2.0",
-    "elliptic": ">=6.5.3",
+    "elliptic": ">=6.5.4",
     "ethereumjs-util": "^6.1.0",
     "rlp": "^2.2.2"
   },
